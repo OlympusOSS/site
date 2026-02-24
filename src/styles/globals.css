@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "@olympus/canvas/styles/tokens.css";
+@import "@olympus/canvas/styles/animations.css";
+@import "@olympus/canvas/styles/glass.css";
+
+@layer base {
+	* {
+		border-color: hsl(var(--border));
+	}
+
+	body {
+		background: hsl(var(--background));
+		color: hsl(var(--foreground));
+		font-family: "Inter", system-ui, -apple-system, sans-serif;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+}
