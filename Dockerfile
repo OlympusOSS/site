@@ -1,27 +1,21 @@
 FROM oven/bun:1-alpine AS deps
 WORKDIR /app
 
-# Copy Canvas package (file:../Canvas dependency)
-COPY Canvas/package.json ../Canvas/package.json
-COPY Canvas/src ../Canvas/src
+ARG NODE_AUTH_TOKEN
+COPY .npmrc ./
+COPY package.json bun.lock ./
 
-# Copy app package files
-COPY demo/package.json ./
-
-RUN bun install --production
+RUN bun install --production --frozen-lockfile
 
 FROM oven/bun:1-alpine AS builder
 WORKDIR /app
 
-# Copy Canvas package and install its deps (webpack resolves from source dir)
-COPY Canvas/ ../Canvas/
-RUN cd ../Canvas && bun install --production
+ARG NODE_AUTH_TOKEN
+COPY .npmrc ./
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
-# Copy app source
-COPY demo/package.json ./
-RUN bun install
-
-COPY demo/ .
+COPY . .
 
 RUN bun run build
 
