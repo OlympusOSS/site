@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  transpilePackages: ["@olympus/canvas"],
+  transpilePackages: ["@olympusoss/canvas"],
 };
 
 module.exports = nextConfig;

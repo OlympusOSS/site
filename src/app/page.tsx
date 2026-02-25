@@ -3,10 +3,10 @@ import {
 	AuthCard,
 	LoginButton,
 	DemoStatusBadge as StatusBadge,
-} from "@olympus/canvas";
-import { SessionDisplay } from "@olympus/canvas";
-import { AnimatedBackground } from "@olympus/canvas";
-import { PageShell } from "@olympus/canvas";
+} from "@olympusoss/canvas";
+import { SessionDisplay } from "@olympusoss/canvas";
+import { AnimatedBackground } from "@olympusoss/canvas";
+import { PageShell } from "@olympusoss/canvas";
 
 interface TokenData {
 	access_token: string;

@@ -49,6 +49,11 @@ jobs:
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
 
+      - name: Create .npmrc for Docker build
+        run: |
+          echo "@olympusoss:registry=https://npm.pkg.github.com" > /tmp/.docker-npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> /tmp/.docker-npmrc
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -58,7 +63,7 @@ jobs:
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
+          secret-files: |
+            npmrc=/tmp/.docker-npmrc
           cache-from: type=gha,scope=demo
           cache-to: type=gha,mode=max,scope=demo
