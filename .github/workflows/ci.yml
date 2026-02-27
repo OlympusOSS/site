@@ -1,4 +1,4 @@
-name: CI — Demo
+name: CI — Site
 
 on:
   push:
@@ -16,7 +16,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/olympusoss/demo
+  IMAGE_NAME: ghcr.io/olympusoss/site
 
 jobs:
   build:
@@ -52,6 +52,10 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
 
+      - name: Resolve canvas dependency for Docker
+        run: |
+          sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^0.2.0"|' package.json
+
       - name: Create .npmrc for Docker build
         run: |
           echo "@olympusoss:registry=https://npm.pkg.github.com" > /tmp/.docker-npmrc
@@ -68,8 +72,8 @@ jobs:
             npmrc=/tmp/.docker-npmrc
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          cache-from: type=gha,scope=demo-${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=demo-${{ matrix.platform }}
+          cache-from: type=gha,scope=site-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=site-${{ matrix.platform }}
 
       - name: Export digest
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -131,3 +135,15 @@ jobs:
 
       - name: Inspect image
         run: docker buildx imagetools inspect ${{ env.IMAGE_NAME }}:latest
+
+  notify-platform:
+    needs: merge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger platform deploy
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ secrets.ORG_DISPATCH_TOKEN }}
+          repository: OlympusOSS/platform
+          event-type: image-pushed
+          client-payload: '{"service": "site", "sha": "${{ github.sha }}"}'
