@@ -7,7 +7,7 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
-      - "demo"
+      - "site"
     open-pull-requests-limit: 10
 
   - package-ecosystem: "github-actions"

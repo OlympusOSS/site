@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="fg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <!-- Simplified temple: triangle + 3 pillars + base -->
+  <path d="M16 4L26 14H6L16 4Z" fill="url(#fg)"/>
+  <rect x="6" y="13.5" width="20" height="2" rx="0.5" fill="url(#fg)"/>
+  <rect x="9" y="15.5" width="3" height="10" rx="0.5" fill="url(#fg)"/>
+  <rect x="14.5" y="15.5" width="3" height="10" rx="0.5" fill="url(#fg)"/>
+  <rect x="20" y="15.5" width="3" height="10" rx="0.5" fill="url(#fg)"/>
+  <rect x="5" y="25.5" width="22" height="2.5" rx="1" fill="url(#fg)"/>
+</svg>

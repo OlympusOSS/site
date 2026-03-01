@@ -9,8 +9,8 @@ export async function GET(request: NextRequest) {
   }
 
   const hydraUrl = process.env.IAM_HYDRA_PUBLIC_URL || "http://localhost:4102";
-  const clientId = process.env.IAM_CLIENT_ID || "demo-iam-client";
-  const clientSecret = process.env.IAM_CLIENT_SECRET || "demo-iam-secret";
+  const clientId = process.env.IAM_CLIENT_ID || "site-iam-client";
+  const clientSecret = process.env.IAM_CLIENT_SECRET || "site-iam-secret";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:2000";
   const redirectUri = `${appUrl}/callback/iam`;
 
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     };
 
     const response = NextResponse.redirect(new URL("/", appUrl));
-    response.cookies.set("demo_iam_session", JSON.stringify(sessionData), {
+    response.cookies.set("site_iam_session", JSON.stringify(sessionData), {
       httpOnly: false,
       path: "/",
       maxAge: tokens.expires_in || 3600,

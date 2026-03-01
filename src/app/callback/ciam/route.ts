@@ -9,8 +9,8 @@ export async function GET(request: NextRequest) {
   }
 
   const hydraUrl = process.env.CIAM_HYDRA_PUBLIC_URL || "http://localhost:3102";
-  const clientId = process.env.CIAM_CLIENT_ID || "demo-ciam-client";
-  const clientSecret = process.env.CIAM_CLIENT_SECRET || "demo-ciam-secret";
+  const clientId = process.env.CIAM_CLIENT_ID || "site-ciam-client";
+  const clientSecret = process.env.CIAM_CLIENT_SECRET || "site-ciam-secret";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:2000";
   const redirectUri = `${appUrl}/callback/ciam`;
 
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     };
 
     const response = NextResponse.redirect(new URL("/", appUrl));
-    response.cookies.set("demo_ciam_session", JSON.stringify(sessionData), {
+    response.cookies.set("site_ciam_session", JSON.stringify(sessionData), {
       httpOnly: false,
       path: "/",
       maxAge: tokens.expires_in || 3600,

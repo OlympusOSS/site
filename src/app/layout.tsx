@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-	title: "Demo App — OAuth2 Test Client",
+	title: "Olympus — Open-Source Identity Platform",
 	description:
-		"Test application for CIAM and IAM OAuth2 authentication flows",
+		"Self-hosted authentication and authorization for modern apps. Built on Ory Kratos and Hydra. No vendor lock-in.",
+	icons: {
+		icon: "/favicon.svg",
+	},
 };
 
 export default function RootLayout({
@@ -13,7 +16,7 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<html lang="en" className="dark">
+		<html lang="en" className="dark scroll-smooth">
 			<body className="min-h-screen antialiased">
 				{children}
 			</body>

@@ -1,6 +1,6 @@
-# Demo
+# Site
 
-OAuth2 test application for the [OlympusOSS Identity Platform](https://github.com/OlympusOSS/platform).
+Brochure site and OAuth2 playground for the [OlympusOSS Identity Platform](https://github.com/OlympusOSS/platform).
 
 Built with Next.js, TypeScript, and the [Canvas](https://github.com/OlympusOSS/canvas) design system.
 
@@ -14,12 +14,11 @@ Built with Next.js, TypeScript, and the [Canvas](https://github.com/OlympusOSS/c
 
 ## What It Does
 
-A working OAuth2 client that demonstrates the full Authorization Code flow against Ory Hydra. Lets you log in as either a customer or employee identity and inspect the resulting tokens.
+The main site for OlympusOSS — showcases the platform with a brochure landing page and includes a working OAuth2 playground that demonstrates the full Authorization Code flow against Ory Hydra.
 
-- **Login via CIAM** — Authenticate as a customer through the CIAM Hydra → Hera flow
-- **Login via IAM** — Authenticate as an employee through the IAM Hydra → Hera flow
+- **Brochure** — Hero, features, architecture diagram, and getting started guide
+- **OAuth2 Playground** — Log in as a customer (CIAM) or employee (IAM) and inspect tokens
 - **Token inspection** — View decoded ID token claims, access token, scopes
-- **Admin links** — Quick access to CIAM and IAM admin panels
 
 ---
 
@@ -36,36 +35,49 @@ A working OAuth2 client that demonstrates the full Authorization Code flow again
 |----------|-------------|---------|
 | `NEXT_PUBLIC_CIAM_HYDRA_URL` | CIAM Hydra public URL | `http://localhost:3102` |
 | `NEXT_PUBLIC_IAM_HYDRA_URL` | IAM Hydra public URL | `http://localhost:4102` |
-| `CIAM_CLIENT_ID` | CIAM OAuth2 client ID | `demo-ciam-client` |
-| `CIAM_CLIENT_SECRET` | CIAM OAuth2 client secret | `demo-ciam-secret` |
-| `IAM_CLIENT_ID` | IAM OAuth2 client ID | `demo-iam-client` |
-| `IAM_CLIENT_SECRET` | IAM OAuth2 client secret | `demo-iam-secret` |
-| `NEXT_PUBLIC_APP_URL` | Demo app base URL (used for redirect URIs) | `http://localhost:2000` |
+| `CIAM_CLIENT_ID` | CIAM OAuth2 client ID | `site-ciam-client` |
+| `CIAM_CLIENT_SECRET` | CIAM OAuth2 client secret | `site-ciam-secret` |
+| `IAM_CLIENT_ID` | IAM OAuth2 client ID | `site-iam-client` |
+| `IAM_CLIENT_SECRET` | IAM OAuth2 client secret | `site-iam-secret` |
+| `NEXT_PUBLIC_APP_URL` | Site base URL (used for redirect URIs) | `http://localhost:2000` |
 
 ---
 
 ## Getting Started
 
-### Run locally
+Site is part of the [OlympusOSS Identity Platform](https://github.com/OlympusOSS/platform). All repos must be cloned as siblings under a shared workspace:
+
+```
+Olympus/
+├── platform/    # Infrastructure & Docker Compose — start here
+├── athena/      # Admin dashboard
+├── hera/        # Auth & consent UI
+├── site/        # Brochure site & OAuth2 playground (this repo)
+├── canvas/      # Design system
+└── octl/        # Deployment CLI
+```
+
+### Start the development environment
+
+```bash
+cd platform/dev
+docker compose up -d
+```
+
+Wait for the seed to complete, then open:
+
+- **Site** — [http://localhost:2000](http://localhost:2000)
+
+Site is volume-mounted into Docker for **live reload** — edit files locally and changes reflect immediately.
+
+### Standalone (without platform)
 
 ```bash
 bun install
 bun run dev
 ```
 
-Open [http://localhost:2000](http://localhost:2000).
-
-### Run with Docker
-
-```bash
-docker build -t demo .
-docker run -p 2000:3000 \
-  -e NEXT_PUBLIC_CIAM_HYDRA_URL=http://your-ciam-hydra:4444 \
-  -e CIAM_CLIENT_ID=your-client-id \
-  -e CIAM_CLIENT_SECRET=your-client-secret \
-  -e NEXT_PUBLIC_APP_URL=http://localhost:2000 \
-  demo
-```
+Open [http://localhost:2000](http://localhost:2000). Requires Hydra and Hera running separately with registered OAuth2 clients.
 
 ---
 
@@ -73,7 +85,7 @@ docker run -p 2000:3000 \
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Home page — login buttons + session display |
+| `/` | Landing page — brochure + OAuth2 playground |
 | `/callback/ciam` | CIAM OAuth2 callback — exchanges code for tokens |
 | `/callback/iam` | IAM OAuth2 callback — exchanges code for tokens |
 | `/logout/ciam` | CIAM logout — clears session cookie |
@@ -100,7 +112,7 @@ docker run -p 2000:3000 \
 ```
 src/
 ├── app/
-│   ├── page.tsx            # Home page (auth cards + session display)
+│   ├── page.tsx            # Landing page (brochure sections + playground)
 │   ├── callback/
 │   │   ├── ciam/route.ts   # CIAM token exchange
 │   │   └── iam/route.ts    # IAM token exchange
@@ -109,10 +121,13 @@ src/
 │   │   └── iam/route.ts    # IAM session clear
 │   └── health/route.ts     # Health check
 ├── components/
-│   ├── auth-card.tsx        # Login card component
-│   ├── session-display.tsx  # Token claims viewer
-│   ├── page-shell.tsx       # Header with branding
-│   └── animated-background.tsx
+│   ├── nav-bar.tsx          # Sticky navigation
+│   ├── hero-section.tsx     # Hero with logo + CTAs
+│   ├── features-section.tsx # Feature card grid
+│   ├── architecture-section.tsx # Visual architecture diagram
+│   ├── getting-started-section.tsx # Quick start guide
+│   ├── playground-section.tsx # OAuth2 playground
+│   └── footer.tsx           # Site footer
 └── styles/
     └── globals.css          # Canvas tokens + Tailwind
 ```
