@@ -139,7 +139,6 @@ jobs:
   deploy:
     needs: merge
     runs-on: ubuntu-latest
-    environment: production
     concurrency:
       group: deploy-site-production
       cancel-in-progress: false
