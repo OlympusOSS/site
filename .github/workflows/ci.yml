@@ -54,7 +54,7 @@ jobs:
 
       - name: Resolve canvas dependency for Docker
         run: |
-          sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^0.2.0"|' package.json
+          sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^0.3.0"|' package.json
 
       - name: Create .npmrc for Docker build
         run: |

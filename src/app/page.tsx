@@ -67,16 +67,14 @@ export default async function HomePage() {
 		<>
 			<NavBar logoSrc="/logo.svg" />
 
-			<HeroSection logoSrc="/logo.svg" />
-			<FeaturesSection />
-			<ArchitectureSection />
+			<HeroSection />
 
 			<PlaygroundSection>
 				<PlaygroundGrid>
 					<AuthCard
 						icon="C"
-						iconBg="#6366f1"
-						title="Customer Identity (CIAM)"
+						iconBg="#a855f7"
+						title="Customer Login (CIAM)"
 						description="Authenticate as a customer through CIAM Hydra (port 3102) → CIAM Hera (port 3001)"
 						index={0}
 					>
@@ -94,7 +92,7 @@ export default async function HomePage() {
 								<SessionDisplay data={ciamData} />
 							</AuthStatusRow>
 						) : (
-							<LoginButton href={ciamAuthUrl} bg="#6366f1">
+							<LoginButton href={ciamAuthUrl} bg="#a855f7">
 								Login to CIAM
 							</LoginButton>
 						)}
@@ -102,8 +100,8 @@ export default async function HomePage() {
 
 					<AuthCard
 						icon="E"
-						iconBg="#f59e0b"
-						title="Employee Identity (IAM)"
+						iconBg="#fb923c"
+						title="Employee Login (IAM)"
 						description="Authenticate as an employee through IAM Hydra (port 4102) → IAM Hera (port 4001)"
 						index={1}
 					>
@@ -123,8 +121,7 @@ export default async function HomePage() {
 						) : (
 							<LoginButton
 								href={iamAuthUrl}
-								bg="#f59e0b"
-								textColor="#0f172a"
+								bg="#fb923c"
 							>
 								Login to IAM
 							</LoginButton>
@@ -135,14 +132,14 @@ export default async function HomePage() {
 				<PlaygroundAdminSection>
 					<AuthCard
 						icon="A"
-						iconBg="#dc2626"
-						title="CIAM Admin"
+						iconBg="#8b5cf6"
+						title="Admin - Customer Identity"
 						description="Admin panel for managing customer identities, schemas, and OAuth2 clients on the CIAM domain."
 						index={2}
 					>
 						<LoginButton
 							href="http://localhost:3003"
-							bg="#dc2626"
+							bg="#8b5cf6"
 						>
 							Open CIAM Admin
 						</LoginButton>
@@ -150,14 +147,14 @@ export default async function HomePage() {
 
 					<AuthCard
 						icon="A"
-						iconBg="#059669"
-						title="IAM Admin"
+						iconBg="#f97316"
+						title="Admin - Employee Identity"
 						description="Admin panel for managing employee identities, schemas, and OAuth2 clients on the IAM domain."
 						index={3}
 					>
 						<LoginButton
 							href="http://localhost:4003"
-							bg="#059669"
+							bg="#f97316"
 						>
 							Open IAM Admin
 						</LoginButton>
@@ -165,6 +162,8 @@ export default async function HomePage() {
 				</PlaygroundAdminSection>
 			</PlaygroundSection>
 
+			<FeaturesSection />
+			<ArchitectureSection />
 			<GettingStartedSection />
 			<SiteFooter logoSrc="/logo.svg" />
 		</>
