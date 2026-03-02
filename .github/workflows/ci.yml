@@ -68,6 +68,8 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
+          build-args: |
+            CACHE_BUST=${{ github.run_id }}
           secret-files: |
             npmrc=/tmp/.docker-npmrc
           labels: ${{ steps.meta.outputs.labels }}
