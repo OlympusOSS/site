@@ -65,7 +65,7 @@ export default async function HomePage() {
 
 	return (
 		<>
-			<NavBar logoSrc="/logo.svg" />
+			<NavBar />
 
 			<HeroSection />
 
@@ -75,7 +75,7 @@ export default async function HomePage() {
 						icon="C"
 						iconBg="#a855f7"
 						title="Customer Login (CIAM)"
-						description="Authenticate as a customer through CIAM Hydra (port 3102) → CIAM Hera (port 3001)"
+						description="Authenticate as a customer through the CIAM domain"
 						index={0}
 					>
 						{ciamData ? (
@@ -102,7 +102,7 @@ export default async function HomePage() {
 						icon="E"
 						iconBg="#fb923c"
 						title="Employee Login (IAM)"
-						description="Authenticate as an employee through IAM Hydra (port 4102) → IAM Hera (port 4001)"
+						description="Authenticate as an employee through the IAM domain"
 						index={1}
 					>
 						{iamData ? (
@@ -165,7 +165,7 @@ export default async function HomePage() {
 			<FeaturesSection />
 			<ArchitectureSection />
 			<GettingStartedSection />
-			<SiteFooter logoSrc="/logo.svg" />
+			<SiteFooter />
 		</>
 	);
 }
