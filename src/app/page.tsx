@@ -59,6 +59,10 @@ export default async function HomePage() {
 	const ciamClientId = process.env.CIAM_CLIENT_ID || "site-ciam-client";
 	const iamClientId = process.env.IAM_CLIENT_ID || "site-iam-client";
 	const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:2000";
+	const ciamAthenaUrl =
+		process.env.NEXT_PUBLIC_CIAM_ATHENA_URL || "http://localhost:3003";
+	const iamAthenaUrl =
+		process.env.NEXT_PUBLIC_IAM_ATHENA_URL || "http://localhost:4003";
 
 	const ciamAuthUrl = `${ciamHydraUrl}/oauth2/auth?client_id=${ciamClientId}&response_type=code&scope=openid+profile+email&redirect_uri=${encodeURIComponent(`${appUrl}/callback/ciam`)}&state=ciam-site`;
 	const iamAuthUrl = `${iamHydraUrl}/oauth2/auth?client_id=${iamClientId}&response_type=code&scope=openid+profile+email&redirect_uri=${encodeURIComponent(`${appUrl}/callback/iam`)}&state=iam-site`;
@@ -138,7 +142,7 @@ export default async function HomePage() {
 						index={2}
 					>
 						<LoginButton
-							href="http://localhost:3003"
+							href={ciamAthenaUrl}
 							bg="#8b5cf6"
 						>
 							Open CIAM Admin
@@ -153,7 +157,7 @@ export default async function HomePage() {
 						index={3}
 					>
 						<LoginButton
-							href="http://localhost:4003"
+							href={iamAthenaUrl}
 							bg="#f97316"
 						>
 							Open IAM Admin
