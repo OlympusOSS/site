@@ -69,7 +69,7 @@ export default async function HomePage() {
 
 	return (
 		<>
-			<NavBar />
+			<NavBar logoSrc="/logo.svg?v=2" />
 
 			<HeroSection />
 
@@ -169,7 +169,7 @@ export default async function HomePage() {
 			<FeaturesSection />
 			<ArchitectureSection />
 			<GettingStartedSection />
-			<SiteFooter />
+			<SiteFooter logoSrc="/logo.svg?v=2" />
 		</>
 	);
 }
