@@ -6,7 +6,7 @@ on:
       - 'src/**'
       - 'package.json'
       - 'bun.lock'
-      - 'Dockerfile'
+      - 'Containerfile'
       - '.github/workflows/**'
   pull_request:
     branches: [main]

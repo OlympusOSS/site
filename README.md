@@ -49,7 +49,7 @@ Site is part of the [OlympusOSS Identity Platform](https://github.com/OlympusOSS
 
 ```
 Olympus/
-├── platform/    # Infrastructure & Docker Compose — start here
+├── platform/    # Infrastructure & Podman Compose — start here
 ├── athena/      # Admin dashboard
 ├── hera/        # Auth & consent UI
 ├── site/        # Brochure site & OAuth2 playground (this repo)
@@ -60,15 +60,14 @@ Olympus/
 ### Start the development environment
 
 ```bash
-cd platform/dev
-docker compose up -d
+octl dev
 ```
 
-Wait for the seed to complete, then open:
+The CLI installs Podman (if needed), starts all containers, and seeds test data. Once complete, open:
 
 - **Site** — [http://localhost:2000](http://localhost:2000)
 
-Site is volume-mounted into Docker for **live reload** — edit files locally and changes reflect immediately.
+Site is volume-mounted into Podman for **live reload** — edit files locally and changes reflect immediately.
 
 ### Standalone (without platform)
 
