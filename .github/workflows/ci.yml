@@ -12,6 +12,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -21,7 +25,9 @@ jobs:
         with:
           bun-version: latest
       - name: Configure npm for GitHub Packages
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+        run: |
+          echo "@olympusoss:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
       - name: Resolve canvas dependency for CI
         run: |
           sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^0.3.0"|' package.json
