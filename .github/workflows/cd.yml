@@ -60,7 +60,7 @@ jobs:
 
       - name: Resolve canvas dependency for build
         run: |
-          sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^0.3.0"|' package.json
+          sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^1.0.0"|' package.json
 
       - name: Create .npmrc for build
         run: |
