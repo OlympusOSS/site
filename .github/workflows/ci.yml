@@ -30,7 +30,7 @@ jobs:
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
       - name: Resolve canvas dependency for CI
         run: |
-          sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^1.0.16"|' package.json
+          sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^1.0.17"|' package.json
       - run: bun install
       - run: bun run typecheck
       - run: bun run build
