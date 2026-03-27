@@ -53,8 +53,7 @@ jobs:
 
       - name: Resolve canvas dependency for build
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          sed -i "s|\"@olympusoss/canvas\": \"file:../canvas\"|\"@olympusoss/canvas\": \"^${VERSION}\"|" package.json
+          sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^1.0.18"|' package.json
 
       - name: Create .npmrc for build
         run: |
