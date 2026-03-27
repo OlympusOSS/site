@@ -28,10 +28,6 @@ jobs:
         run: |
           echo "@olympusoss:registry=https://npm.pkg.github.com" >> .npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-      - name: Resolve canvas dependency for CI
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          sed -i "s|\"@olympusoss/canvas\": \"file:../canvas\"|\"@olympusoss/canvas\": \"^${VERSION}\"|" package.json
       - run: bun install
       - run: bun run typecheck
       - run: bun run build

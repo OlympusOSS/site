@@ -51,11 +51,6 @@ jobs:
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Resolve canvas dependency for build
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          sed -i "s|\"@olympusoss/canvas\": \"file:../canvas\"|\"@olympusoss/canvas\": \"^${VERSION}\"|" package.json
-
       - name: Create .npmrc for build
         run: |
           echo "@olympusoss:registry=https://npm.pkg.github.com" > /tmp/.build-npmrc
