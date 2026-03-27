@@ -1,6 +1,6 @@
 {
 	"name": "site",
-	"version": "1.0.18",
+	"version": "1.0.21",
 	"private": true,
 	"description": "OlympusOSS brochure site and OAuth2 playground",
 	"scripts": {
