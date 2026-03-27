@@ -2,7 +2,6 @@ FROM oven/bun:1-alpine
 WORKDIR /app
 RUN apk --no-cache add curl git
 COPY package.json ./
-RUN sed -i 's|"@olympusoss/canvas": "file:../canvas"|"@olympusoss/canvas": "^0.1.0"|' package.json
 RUN --mount=type=secret,id=npmrc,target=/app/.npmrc \
     bun install
 COPY . .
