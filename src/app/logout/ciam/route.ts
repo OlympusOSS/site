@@ -1,8 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { handleOAuthLogout } from "@/lib/oauth";
 
-export async function GET() {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:2000";
-  const response = NextResponse.redirect(new URL("/", appUrl));
-  response.cookies.delete("site_ciam_session");
-  return response;
+export async function GET(request: NextRequest) {
+  return handleOAuthLogout(request, "ciam");
 }
