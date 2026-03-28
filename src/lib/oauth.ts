@@ -74,6 +74,49 @@ export function buildAuthUrl(
   return `${hydraUrl}/oauth2/auth?${params.toString()}`;
 }
 
+// ─── Logout Handler (used by logout routes) ─────────────────────────────────
+
+/**
+ * Shared OAuth2 logout handler for both CIAM and IAM domains.
+ * Reads the session cookie for the id_token, deletes the cookie, and redirects
+ * to Hydra's logout endpoint with id_token_hint so Hydra triggers the full
+ * logout flow (Hera revokes Kratos + Hydra sessions).
+ */
+export function handleOAuthLogout(request: NextRequest, domain: OAuthDomain): NextResponse {
+  const config = getDomainConfig(domain);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:2000";
+
+  // The browser-facing Hydra URL (public, reachable by the user's browser)
+  const hydraPublicUrl =
+    domain === "ciam"
+      ? process.env.NEXT_PUBLIC_CIAM_HYDRA_URL || "http://localhost:3102"
+      : process.env.NEXT_PUBLIC_IAM_HYDRA_URL || "http://localhost:4102";
+
+  // Try to extract the id_token from the session cookie
+  let idToken: string | undefined;
+  const sessionCookie = request.cookies.get(config.sessionCookie)?.value;
+  if (sessionCookie) {
+    try {
+      const session = JSON.parse(sessionCookie);
+      idToken = session.id_token;
+    } catch {
+      // Malformed cookie — proceed without id_token_hint
+    }
+  }
+
+  // Build the Hydra RP-initiated logout URL
+  const logoutUrl = new URL(`${hydraPublicUrl}/oauth2/sessions/logout`);
+  if (idToken) {
+    logoutUrl.searchParams.set("id_token_hint", idToken);
+  }
+  logoutUrl.searchParams.set("post_logout_redirect_uri", appUrl);
+
+  // Delete the local session cookie and redirect to Hydra
+  const response = NextResponse.redirect(logoutUrl.toString());
+  response.cookies.delete(config.sessionCookie);
+  return response;
+}
+
 // ─── Callback Handler (used by callback routes) ─────────────────────────────
 
 /**
