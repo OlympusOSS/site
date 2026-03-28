@@ -17,6 +17,7 @@ import {
 	LogoutLink,
 	SiteFooter,
 } from "@olympusoss/canvas";
+import { generateOAuthState, buildAuthUrl } from "@/lib/oauth";
 
 interface TokenData {
 	access_token: string;
@@ -52,20 +53,34 @@ export default async function HomePage() {
 		} catch {}
 	}
 
-	const ciamHydraUrl =
-		process.env.NEXT_PUBLIC_CIAM_HYDRA_URL || "http://localhost:3102";
-	const iamHydraUrl =
-		process.env.NEXT_PUBLIC_IAM_HYDRA_URL || "http://localhost:4102";
-	const ciamClientId = process.env.CIAM_CLIENT_ID || "site-ciam-client";
-	const iamClientId = process.env.IAM_CLIENT_ID || "site-iam-client";
-	const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:2000";
 	const ciamAthenaUrl =
 		process.env.NEXT_PUBLIC_CIAM_ATHENA_URL || "http://localhost:3001";
 	const iamAthenaUrl =
 		process.env.NEXT_PUBLIC_IAM_ATHENA_URL || "http://localhost:4001";
 
-	const ciamAuthUrl = `${ciamHydraUrl}/oauth2/auth?client_id=${ciamClientId}&response_type=code&scope=openid+profile+email&redirect_uri=${encodeURIComponent(`${appUrl}/callback/ciam`)}&state=ciam-site`;
-	const iamAuthUrl = `${iamHydraUrl}/oauth2/auth?client_id=${iamClientId}&response_type=code&scope=openid+profile+email&redirect_uri=${encodeURIComponent(`${appUrl}/callback/iam`)}&state=iam-site`;
+	// Generate cryptographic state for CSRF protection on each page load
+	const isProduction = process.env.NODE_ENV === "production";
+	const ciamState = generateOAuthState();
+	const iamState = generateOAuthState();
+
+	// Store state in short-lived httpOnly cookies for validation in callback
+	cookieStore.set("oauth_state_ciam", ciamState, {
+		httpOnly: true,
+		secure: isProduction,
+		path: "/",
+		maxAge: 600, // 10 minutes — enough to complete the auth flow
+		sameSite: "lax",
+	});
+	cookieStore.set("oauth_state_iam", iamState, {
+		httpOnly: true,
+		secure: isProduction,
+		path: "/",
+		maxAge: 600,
+		sameSite: "lax",
+	});
+
+	const ciamAuthUrl = buildAuthUrl("ciam", ciamState);
+	const iamAuthUrl = buildAuthUrl("iam", iamState);
 
 	return (
 		<>
