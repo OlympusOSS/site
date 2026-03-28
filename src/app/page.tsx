@@ -17,8 +17,6 @@ import {
 	LogoutLink,
 	SiteFooter,
 } from "@olympusoss/canvas";
-import { generateOAuthState, buildAuthUrl } from "@/lib/oauth";
-
 interface TokenData {
 	access_token: string;
 	id_token: string;
@@ -58,29 +56,9 @@ export default async function HomePage() {
 	const iamAthenaUrl =
 		process.env.NEXT_PUBLIC_IAM_ATHENA_URL || "http://localhost:4001";
 
-	// Generate cryptographic state for CSRF protection on each page load
-	const isProduction = process.env.NODE_ENV === "production";
-	const ciamState = generateOAuthState();
-	const iamState = generateOAuthState();
-
-	// Store state in short-lived httpOnly cookies for validation in callback
-	cookieStore.set("oauth_state_ciam", ciamState, {
-		httpOnly: true,
-		secure: isProduction,
-		path: "/",
-		maxAge: 600, // 10 minutes — enough to complete the auth flow
-		sameSite: "lax",
-	});
-	cookieStore.set("oauth_state_iam", iamState, {
-		httpOnly: true,
-		secure: isProduction,
-		path: "/",
-		maxAge: 600,
-		sameSite: "lax",
-	});
-
-	const ciamAuthUrl = buildAuthUrl("ciam", ciamState);
-	const iamAuthUrl = buildAuthUrl("iam", iamState);
+	// Login routes handle state generation + cookie setting in route handlers
+	const ciamAuthUrl = "/login/ciam";
+	const iamAuthUrl = "/login/iam";
 
 	return (
 		<>
