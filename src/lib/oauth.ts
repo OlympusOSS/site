@@ -7,6 +7,8 @@ export type OAuthDomain = "ciam" | "iam";
 
 interface DomainConfig {
   hydraUrl: string;
+  hydraAdminUrl: string;
+  kratosAdminUrl: string;
   clientId: string;
   clientSecret: string;
   sessionCookie: string;
@@ -20,6 +22,8 @@ function getDomainConfig(domain: OAuthDomain): DomainConfig {
   if (domain === "ciam") {
     return {
       hydraUrl: process.env.CIAM_HYDRA_PUBLIC_URL || "http://localhost:3102",
+      hydraAdminUrl: process.env.CIAM_HYDRA_ADMIN_URL || "http://localhost:3103",
+      kratosAdminUrl: process.env.CIAM_KRATOS_ADMIN_URL || "http://localhost:3101",
       clientId: process.env.CIAM_CLIENT_ID || "site-ciam-client",
       clientSecret: process.env.CIAM_CLIENT_SECRET || "site-ciam-secret",
       sessionCookie: "site_ciam_session",
@@ -29,6 +33,8 @@ function getDomainConfig(domain: OAuthDomain): DomainConfig {
   }
   return {
     hydraUrl: process.env.IAM_HYDRA_PUBLIC_URL || "http://localhost:4102",
+    hydraAdminUrl: process.env.IAM_HYDRA_ADMIN_URL || "http://localhost:4103",
+    kratosAdminUrl: process.env.IAM_KRATOS_ADMIN_URL || "http://localhost:4101",
     clientId: process.env.IAM_CLIENT_ID || "site-iam-client",
     clientSecret: process.env.IAM_CLIENT_SECRET || "site-iam-secret",
     sessionCookie: "site_iam_session",
@@ -78,41 +84,49 @@ export function buildAuthUrl(
 
 /**
  * Shared OAuth2 logout handler for both CIAM and IAM domains.
- * Reads the session cookie for the id_token, deletes the cookie, and redirects
- * to Hydra's logout endpoint with id_token_hint so Hydra triggers the full
- * logout flow (Hera revokes Kratos + Hydra sessions).
+ * Revokes Hydra and Kratos sessions server-side via admin APIs, then clears
+ * the local session cookie and redirects home — no browser redirect to Hydra.
  */
-export function handleOAuthLogout(request: NextRequest, domain: OAuthDomain): NextResponse {
+export async function handleOAuthLogout(
+  request: NextRequest,
+  domain: OAuthDomain,
+): Promise<NextResponse> {
   const config = getDomainConfig(domain);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:2000";
 
-  // The browser-facing Hydra URL (public, reachable by the user's browser)
-  const hydraPublicUrl =
-    domain === "ciam"
-      ? process.env.NEXT_PUBLIC_CIAM_HYDRA_URL || "http://localhost:3102"
-      : process.env.NEXT_PUBLIC_IAM_HYDRA_URL || "http://localhost:4102";
-
-  // Try to extract the id_token from the session cookie
-  let idToken: string | undefined;
+  // Extract subject from session cookie claims
+  let subject: string | undefined;
   const sessionCookie = request.cookies.get(config.sessionCookie)?.value;
   if (sessionCookie) {
     try {
       const session = JSON.parse(sessionCookie);
-      idToken = session.id_token;
+      subject = session.claims?.sub;
     } catch {
-      // Malformed cookie — proceed without id_token_hint
+      // Malformed cookie — proceed without subject
     }
   }
 
-  // Build the Hydra RP-initiated logout URL
-  const logoutUrl = new URL(`${hydraPublicUrl}/oauth2/sessions/logout`);
-  if (idToken) {
-    logoutUrl.searchParams.set("id_token_hint", idToken);
+  // Revoke Hydra login sessions, Hydra consent sessions, and Kratos sessions
+  // server-side. Non-throwing — errors are logged but do not block logout.
+  if (subject) {
+    await Promise.allSettled([
+      fetch(
+        `${config.hydraAdminUrl}/admin/oauth2/auth/sessions/login?subject=${encodeURIComponent(subject)}`,
+        { method: "DELETE" },
+      ).catch((err) => console.error(`[${domain}] Hydra login session revoke failed:`, err)),
+      fetch(
+        `${config.hydraAdminUrl}/admin/oauth2/auth/sessions/consent?subject=${encodeURIComponent(subject)}&all=true`,
+        { method: "DELETE" },
+      ).catch((err) => console.error(`[${domain}] Hydra consent session revoke failed:`, err)),
+      fetch(
+        `${config.kratosAdminUrl}/admin/identities/${encodeURIComponent(subject)}/sessions`,
+        { method: "DELETE" },
+      ).catch((err) => console.error(`[${domain}] Kratos session revoke failed:`, err)),
+    ]);
   }
-  logoutUrl.searchParams.set("post_logout_redirect_uri", appUrl);
 
-  // Delete the local session cookie and redirect to Hydra
-  const response = NextResponse.redirect(logoutUrl.toString());
+  // Clear the local session cookie and redirect home
+  const response = NextResponse.redirect(appUrl);
   response.cookies.delete(config.sessionCookie);
   return response;
 }
@@ -207,7 +221,7 @@ export async function handleOAuthCallback(
       httpOnly: true,
       secure: isProduction,
       path: "/",
-      maxAge: tokens.expires_in || 3600,
+      maxAge: parseInt(process.env.SESSION_TTL_SECONDS || "28800", 10),
       sameSite: "lax",
     });
 
