@@ -32,3 +32,9 @@ jobs:
       - run: bun install
       - run: bun run typecheck
       - run: bun run build
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: bun run test:e2e
+        env:
+          CI: true
