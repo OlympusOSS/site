@@ -4,6 +4,8 @@ import {
 	LoginButton,
 	DemoStatusBadge as StatusBadge,
 	SessionDisplay,
+} from "@olympusoss/canvas";
+import {
 	NavBar,
 	HeroSection,
 	FeaturesSection,
@@ -16,7 +18,7 @@ import {
 	AuthStatusBadgeRow,
 	LogoutLink,
 	SiteFooter,
-} from "@olympusoss/canvas";
+} from "../components/site";
 interface TokenData {
 	access_token: string;
 	id_token: string;
