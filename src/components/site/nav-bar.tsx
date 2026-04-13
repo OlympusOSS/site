@@ -47,13 +47,20 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 	const [mobileOpen, setMobileOpen] = useState(false);
 
 	return (
+		<>
+		<a
+			href="#playground"
+			className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+		>
+			Skip to content
+		</a>
 		<motion.nav
 			initial={{ y: -80, opacity: 0 }}
 			animate={{ y: 0, opacity: 1 }}
 			transition={{ duration: 0.5, ease: "easeOut" }}
 			className="glass-chrome fixed left-0 right-0 top-0 z-50 border-b border-border"
 		>
-			<div className="mx-auto flex h-10 max-w-6xl items-center justify-between px-4 sm:px-6">
+			<div className="mx-auto flex h-12 max-w-6xl items-center justify-between px-4 sm:px-6">
 				{/* Logo + Title */}
 				<a href="#" className="flex items-center no-underline">
 					{logoSrc && (
@@ -87,7 +94,7 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 				<button
 					type="button"
 					onClick={() => setMobileOpen((v) => !v)}
-					className="flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground md:hidden"
+					className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-2.5 text-muted-foreground transition-colors hover:text-foreground md:hidden"
 					aria-label={mobileOpen ? "Close menu" : "Open menu"}
 				>
 					<HamburgerIcon open={mobileOpen} />
@@ -110,7 +117,7 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 									key={link.href}
 									href={link.href}
 									onClick={() => setMobileOpen(false)}
-									className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground no-underline transition-colors hover:bg-accent hover:text-foreground"
+									className="min-h-11 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground no-underline transition-colors hover:bg-accent hover:text-foreground"
 								>
 									{link.label}
 								</a>
@@ -120,7 +127,7 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 								target="_blank"
 								rel="noopener noreferrer"
 								onClick={() => setMobileOpen(false)}
-								className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground no-underline transition-colors hover:bg-accent hover:text-foreground"
+								className="flex min-h-11 items-center gap-1.5 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground no-underline transition-colors hover:bg-accent hover:text-foreground"
 							>
 								<GitHubIcon size={14} />
 								GitHub
@@ -130,5 +137,6 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 				)}
 			</AnimatePresence>
 		</motion.nav>
+		</>
 	);
 }
