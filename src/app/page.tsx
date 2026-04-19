@@ -1,24 +1,23 @@
 import { cookies } from "next/headers";
 import {
-	AuthCard,
-	LoginButton,
-	DemoStatusBadge as StatusBadge,
-	SessionDisplay,
-} from "@olympusoss/canvas";
-import {
-	NavBar,
-	HeroSection,
-	FeaturesSection,
 	ArchitectureSection,
-	GettingStartedSection,
-	PlaygroundSection,
-	PlaygroundGrid,
-	PlaygroundAdminSection,
-	AuthStatusRow,
+	AuthCard,
 	AuthStatusBadgeRow,
+	AuthStatusRow,
+	FeaturesSection,
+	GettingStartedSection,
+	HeroSection,
+	LoginButton,
 	LogoutLink,
+	NavBar,
+	PlaygroundAdminSection,
+	PlaygroundGrid,
+	PlaygroundSection,
+	SessionDisplay,
 	SiteFooter,
+	StatusBadge,
 } from "../components/site";
+
 interface TokenData {
 	access_token: string;
 	id_token: string;
@@ -58,7 +57,6 @@ export default async function HomePage() {
 	const iamAthenaUrl =
 		process.env.NEXT_PUBLIC_IAM_ATHENA_URL || "http://localhost:4001";
 
-	// Login routes handle state generation + cookie setting in route handlers
 	const ciamAuthUrl = "/login/ciam";
 	const iamAuthUrl = "/login/iam";
 
