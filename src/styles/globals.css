@@ -1,8 +1,6 @@
 @import "tailwindcss";
 @source "../../node_modules/@olympusoss/canvas/src/**/*.{ts,tsx}";
 @import "@olympusoss/canvas/styles/tokens.css";
-@import "@olympusoss/canvas/styles/animations.css";
-@import "@olympusoss/canvas/styles/glass.css";
 
 @theme inline {
 	--color-background: hsl(var(--background));
