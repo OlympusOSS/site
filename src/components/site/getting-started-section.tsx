@@ -17,7 +17,7 @@ const DEV_STEPS: Step[] = [
 		title: "Clone the repos",
 		description: "Multi-repo workspace — clone all repos as siblings.",
 		code: `mkdir Olympus && cd Olympus
-for repo in platform athena hera site canvas sdk; do
+for repo in platform athena hera site canvas sdk octl; do
   git clone https://github.com/OlympusOSS/\$repo.git
 done`,
 		language: "bash",
@@ -26,9 +26,9 @@ done`,
 		number: "02",
 		title: "Start the platform",
 		description:
-			"Podman Compose starts 13 services with live reload for all apps.",
-		code: `cd platform/dev
-podman compose up -d`,
+			"octl bootstraps Podman, starts 13 services, and seeds test data with live reload.",
+		code: `cd octl && bun install && bun link
+octl dev`,
 		language: "bash",
 	},
 	{
@@ -145,7 +145,7 @@ export function GettingStartedSection() {
 										Development
 									</h3>
 									<p className="mt-1 text-sm text-muted-foreground">
-										Podman Compose + live reload
+										octl CLI + live reload
 									</p>
 								</div>
 								<div className="space-y-5 sm:space-y-6">
