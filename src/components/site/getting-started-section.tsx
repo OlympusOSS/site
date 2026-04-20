@@ -14,30 +14,33 @@ interface Step {
 const DEV_STEPS: Step[] = [
 	{
 		number: "01",
-		title: "Clone the repository",
-		description: "Single monorepo — platform, apps, and design system.",
-		code: `git clone git@github.com:bnannier/OlympusOSS.git
-cd OlympusOSS`,
+		title: "Clone the repos",
+		description: "Multi-repo workspace — clone all repos as siblings.",
+		code: `mkdir Olympus && cd Olympus
+for repo in platform athena hera site canvas sdk; do
+  git clone https://github.com/OlympusOSS/\$repo.git
+done`,
 		language: "bash",
 	},
 	{
 		number: "02",
 		title: "Start the platform",
 		description:
-			"The CLI installs Podman, starts containers, and seeds test data.",
-		code: `octl dev`,
+			"Podman Compose starts 13 services with live reload for all apps.",
+		code: `cd platform/dev
+podman compose up -d`,
 		language: "bash",
 	},
 	{
 		number: "03",
 		title: "Open the apps",
-		description: "Edit app code locally — changes reflect via live reload.",
-		code: `# Site & OAuth2 playground
+		description: "Edit app code locally — changes reflect instantly via hot reload.",
+		code: `# Site, docs & OAuth2 playground
 open http://localhost:2000
 
-# Admin panels
-open http://localhost:4001  # IAM Admin
+# Admin dashboards
 open http://localhost:3001  # CIAM Admin
+open http://localhost:4001  # IAM Admin
 
 # Login: admin@demo.user / admin123!`,
 		language: "bash",
@@ -47,32 +50,40 @@ open http://localhost:3001  # CIAM Admin
 const PROD_STEPS: Step[] = [
 	{
 		number: "01",
-		title: "Install octl",
-		description: "The Olympus CLI handles provisioning and deployment.",
-		code: `cd octl && bun install && bun link`,
+		title: "Launch Daedalus",
+		description: "The deployment wizard handles everything — VPS, DNS, certs, secrets.",
+		code: `# Download from GitHub Releases
+# or build from source:
+cd daedalus
+npx tauri build --debug`,
 		language: "bash",
 	},
 	{
 		number: "02",
-		title: "Run the setup wizard",
+		title: "Configure & deploy",
 		description:
-			"Provisions a DigitalOcean droplet, configures DNS, seeds the database, and sets up GitHub Actions.",
-		code: `octl`,
+			"Daedalus provisions your Hostinger VPS, generates SSL certs, sets GitHub Secrets, and triggers the deploy.",
+		code: `# Daedalus wizard configures:
+# ├── Hostinger VPS + firewall
+# ├── Domain + DNS records
+# ├── PostgreSQL SSL certificates
+# ├── GitHub Secrets & Variables
+# └── One-click deploy via GitHub Actions`,
 		language: "bash",
 	},
 	{
 		number: "03",
 		title: "Push to deploy",
 		description:
-			"Every push to main triggers a GitHub Actions deploy to your droplet.",
-		code: `git push origin main
+			"Tag a release — GitHub Actions builds, pushes to GHCR, and deploys to your VPS.",
+		code: `# Bump version
+octl bump
 
-# octl configures:
-# ├── DigitalOcean droplet + firewall
-# ├── Reserved IP + DNS
-# ├── GitHub Secrets & Variables
-# ├── SSH deploy keys
-# └── Demo accounts (optional)`,
+# CD triggers on release tags (v*)
+# ├── Build container images
+# ├── Push to GitHub Container Registry
+# ├── SSH deploy to VPS
+# └── Health check verification`,
 		language: "bash",
 	},
 ];
@@ -130,11 +141,11 @@ export function GettingStartedSection() {
 						<Card className="h-full">
 							<CardContent className="p-4 sm:p-6">
 								<div className="mb-5 text-center sm:mb-8">
-									<h3 className="text-lg font-bold text-success">
+									<h3 className="text-lg font-bold text-green-500">
 										Development
 									</h3>
 									<p className="mt-1 text-sm text-muted-foreground">
-										octl CLI + live reload
+										Podman Compose + live reload
 									</p>
 								</div>
 								<div className="space-y-5 sm:space-y-6">
@@ -164,7 +175,7 @@ export function GettingStartedSection() {
 										Production
 									</h3>
 									<p className="mt-1 text-sm text-muted-foreground">
-										octl CLI
+										Daedalus + GitHub Actions
 									</p>
 								</div>
 								<div className="space-y-5 sm:space-y-6">
