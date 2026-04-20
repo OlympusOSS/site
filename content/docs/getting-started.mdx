@@ -11,44 +11,87 @@ Get Olympus running locally with Podman Compose.
 
 - [Podman Desktop](https://podman-desktop.io/) (macOS) or `podman machine init && podman machine start` (CLI)
 - Git
+- [Bun](https://bun.sh/) (for building app repos)
 
-## 1. Clone the Platform
+## 1. Clone the Workspace
+
+Olympus is a multi-repo project. Clone the repos as siblings:
 
 ```bash
-git clone https://github.com/OlympusOSS/platform.git
-cd platform/dev
+mkdir Olympus && cd Olympus
+for repo in platform athena hera site canvas sdk octl docs; do
+  git clone https://github.com/OlympusOSS/$repo.git
+done
 ```
 
 ## 2. Start Services
 
 ```bash
+cd platform/dev
 podman compose up -d
 ```
 
-This starts 15 services: Kratos and Hydra for both CIAM and IAM domains, the Athena admin dashboard, Hera login UI, the brochure site, PostgreSQL, pgAdmin, and MailSlurper.
+This starts 13 services:
 
-## 3. Access the Platform
+| Service | Port | Purpose |
+|---------|------|---------|
+| **Site** | [localhost:2000](http://localhost:2000) | Brochure site, OAuth2 playground, and docs |
+| **Hera CIAM** | [localhost:3000](http://localhost:3000) | Customer login/registration UI |
+| **Athena CIAM** | [localhost:3001](http://localhost:3001) | Customer identity admin dashboard |
+| **CIAM Kratos** | :3100/:3101 | Customer identity management (public/admin API) |
+| **CIAM Hydra** | :3102/:3103 | Customer OAuth2/OIDC provider (public/admin API) |
+| **Hera IAM** | [localhost:4000](http://localhost:4000) | Employee login/registration UI |
+| **Athena IAM** | [localhost:4001](http://localhost:4001) | Employee identity admin dashboard |
+| **IAM Kratos** | :4100/:4101 | Employee identity management (public/admin API) |
+| **IAM Hydra** | :4102/:4103 | Employee OAuth2/OIDC provider (public/admin API) |
+| **PostgreSQL** | :5432 | 5 databases (ciam_kratos, ciam_hydra, iam_kratos, iam_hydra, olympus) |
+| **pgAdmin** | [localhost:5433](http://localhost:5433) | Database management (SSO via IAM) |
+| **MailSlurper** | [localhost:5434](http://localhost:5434) | Dev email capture (verification, recovery) |
+| **Caddy** | :2000,:3001,:4001 | Reverse proxy for all web UIs |
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| Site | [localhost:2000](http://localhost:2000) | Brochure site and OAuth2 playground |
-| Athena CIAM | [localhost:3001](http://localhost:3001) | CIAM admin dashboard |
-| Athena IAM | [localhost:4001](http://localhost:4001) | IAM admin dashboard |
-| Hera CIAM | [localhost:3000](http://localhost:3000) | CIAM login/registration UI |
-| Hera IAM | [localhost:4000](http://localhost:4000) | IAM login/registration UI |
-| pgAdmin | [localhost:5433](http://localhost:5433) | Database management |
-| MailSlurper | [localhost:5434](http://localhost:5434) | Dev email testing |
+All app repos (athena, hera, site) are mounted as volumes for **live reload** during development.
 
-## 4. Default Credentials
+## 3. Default Credentials
 
 **IAM Admin:**
 - Email: `admin@demo.user`
 - Password: `admin123!`
 
-pgAdmin authenticates via OAuth2 SSO through the IAM domain — click "Login with Olympus" on the pgAdmin login page.
+**pgAdmin:** Authenticates via OAuth2 SSO through the IAM domain — click "Login with Olympus" on the pgAdmin login page.
+
+**MailSlurper:** No auth required — open [localhost:5434](http://localhost:5434) to see all outbound emails (verification links, recovery codes).
+
+## 4. Production Deployment
+
+For production, use [Daedalus](https://github.com/OlympusOSS/daedalus) — the deployment wizard that handles:
+
+- VPS provisioning (Hostinger)
+- Domain and DNS configuration
+- PostgreSQL SSL certificate generation
+- GitHub Secrets configuration
+- One-click deploy via GitHub Actions
+
+Production uses `platform/prod/compose.prod.yml` which pulls pre-built images from GitHub Container Registry instead of mounting local source.
+
+## Repo Structure
+
+```
+Olympus/
+├── platform/    # Podman Compose configs, Ory configs, CI/CD workflows
+├── athena/      # Admin dashboard (Next.js)
+├── hera/        # Login/consent UI (Next.js)
+├── site/        # Brochure site + docs (Next.js + Fumadocs)
+├── canvas/      # Design system — shadcn/ui components (@olympusoss/canvas)
+├── sdk/         # Shared settings & encryption (@olympusoss/sdk)
+├── octl/        # CLI tool for version bumping
+├── daedalus/    # Deployment wizard (Tauri desktop app)
+└── docs/        # Agent system, architecture, and platform docs
+```
 
 ## Next Steps
 
-- [Architecture](/docs/architecture) — understand how CIAM and IAM domains are structured
-- [Authentication Guide](/docs/guides/authentication) — implement login, registration, and recovery flows
-- [OAuth2 Guide](/docs/guides/oauth2) — set up OAuth2 clients and authorization flows
+- [Architecture](/docs/architecture) — understand the dual-domain CIAM/IAM design
+- [Authentication Guide](/docs/guides/authentication) — identity flows with Kratos
+- [OAuth2 Guide](/docs/guides/oauth2) — authorization flows with Hydra
+- [Kratos API](/docs/api/kratos) — identity management API reference
+- [Hydra API](/docs/api/hydra) — OAuth2/OIDC API reference
