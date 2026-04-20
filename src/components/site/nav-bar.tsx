@@ -2,6 +2,7 @@
 
 import { NavBar as CanvasNavBar, OlympusLogo, type NavLink } from "@olympusoss/canvas";
 import { Github } from "lucide-react";
+import Link from "next/link";
 
 const NAV_LINKS: NavLink[] = [
 	{ label: "Docs", href: "/docs" },
@@ -14,6 +15,7 @@ const NAV_LINKS: NavLink[] = [
 export function NavBar({ logoSrc }: { logoSrc?: string }) {
 	return (
 		<CanvasNavBar
+			linkComponent={Link}
 			logo={
 				logoSrc ? (
 					<a href="#" className="flex items-center no-underline">
