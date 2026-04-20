@@ -4,6 +4,7 @@ import { NavBar as CanvasNavBar, OlympusLogo, type NavLink } from "@olympusoss/c
 import { Github } from "lucide-react";
 
 const NAV_LINKS: NavLink[] = [
+	{ label: "Docs", href: "/docs" },
 	{ label: "Playground", href: "#playground" },
 	{ label: "Features", href: "#features" },
 	{ label: "Architecture", href: "#architecture" },
@@ -16,7 +17,7 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 			logo={
 				logoSrc ? (
 					<a href="#" className="flex items-center no-underline">
-						<img src={logoSrc} alt="OlympusOSS" width={24} height={24} className="p-1" />
+						<img src={logoSrc} alt="OlympusOSS" width={40} height={40} />
 					</a>
 				) : (
 					<a href="#" className="no-underline">

@@ -1,0 +1,71 @@
+---
+title: Kratos API
+description: Ory Kratos identity management API reference
+---
+
+# Kratos API
+
+Ory Kratos exposes two API surfaces: the **Public API** (for end-user self-service flows) and the **Admin API** (for server-side identity management).
+
+## Endpoints
+
+| Domain | Public API | Admin API |
+|--------|-----------|-----------|
+| CIAM | `localhost:3100` | `localhost:3101` |
+| IAM | `localhost:4100` | `localhost:4101` |
+
+## Public API (Self-Service)
+
+### Registration
+
+```bash
+# Create a registration flow
+curl -s http://localhost:3100/self-service/registration/api | jq
+
+# Submit registration
+curl -X POST http://localhost:3100/self-service/registration?flow=FLOW_ID \
+  -H "Content-Type: application/json" \
+  -d '{"method": "password", "traits": {"email": "user@example.com"}, "password": "securePassword123!"}'
+```
+
+### Login
+
+```bash
+# Create a login flow
+curl -s http://localhost:3100/self-service/login/api | jq
+
+# Submit login
+curl -X POST http://localhost:3100/self-service/login?flow=FLOW_ID \
+  -H "Content-Type: application/json" \
+  -d '{"method": "password", "identifier": "user@example.com", "password": "securePassword123!"}'
+```
+
+### Session
+
+```bash
+# Check current session (pass session cookie or token)
+curl -s http://localhost:3100/sessions/whoami \
+  -H "Authorization: Bearer SESSION_TOKEN" | jq
+```
+
+## Admin API
+
+### List Identities
+
+```bash
+curl -s http://localhost:3101/admin/identities | jq
+```
+
+### Get Identity
+
+```bash
+curl -s http://localhost:3101/admin/identities/IDENTITY_ID | jq
+```
+
+### Delete Identity
+
+```bash
+curl -X DELETE http://localhost:3101/admin/identities/IDENTITY_ID
+```
+
+For the complete API specification, see the [Ory Kratos API Reference](https://www.ory.sh/docs/kratos/reference/api).

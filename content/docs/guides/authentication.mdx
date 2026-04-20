@@ -1,0 +1,54 @@
+---
+title: Authentication
+description: Identity flows with Ory Kratos
+---
+
+# Authentication
+
+Olympus uses Ory Kratos for all identity management. Kratos provides self-service flows for registration, login, account recovery, and email verification.
+
+## Registration Flow
+
+1. User navigates to the registration page (Hera UI)
+2. Kratos generates a registration flow with the configured identity schema
+3. User submits the form with their credentials
+4. Kratos validates the input against the schema
+5. On success, Kratos creates the identity and redirects to the configured URL
+
+```bash
+# Trigger a registration flow via API
+curl -s http://localhost:3100/self-service/registration/api | jq
+```
+
+## Login Flow
+
+1. User navigates to the login page (Hera UI)
+2. Kratos generates a login flow
+3. User submits email and password
+4. Kratos validates credentials and creates a session
+5. Session cookie is set and user is redirected
+
+```bash
+# Trigger a login flow via API
+curl -s http://localhost:3100/self-service/login/api | jq
+```
+
+## Account Recovery
+
+1. User clicks "Forgot password" on the login page
+2. Kratos generates a recovery flow
+3. User enters their email address
+4. Kratos sends a recovery link via email (MailSlurper in dev)
+5. User clicks the link and sets a new password
+
+## Email Verification
+
+Kratos can require email verification before granting full account access. In development, verification emails are captured by MailSlurper at [localhost:5434](http://localhost:5434).
+
+## Identity Schemas
+
+Kratos uses JSON Schema to define what fields an identity has. Olympus ships with a default schema that includes email and name. Custom schemas can be added via the Athena admin dashboard.
+
+## Sessions
+
+Kratos manages sessions with configurable lifetimes. Active sessions can be viewed and revoked through the Athena admin dashboard or the Kratos Admin API.

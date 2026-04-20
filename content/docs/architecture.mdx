@@ -1,0 +1,69 @@
+---
+title: Architecture
+description: Dual-domain identity platform design
+---
+
+# Architecture
+
+Olympus uses a dual-domain architecture that cleanly separates customer-facing identity (CIAM) from internal employee identity (IAM).
+
+## Domain Layout
+
+```
+CIAM (Customer Identity) — ports 3xxx
+├── Hera CIAM (login/consent UI)      → :3000
+├── Athena CIAM (admin dashboard)     → :3001
+├── Kratos CIAM (identity service)    → :3100/:3101
+└── Hydra CIAM (OAuth2 provider)      → :3102/:3103
+
+IAM (Employee Identity) — ports 4xxx
+├── Hera IAM (login/consent UI)       → :4000
+├── Athena IAM (admin dashboard)      → :4001
+├── Kratos IAM (identity service)     → :4100/:4101
+└── Hydra IAM (OAuth2 provider)       → :4102/:4103
+
+Shared Services
+├── Site (brochure + playground)      → :2000
+├── PostgreSQL                        → :5432
+├── pgAdmin (SSO via IAM)             → :5433
+└── MailSlurper (dev only)            → :5434
+```
+
+## Why Two Domains?
+
+Separating CIAM and IAM provides:
+
+- **Security isolation** — a compromise in the customer-facing domain does not affect internal employee accounts
+- **Independent policies** — different password rules, MFA requirements, session lifetimes per domain
+- **Clean data boundaries** — customer PII is never mixed with employee credentials
+- **Independent scaling** — each domain can be scaled based on its own traffic patterns
+
+## Core Services
+
+### Ory Kratos (Identity)
+
+Handles the full user lifecycle: registration, login, account recovery, email verification, and profile management. Each domain has its own Kratos instance with independent identity schemas.
+
+### Ory Hydra (OAuth2/OIDC)
+
+Standards-compliant OAuth2 and OpenID Connect provider. Supports authorization code flow, client credentials, PKCE, and OIDC discovery. Each domain has its own Hydra instance.
+
+### Athena (Admin Dashboard)
+
+Web-based admin panel for managing identities, sessions, OAuth2 clients, tokens, courier messages, and schemas. One instance per domain.
+
+### Hera (Login UI)
+
+Login, registration, consent, and logout UI. Renders Kratos self-service flows and Hydra consent screens. One instance per domain.
+
+## Data Layer
+
+All data is stored in PostgreSQL with five databases:
+
+| Database | Purpose |
+|----------|---------|
+| `ciam_kratos` | CIAM identities, sessions, recovery tokens |
+| `ciam_hydra` | CIAM OAuth2 clients, tokens, consent sessions |
+| `iam_kratos` | IAM identities, sessions, recovery tokens |
+| `iam_hydra` | IAM OAuth2 clients, tokens, consent sessions |
+| `olympus` | Application settings (SDK vault) |

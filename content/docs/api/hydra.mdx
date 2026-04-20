@@ -1,0 +1,87 @@
+---
+title: Hydra API
+description: Ory Hydra OAuth2/OIDC API reference
+---
+
+# Hydra API
+
+Ory Hydra exposes a **Public API** (for OAuth2/OIDC flows) and an **Admin API** (for client and consent management).
+
+## Endpoints
+
+| Domain | Public API | Admin API |
+|--------|-----------|-----------|
+| CIAM | `localhost:3102` | `localhost:3103` |
+| IAM | `localhost:4102` | `localhost:4103` |
+
+## Public API (OAuth2)
+
+### Authorization Endpoint
+
+```
+GET /oauth2/auth?response_type=code&client_id=CLIENT_ID&redirect_uri=REDIRECT_URI&scope=openid+profile+email&state=STATE
+```
+
+### Token Endpoint
+
+```bash
+# Exchange authorization code for tokens
+curl -X POST http://localhost:3102/oauth2/token \
+  -d "grant_type=authorization_code" \
+  -d "code=AUTH_CODE" \
+  -d "redirect_uri=REDIRECT_URI" \
+  -d "client_id=CLIENT_ID"
+```
+
+### OIDC Discovery
+
+```bash
+curl -s http://localhost:3102/.well-known/openid-configuration | jq
+```
+
+### JWKS (JSON Web Key Set)
+
+```bash
+curl -s http://localhost:3102/.well-known/jwks.json | jq
+```
+
+## Admin API
+
+### OAuth2 Clients
+
+```bash
+# List all clients
+curl -s http://localhost:3103/admin/clients | jq
+
+# Create a client
+curl -X POST http://localhost:3103/admin/clients \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_name": "My Application",
+    "grant_types": ["authorization_code", "refresh_token"],
+    "response_types": ["code"],
+    "redirect_uris": ["http://localhost:3000/callback"],
+    "scope": "openid profile email",
+    "token_endpoint_auth_method": "client_secret_basic"
+  }'
+
+# Delete a client
+curl -X DELETE http://localhost:3103/admin/clients/CLIENT_ID
+```
+
+### Token Introspection
+
+```bash
+curl -X POST http://localhost:3103/admin/oauth2/introspect \
+  -d "token=ACCESS_TOKEN" | jq
+```
+
+### Revoke Token
+
+```bash
+curl -X POST http://localhost:3102/oauth2/revoke \
+  -d "token=ACCESS_TOKEN" \
+  -d "client_id=CLIENT_ID"
+```
+
+For the complete API specification, see the [Ory Hydra API Reference](https://www.ory.sh/docs/hydra/reference/api).

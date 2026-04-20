@@ -1,0 +1,54 @@
+---
+title: Getting Started
+description: Deploy Olympus locally in 5 minutes
+---
+
+# Getting Started
+
+Get Olympus running locally with Podman Compose.
+
+## Prerequisites
+
+- [Podman Desktop](https://podman-desktop.io/) (macOS) or `podman machine init && podman machine start` (CLI)
+- Git
+
+## 1. Clone the Platform
+
+```bash
+git clone https://github.com/OlympusOSS/platform.git
+cd platform/dev
+```
+
+## 2. Start Services
+
+```bash
+podman compose up -d
+```
+
+This starts 15 services: Kratos and Hydra for both CIAM and IAM domains, the Athena admin dashboard, Hera login UI, the brochure site, PostgreSQL, pgAdmin, and MailSlurper.
+
+## 3. Access the Platform
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Site | [localhost:2000](http://localhost:2000) | Brochure site and OAuth2 playground |
+| Athena CIAM | [localhost:3001](http://localhost:3001) | CIAM admin dashboard |
+| Athena IAM | [localhost:4001](http://localhost:4001) | IAM admin dashboard |
+| Hera CIAM | [localhost:3000](http://localhost:3000) | CIAM login/registration UI |
+| Hera IAM | [localhost:4000](http://localhost:4000) | IAM login/registration UI |
+| pgAdmin | [localhost:5433](http://localhost:5433) | Database management |
+| MailSlurper | [localhost:5434](http://localhost:5434) | Dev email testing |
+
+## 4. Default Credentials
+
+**IAM Admin:**
+- Email: `admin@demo.user`
+- Password: `admin123!`
+
+pgAdmin authenticates via OAuth2 SSO through the IAM domain — click "Login with Olympus" on the pgAdmin login page.
+
+## Next Steps
+
+- [Architecture](/docs/architecture) — understand how CIAM and IAM domains are structured
+- [Authentication Guide](/docs/guides/authentication) — implement login, registration, and recovery flows
+- [OAuth2 Guide](/docs/guides/oauth2) — set up OAuth2 clients and authorization flows

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { RootProvider } from "fumadocs-ui/provider/next";
+import "fumadocs-ui/style.css";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
@@ -16,9 +18,9 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<html lang="en" className="dark scroll-smooth">
+		<html lang="en" className="dark scroll-smooth" suppressHydrationWarning>
 			<body className="min-h-screen antialiased">
-				{children}
+				<RootProvider>{children}</RootProvider>
 			</body>
 		</html>
 	);

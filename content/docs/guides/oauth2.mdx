@@ -1,0 +1,69 @@
+---
+title: OAuth2 & OIDC
+description: Authorization flows with Ory Hydra
+---
+
+# OAuth2 & OIDC
+
+Olympus uses Ory Hydra as a standards-compliant OAuth2 and OpenID Connect provider. Each domain (CIAM, IAM) has its own Hydra instance.
+
+## Supported Grant Types
+
+| Grant Type | Use Case |
+|-----------|----------|
+| Authorization Code | Web apps, SPAs (with PKCE) |
+| Client Credentials | Machine-to-machine communication |
+| Refresh Token | Long-lived sessions |
+
+## Authorization Code Flow
+
+The most common flow for web applications:
+
+1. Client redirects user to Hydra's `/oauth2/auth` endpoint
+2. Hydra delegates authentication to Kratos (via Hera consent UI)
+3. User authenticates and grants consent
+4. Hydra redirects back with an authorization code
+5. Client exchanges the code for tokens at `/oauth2/token`
+
+```bash
+# Example: Start an authorization code flow
+HYDRA_URL="http://localhost:3102"
+CLIENT_ID="your-client-id"
+REDIRECT_URI="http://localhost:2000/callback/ciam"
+
+echo "${HYDRA_URL}/oauth2/auth?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=openid+profile+email&state=$(openssl rand -hex 16)"
+```
+
+## Creating OAuth2 Clients
+
+OAuth2 clients can be created through the Athena admin dashboard or the Hydra Admin API:
+
+```bash
+# Create a public client (SPA/mobile)
+curl -X POST http://localhost:3103/admin/clients \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_name": "My App",
+    "grant_types": ["authorization_code", "refresh_token"],
+    "response_types": ["code"],
+    "redirect_uris": ["http://localhost:3000/callback"],
+    "scope": "openid profile email",
+    "token_endpoint_auth_method": "none"
+  }'
+```
+
+## OpenID Connect Discovery
+
+Each Hydra instance publishes an OIDC discovery document:
+
+- CIAM: `http://localhost:3102/.well-known/openid-configuration`
+- IAM: `http://localhost:4102/.well-known/openid-configuration`
+
+## Token Introspection
+
+Active tokens can be inspected through the Athena dashboard or the Hydra Admin API:
+
+```bash
+curl -X POST http://localhost:3103/admin/oauth2/introspect \
+  -d "token=YOUR_ACCESS_TOKEN"
+```
