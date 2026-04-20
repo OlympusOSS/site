@@ -27,7 +27,7 @@ done`,
 		title: "Start the platform",
 		description:
 			"octl bootstraps Podman, starts 13 services, and seeds test data with live reload.",
-		code: `cd octl && bun install && bun link
+		code: `npm install -g octl
 octl dev`,
 		language: "bash",
 	},
