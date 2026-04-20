@@ -17,7 +17,7 @@ const DEV_STEPS: Step[] = [
 		title: "Clone the repos",
 		description: "Multi-repo workspace — clone all repos as siblings.",
 		code: `mkdir Olympus && cd Olympus
-for repo in platform athena hera site canvas sdk octl; do
+for repo in platform athena hera site canvas sdk; do
   git clone https://github.com/OlympusOSS/\$repo.git
 done`,
 		language: "bash",
