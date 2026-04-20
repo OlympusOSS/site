@@ -12,42 +12,42 @@ interface Feature {
 
 const FEATURES: Feature[] = [
 	{
-		icon: "users",
+		icon: "Users",
 		title: "Identity Management",
 		description:
 			"Full user lifecycle powered by Ory Kratos — registration, login, account recovery, verification, and profile management with schema-driven identities.",
 		color: "#6366f1",
 	},
 	{
-		icon: "key-round",
+		icon: "KeyRound",
 		title: "OAuth2 & OIDC",
 		description:
 			"Standards-compliant authorization server powered by Ory Hydra — authorization code flow, client credentials, PKCE, and OpenID Connect discovery.",
 		color: "#f59e0b",
 	},
 	{
-		icon: "shapes",
+		icon: "Shapes",
 		title: "Dual-Domain Architecture",
 		description:
 			"Separate CIAM (customer-facing) and IAM (employee-facing) domains with independent Kratos and Hydra instances for clean isolation.",
 		color: "#10b981",
 	},
 	{
-		icon: "dashboard",
+		icon: "LayoutDashboard",
 		title: "Admin Dashboard",
 		description:
 			"Athena gives you full visibility into identities, sessions, OAuth2 clients, tokens, courier messages, and schemas with analytics.",
 		color: "#dc2626",
 	},
 	{
-		icon: "lock",
+		icon: "Lock",
 		title: "No Vendor Lock-In",
 		description:
 			"Built on open standards (OAuth2, OIDC, SCIM). Your data lives in PostgreSQL — export users, credentials, and sessions anytime. No proprietary APIs.",
 		color: "#8b5cf6",
 	},
 	{
-		icon: "server",
+		icon: "Server",
 		title: "Self-Hosted & Portable",
 		description:
 			"Deploy anywhere with Podman Compose — your infrastructure, your cloud, your rules. Fully automated with GitHub Actions CI/CD.",
