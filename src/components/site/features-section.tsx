@@ -1,108 +1,114 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, Icon, type IconName } from "@olympusoss/canvas";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+	Icon,
+	type IconName,
+} from "@olympusoss/canvas";
 
 interface Feature {
 	icon: IconName;
 	title: string;
-	description: string;
-	color: string;
+	body: string;
 }
 
 const FEATURES: Feature[] = [
 	{
 		icon: "Users",
-		title: "Identity Management",
-		description:
-			"Full user lifecycle powered by Ory Kratos — registration, login, account recovery, verification, and profile management with schema-driven identities.",
-		color: "#6366f1",
+		title: "Kratos identity",
+		body: "Sign-up, sign-in, recovery, verification, MFA. Extensible schemas per identity type.",
+	},
+	{
+		icon: "Shield",
+		title: "Hydra OAuth2",
+		body: "Authorization code, client credentials, refresh, PKCE. OIDC-compliant id_tokens.",
 	},
 	{
 		icon: "KeyRound",
-		title: "OAuth2 & OIDC",
-		description:
-			"Standards-compliant authorization server powered by Ory Hydra — authorization code flow, client credentials, PKCE, and OpenID Connect discovery.",
-		color: "#f59e0b",
-	},
-	{
-		icon: "Shapes",
-		title: "Dual-Domain Architecture",
-		description:
-			"Separate CIAM (customer-facing) and IAM (employee-facing) domains with independent Kratos and Hydra instances for clean isolation.",
-		color: "#10b981",
-	},
-	{
-		icon: "LayoutDashboard",
-		title: "Admin Dashboard",
-		description:
-			"Athena gives you full visibility into identities, sessions, OAuth2 clients, tokens, courier messages, and schemas with analytics.",
-		color: "#dc2626",
+		title: "Fine-grained scopes",
+		body: "Declare scopes per client. Consent is recorded and revocable from athena.",
 	},
 	{
 		icon: "Lock",
-		title: "No Vendor Lock-In",
-		description:
-			"Built on open standards (OAuth2, OIDC, SCIM). Your data lives in PostgreSQL — export users, credentials, and sessions anytime. No proprietary APIs.",
-		color: "#8b5cf6",
+		title: "Brute-force protection",
+		body: "Per-identity and per-IP lockouts. Configurable thresholds. Full audit log.",
 	},
 	{
-		icon: "Server",
-		title: "Self-Hosted & Portable",
-		description:
-			"Deploy anywhere with Podman Compose — your infrastructure, your cloud, your rules. Fully automated with GitHub Actions CI/CD.",
-		color: "#0ea5e9",
+		icon: "Layers",
+		title: "JSON Schema profiles",
+		body: "Define employee, customer, or service identities. Traits are typed end-to-end.",
+	},
+	{
+		icon: "Activity",
+		title: "Observable",
+		body: "OpenTelemetry spans on every admin and runtime call. Ship to any backend.",
 	},
 ];
 
 export function FeaturesSection() {
 	return (
-		<section id="features" className="scroll-mt-20 px-4 py-16 landscape:py-10 sm:px-6 sm:py-20 lg:py-24">
-			<div className="mx-auto max-w-6xl">
+		<section
+			id="features"
+			className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-24"
+		>
+			<div className="mx-auto max-w-[1100px]">
 				<motion.div
 					initial={{ opacity: 0, y: 20 }}
 					whileInView={{ opacity: 1, y: 0 }}
 					viewport={{ once: true, margin: "-100px" }}
 					transition={{ duration: 0.5 }}
-					className="mb-8 text-center sm:mb-12 lg:mb-16"
+					className="mb-10 max-w-[640px]"
 				>
-					<h2 className="mb-3 text-2xl font-bold text-foreground sm:text-3xl">
-						Everything You Need
+					<div className="mb-2 font-mono text-xs uppercase tracking-[0.06em] text-muted-foreground">
+						Capabilities
+					</div>
+					<h2 className="m-0 text-3xl font-semibold tracking-tight text-foreground text-balance sm:text-[38px] sm:leading-[1.18]">
+						Everything Ory gives you,
+						<br />
+						packaged for humans.
 					</h2>
-					<p className="text-base text-muted-foreground">
-						A complete identity stack — authentication, authorization, and
-						administration.
+					<p className="mt-3.5 m-0 text-base leading-relaxed text-muted-foreground">
+						Canvas, hera, and athena compose a working stack on top of
+						Ory. Bring your own Postgres, deploy anywhere.
 					</p>
 				</motion.div>
 
-				<div className="grid gap-6 sm:grid-cols-2 landscape:grid-cols-3 lg:grid-cols-3">
+				<div
+					className="grid gap-4"
+					style={{
+						gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+					}}
+				>
 					{FEATURES.map((feature, i) => (
 						<motion.div
 							key={feature.title}
-							initial={{ opacity: 0, y: 30 }}
+							initial={{ opacity: 0, y: 24 }}
 							whileInView={{ opacity: 1, y: 0 }}
 							viewport={{ once: true, margin: "-50px" }}
-							transition={{ duration: 0.4, delay: i * 0.1 }}
+							transition={{ duration: 0.4, delay: i * 0.06 }}
 						>
 							<Card className="h-full">
-								<CardHeader className="pb-2">
+								<CardHeader className="pb-3">
 									<div
-										className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg"
-										style={{ backgroundColor: `${feature.color}20` }}
+										className="mb-3.5 flex h-9 w-9 items-center justify-center rounded-lg"
+										style={{
+											background: "rgba(99, 102, 241, 0.1)",
+											color: "#6366f1",
+										}}
 									>
-										<Icon
-											name={feature.icon}
-											size={20}
-											style={{ color: feature.color }}
-										/>
+										<Icon name={feature.icon} size={18} />
 									</div>
-									<CardTitle className="text-base text-foreground">
+									<CardTitle className="text-[15px] font-semibold text-foreground">
 										{feature.title}
 									</CardTitle>
 								</CardHeader>
 								<CardContent>
-									<p className="text-[13px] leading-relaxed text-muted-foreground">
-										{feature.description}
+									<p className="text-sm leading-[1.5] text-muted-foreground">
+										{feature.body}
 									</p>
 								</CardContent>
 							</Card>

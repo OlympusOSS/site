@@ -229,8 +229,8 @@ export function ArchitectureSection() {
 					transition={{ duration: 0.5 }}
 					className="mb-8 text-center sm:mb-12 lg:mb-16"
 				>
-					<h2 className="mb-3 text-2xl font-bold text-foreground sm:text-3xl">
-						Dual-Domain Architecture
+					<h2 className="mb-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+						Dual-domain architecture
 					</h2>
 					<p className="text-base text-muted-foreground">
 						Separate identity domains for customers and employees —
@@ -256,14 +256,14 @@ export function ArchitectureSection() {
 								<div className="relative grid gap-4 sm:grid-cols-2">
 									<DomainColumn
 										title="CIAM"
-										subtitle="Customer Identity"
+										subtitle="Customer identity"
 										services={CIAM_SERVICES}
 										borderColor="#6366f1"
 										lineColor="#818cf8"
 									/>
 									<DomainColumn
 										title="IAM"
-										subtitle="Employee Identity"
+										subtitle="Employee identity"
 										services={IAM_SERVICES}
 										borderColor="#f59e0b"
 										lineColor="#fbbf24"

@@ -1,11 +1,11 @@
 import { cookies } from "next/headers";
+import { LauncherCard } from "@olympusoss/canvas";
 import {
 	ArchitectureSection,
-	AuthCard,
 	AuthStatusBadgeRow,
 	AuthStatusRow,
+	CodeSample,
 	FeaturesSection,
-	GettingStartedSection,
 	HeroSection,
 	LoginButton,
 	LogoutLink,
@@ -66,14 +66,19 @@ export default async function HomePage() {
 
 			<HeroSection />
 
+			<FeaturesSection />
+
+			<ArchitectureSection />
+
 			<PlaygroundSection>
 				<PlaygroundGrid>
-					<AuthCard
-						icon="C"
-						iconBg="#a855f7"
-						title="Customer Login (CIAM)"
-						description="Authenticate as a customer through the CIAM domain"
-						index={0}
+					<LauncherCard
+						tone="indigo"
+						badge="C"
+						title="Customer login (CIAM)"
+						description="Sign in or register on the customer-facing identity domain. Built for end-users of apps you ship."
+						href={ciamData ? undefined : ciamAuthUrl}
+						target="_blank"
 					>
 						{ciamData ? (
 							<AuthStatusRow>
@@ -89,18 +94,17 @@ export default async function HomePage() {
 								<SessionDisplay data={ciamData} />
 							</AuthStatusRow>
 						) : (
-							<LoginButton href={ciamAuthUrl} bg="#a855f7">
-								Login to CIAM
-							</LoginButton>
+							<LoginButton tone="indigo">Login to CIAM</LoginButton>
 						)}
-					</AuthCard>
+					</LauncherCard>
 
-					<AuthCard
-						icon="E"
-						iconBg="#fb923c"
-						title="Employee Login (IAM)"
-						description="Authenticate as an employee through the IAM domain"
-						index={1}
+					<LauncherCard
+						tone="violet"
+						badge="E"
+						title="Employee login (IAM)"
+						description="Sign in to the workforce identity domain. SSO, MFA, and provisioning for internal apps."
+						href={iamData ? undefined : iamAuthUrl}
+						target="_blank"
 					>
 						{iamData ? (
 							<AuthStatusRow>
@@ -116,52 +120,38 @@ export default async function HomePage() {
 								<SessionDisplay data={iamData} />
 							</AuthStatusRow>
 						) : (
-							<LoginButton
-								href={iamAuthUrl}
-								bg="#fb923c"
-							>
-								Login to IAM
-							</LoginButton>
+							<LoginButton tone="violet">Login to IAM</LoginButton>
 						)}
-					</AuthCard>
+					</LauncherCard>
 				</PlaygroundGrid>
 
 				<PlaygroundAdminSection>
-					<AuthCard
-						icon="A"
-						iconBg="#8b5cf6"
-						title="Admin - Customer Identity"
-						description="Admin panel for managing customer identities, schemas, and OAuth2 clients on the CIAM domain."
-						index={2}
+					<LauncherCard
+						tone="slate"
+						badge="A"
+						title="Admin · Customer identity"
+						description="Athena admin for the CIAM domain. Manage identities, sessions, OAuth2 clients, and lockouts."
+						href={ciamAthenaUrl}
+						target="_blank"
 					>
-						<LoginButton
-							href={ciamAthenaUrl}
-							bg="#8b5cf6"
-						>
-							Open CIAM Admin
-						</LoginButton>
-					</AuthCard>
+						<LoginButton tone="slate">Open admin</LoginButton>
+					</LauncherCard>
 
-					<AuthCard
-						icon="A"
-						iconBg="#f97316"
-						title="Admin - Employee Identity"
-						description="Admin panel for managing employee identities, schemas, and OAuth2 clients on the IAM domain."
-						index={3}
+					<LauncherCard
+						tone="slate"
+						badge="A"
+						title="Admin · Employee identity"
+						description="Athena admin for the IAM domain. Same surface, scoped to the employee identity store."
+						href={iamAthenaUrl}
+						target="_blank"
 					>
-						<LoginButton
-							href={iamAthenaUrl}
-							bg="#f97316"
-						>
-							Open IAM Admin
-						</LoginButton>
-					</AuthCard>
+						<LoginButton tone="slate">Open admin</LoginButton>
+					</LauncherCard>
 				</PlaygroundAdminSection>
 			</PlaygroundSection>
 
-			<FeaturesSection />
-			<ArchitectureSection />
-			<GettingStartedSection />
+			<CodeSample />
+
 			<SiteFooter logoSrc="/logo.svg?v=2" />
 		</>
 	);

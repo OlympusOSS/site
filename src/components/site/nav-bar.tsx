@@ -1,15 +1,14 @@
 "use client";
 
-import { NavBar as CanvasNavBar, OlympusLogo, type NavLink } from "@olympusoss/canvas";
+import { NavBar as CanvasNavBar, Logo, type NavLink } from "@olympusoss/canvas";
 import { Github } from "lucide-react";
 import Link from "next/link";
 
 const NAV_LINKS: NavLink[] = [
-	{ label: "Docs", href: "/docs" },
-	{ label: "Playground", href: "#playground" },
 	{ label: "Features", href: "#features" },
 	{ label: "Architecture", href: "#architecture" },
-	{ label: "Get Started", href: "#get-started" },
+	{ label: "Playground", href: "#playground" },
+	{ label: "Docs", href: "/docs" },
 ];
 
 export function NavBar({ logoSrc }: { logoSrc?: string }) {
@@ -23,7 +22,7 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 					</a>
 				) : (
 					<a href="#" className="no-underline">
-						<OlympusLogo size={24} />
+						<Logo size={24} />
 					</a>
 				)
 			}

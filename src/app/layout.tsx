@@ -18,9 +18,16 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<html lang="en" className="dark scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
+		<html lang="en" className="scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
 			<body className="min-h-screen antialiased">
-				<RootProvider>{children}</RootProvider>
+				<RootProvider
+					theme={{
+						defaultTheme: "light",
+						enableSystem: false,
+					}}
+				>
+					{children}
+				</RootProvider>
 			</body>
 		</html>
 	);

@@ -1,26 +1,29 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { LogIn } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import type { LauncherCardTone } from "@olympusoss/canvas";
 import type { ReactNode } from "react";
 
+const TONE_FG: Record<LauncherCardTone, string> = {
+	default: "hsl(var(--primary))",
+	indigo: "hsl(231 60% 38%)",
+	violet: "hsl(262 55% 42%)",
+	slate: "hsl(230 30% 30%)",
+};
+
 interface LoginButtonProps {
-	href: string;
-	bg: string;
+	tone: LauncherCardTone;
 	children: ReactNode;
 }
 
-export function LoginButton({ href, bg, children }: LoginButtonProps) {
+export function LoginButton({ tone, children }: LoginButtonProps) {
 	return (
-		<motion.a
-			href={href}
-			whileHover={{ scale: 1.02 }}
-			whileTap={{ scale: 0.98 }}
-			className="inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-[15px] font-semibold text-white no-underline shadow-md transition-shadow duration-200 hover:shadow-lg"
-			style={{ background: bg }}
+		<span
+			className="inline-flex items-center gap-2 text-sm font-medium"
+			style={{ color: TONE_FG[tone] }}
 		>
-			<LogIn className="h-4 w-4" />
 			{children}
-		</motion.a>
+			<ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+		</span>
 	);
 }
