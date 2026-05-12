@@ -256,12 +256,15 @@ jobs:
 
       - name: Verify deployed version (athena#121 AC3)
         # Post-deploy version assertion: confirms the running application
-        # reports the expected version. Prevents silent false-positive deploys.
+        # reports the expected version. Prevents silent false-positive
+        # deploys. Hits host port 2000 (compose maps `2000:3000`, so the
+        # site container's internal 3000 is reachable on the host at 2000
+        # — nothing is bound to host 3000 in compose.prod.yml).
         env:
           EXPECTED_VERSION: ${{ needs.validate.outputs.tag_version }}
         run: |
           RESPONSE=$(ssh ${{ env.SSH_OPTS }} ${{ env.SSH_TARGET }} \
-            "curl -sf http://localhost:3000/health 2>/dev/null || echo '{}'")
+            "curl -sf http://localhost:2000/health 2>/dev/null || echo '{}'")
           DEPLOYED_VERSION=$(echo "${RESPONSE}" | jq -r '.version // "unknown"')
           echo "Expected: ${EXPECTED_VERSION}"
           echo "Deployed: ${DEPLOYED_VERSION}"
