@@ -93,9 +93,26 @@ jobs:
 
       - name: Tag release
         if: steps.has_changesets.outputs.count != '0'
+        id: tag
         run: |
           # `changeset publish` is what creates the `v<version>` git tag for
           # single-package private repos. It does NOT publish to npm because
           # package.json has "private": true — it just tags and exits.
           bun run release
           git push --tags
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "version=v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Tagged v${NEW_VERSION}"
+
+      - name: Dispatch CD on the new tag
+        # Tags pushed by GITHUB_TOKEN don't trigger other workflows
+        # (GitHub's anti-recursion guard). workflow_dispatch IS exempt, so
+        # explicitly fire CD against the tag we just created — CD then
+        # checks out the tag, validates package.json matches, builds the
+        # container, and deploys to prod via SSH.
+        if: steps.has_changesets.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run "CD — Site" --ref "${{ steps.tag.outputs.version }}"
+          echo "Dispatched CD on ${{ steps.tag.outputs.version }}"
