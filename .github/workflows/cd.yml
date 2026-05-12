@@ -84,9 +84,11 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Create .npmrc for build
+        # @olympusoss/canvas is published to npmjs.org by canvas's
+        # release workflow; auth with NPM_TOKEN (org-scoped read-only).
         run: |
-          echo "@olympusoss:registry=https://npm.pkg.github.com" > /tmp/.build-npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> /tmp/.build-npmrc
+          echo "@olympusoss:registry=https://registry.npmjs.org" > /tmp/.build-npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> /tmp/.build-npmrc
 
       - name: Build image
         id: build

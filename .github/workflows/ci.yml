@@ -2,13 +2,7 @@ name: CI — Site
 
 on:
   push:
-    tags-ignore: ['v*']
-    paths:
-      - 'src/**'
-      - 'package.json'
-      - 'bun.lock'
-      - 'Containerfile'
-      - '.github/workflows/**'
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -25,11 +19,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - name: Configure npm for GitHub Packages
+      - name: Configure npm for the @olympusoss scope
+        # @olympusoss/canvas is published to npmjs.org by canvas's
+        # release workflow; auth with NPM_TOKEN (org-scoped read-only).
         run: |
-          echo "@olympusoss:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-      - run: bun install
+          echo "@olympusoss:registry=https://registry.npmjs.org" >> .npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
+      - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run build
       - name: Install Playwright browsers
