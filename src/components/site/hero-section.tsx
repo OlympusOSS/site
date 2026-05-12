@@ -143,7 +143,7 @@ export function HeroSection() {
 	return (
 		<section
 			id="top"
-			className="relative overflow-hidden px-6 pb-[120px] pt-[112px]"
+			className="relative overflow-hidden px-6 pb-[64px] pt-[112px]"
 			style={{
 				background:
 					"linear-gradient(180deg, hsl(230 50% 98%) 0%, hsl(260 40% 96%) 45%, hsl(0 0% 100%) 100%)",

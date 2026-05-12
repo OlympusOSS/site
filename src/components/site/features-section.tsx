@@ -53,7 +53,7 @@ export function FeaturesSection() {
 	return (
 		<section
 			id="features"
-			className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-24"
+			className="scroll-mt-20 px-4 pb-20 pt-14 sm:px-6 sm:pb-24 sm:pt-16"
 		>
 			<div className="mx-auto max-w-[1100px]">
 				<motion.div
