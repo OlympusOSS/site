@@ -1,5 +1,12 @@
 # site
 
+## 1.1.5
+
+### Patch Changes
+
+- a991958: CD: retry GHCR `podman push` up to 3 times. Transient 504s from the registry
+  were forcing manual re-dispatches; the chain now self-recovers.
+
 ## 1.1.4
 
 ### Patch Changes
