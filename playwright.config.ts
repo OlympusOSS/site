@@ -21,7 +21,13 @@ export default defineConfig({
 	],
 	webServer: process.env.CI
 		? {
-				command: "bun run build && bun run start",
+				// `bun run start` defers to `next start` which defaults to port
+				// 3000, but baseURL is :2000 (the canonical site port the prod
+				// container exposes via Caddy). Pass PORT explicitly so the
+				// running server matches the URL Playwright is polling — without
+				// this the webServer step times out after 120s waiting on the
+				// wrong port.
+				command: "bun run build && PORT=2000 bun run start",
 				url: baseURL,
 				reuseExistingServer: false,
 				timeout: 120_000,
