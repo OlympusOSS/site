@@ -32,8 +32,32 @@ interface TokenData {
 	};
 }
 
+/**
+ * Fetch the latest published `@olympusoss/canvas` version from the npm
+ * registry. Hits a public read-only endpoint — no auth required.
+ * Cached by Next.js for an hour so the homepage doesn't query npm on every
+ * request. Returns an empty string on failure so the badge can hide the
+ * version segment gracefully.
+ */
+async function getLatestCanvasVersion(): Promise<string> {
+	try {
+		const res = await fetch(
+			"https://registry.npmjs.org/@olympusoss/canvas/latest",
+			{ next: { revalidate: 3600 } },
+		);
+		if (!res.ok) return "";
+		const data = (await res.json()) as { version?: string };
+		return data.version ?? "";
+	} catch {
+		return "";
+	}
+}
+
 export default async function HomePage() {
-	const cookieStore = await cookies();
+	const [cookieStore, canvasVersion] = await Promise.all([
+		cookies(),
+		getLatestCanvasVersion(),
+	]);
 
 	let ciamData: TokenData | null = null;
 	let iamData: TokenData | null = null;
@@ -64,7 +88,7 @@ export default async function HomePage() {
 		<>
 			<NavBar logoSrc="/logo.svg?v=2" />
 
-			<HeroSection />
+			<HeroSection canvasVersion={canvasVersion} />
 
 			<FeaturesSection />
 

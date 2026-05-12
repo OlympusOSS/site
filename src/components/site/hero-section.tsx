@@ -139,7 +139,21 @@ function HeroTerminal() {
 	);
 }
 
-export function HeroSection() {
+export interface HeroSectionProps {
+	/**
+	 * Latest published `@olympusoss/canvas` version (without leading `v`).
+	 * Renders inside the hero badge as `v{version} · canvas design system`.
+	 * If empty, the badge falls back to just "canvas design system" — the
+	 * page server fetcher swallows registry errors and passes `""` so the
+	 * site never breaks on a transient npm hiccup.
+	 */
+	canvasVersion?: string;
+}
+
+export function HeroSection({ canvasVersion = "" }: HeroSectionProps) {
+	const badgeLabel = canvasVersion
+		? `v${canvasVersion} · canvas design system`
+		: "canvas design system";
 	return (
 		<section
 			id="top"
@@ -167,12 +181,19 @@ export function HeroSection() {
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.5 }}
 				>
-					<Badge
-						variant="outline"
-						className="border-border bg-background/70 font-mono text-[11px] font-normal backdrop-blur-[6px]"
+					<a
+						href="https://olympusoss.github.io/canvas/"
+						target="_blank"
+						rel="noopener"
+						className="inline-flex no-underline"
 					>
-						v2.3.0 · canvas design system
-					</Badge>
+						<Badge
+							variant="outline"
+							className="border-border bg-background/70 font-mono text-[11px] font-normal backdrop-blur-[6px] transition-colors hover:bg-background"
+						>
+							{badgeLabel}
+						</Badge>
+					</a>
 					<h1 className="mb-[18px] mt-4 text-[clamp(40px,5vw,52px)] font-semibold leading-[1.05] tracking-[-0.03em] text-foreground text-balance">
 						Identity and OAuth2, on your terms.
 					</h1>
