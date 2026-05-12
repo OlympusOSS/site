@@ -202,17 +202,24 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -T 10 -p ${{ vars.DEPLOY_SSH_PORT || 22 }} ${{ vars.DEPLOY_SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      # GHCR login step removed. `ghcr.io/olympusoss/site` is public
-      # (`gh api /orgs/OlympusOSS/packages/container/site --jq .visibility`
-      # returns "public"), so anonymous `podman compose pull` works.
-      # Re-add an auth step here only when a private image is added to
-      # compose.prod.yml; until then a stale GHCR_PAT was the only thing
-      # blocking deploy after the multi-arch image landed in GHCR.
+      - name: Drop stale GHCR creds on server
+        # The server's podman has cached credentials from older deploys
+        # (back when CD did `podman login` here with a now-stale GHCR_PAT).
+        # Those creds 403 on every Bearer-token request, even against the
+        # public `ghcr.io/olympusoss/site` package. `podman logout` clears
+        # them so the next pull goes anonymous, which works for the
+        # public image.
+        run: |
+          ssh ${{ env.SSH_OPTS }} ${{ env.SSH_TARGET }} \
+            "podman logout ghcr.io 2>/dev/null || true"
 
       - name: Pull updated images
         run: |
+          # Run pull with `set -o pipefail` and guard against
+          # podman-compose's habit of swallowing inner errors — exit
+          # non-zero if any line of output mentions an error.
           ssh ${{ env.SSH_OPTS }} ${{ env.SSH_TARGET }} \
-            "cd ${{ env.DEPLOY_PATH }} && podman compose -f compose.prod.yml pull ${{ env.SERVICES }}"
+            "cd ${{ env.DEPLOY_PATH }} && podman compose -f compose.prod.yml pull ${{ env.SERVICES }} 2>&1 | tee /tmp/pull.log && ! grep -q '^Error' /tmp/pull.log"
 
       - name: Restart services
         run: |
