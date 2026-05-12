@@ -13,8 +13,7 @@ export function PlaygroundSection({
 	return (
 		<section
 			id="playground"
-			className="scroll-mt-20 border-y border-border px-4 py-20 sm:px-6 sm:py-24"
-			style={{ background: "hsl(230 35% 98%)" }}
+			className="scroll-mt-20 border-y border-border bg-[hsl(230_35%_98%)] px-4 py-20 sm:px-6 sm:py-24 dark:bg-[hsl(240_18%_7%)]"
 		>
 			<div className="mx-auto max-w-[1100px]">
 				<motion.div

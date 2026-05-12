@@ -62,6 +62,38 @@ function HeroOrbs() {
 				/>
 			</div>
 			<style>{`
+				.hero-section {
+					background: linear-gradient(
+						180deg,
+						hsl(230 50% 98%) 0%,
+						hsl(260 40% 96%) 45%,
+						hsl(0 0% 100%) 100%
+					);
+				}
+				:is(.dark) .hero-section {
+					background: linear-gradient(
+						180deg,
+						hsl(240 22% 8%) 0%,
+						hsl(265 28% 12%) 45%,
+						hsl(240 10% 3.9%) 100%
+					);
+				}
+				.hero-grid {
+					background-image:
+						linear-gradient(hsl(230 30% 80% / 0.35) 1px, transparent 1px),
+						linear-gradient(90deg, hsl(230 30% 80% / 0.35) 1px, transparent 1px);
+				}
+				:is(.dark) .hero-grid {
+					background-image:
+						linear-gradient(hsl(230 30% 60% / 0.18) 1px, transparent 1px),
+						linear-gradient(90deg, hsl(230 30% 60% / 0.18) 1px, transparent 1px);
+				}
+				.hero-fade {
+					background: linear-gradient(180deg, transparent 0%, hsl(0 0% 100%) 100%);
+				}
+				:is(.dark) .hero-fade {
+					background: linear-gradient(180deg, transparent 0%, hsl(240 10% 3.9%) 100%);
+				}
 				@keyframes site-drift-a {
 					0%, 100% { transform: translate(0, 0); }
 					50% { transform: translate(30px, 40px); }
@@ -105,10 +137,8 @@ function HeroGrid() {
 	return (
 		<div
 			aria-hidden="true"
-			className="pointer-events-none absolute inset-0 z-0"
+			className="hero-grid pointer-events-none absolute inset-0 z-0"
 			style={{
-				backgroundImage:
-					"linear-gradient(hsl(230 30% 80% / 0.35) 1px, transparent 1px), linear-gradient(90deg, hsl(230 30% 80% / 0.35) 1px, transparent 1px)",
 				backgroundSize: "44px 44px",
 				maskImage:
 					"radial-gradient(ellipse 60% 55% at 50% 45%, black 0%, transparent 100%)",
@@ -180,22 +210,14 @@ export function HeroSection({ canvasVersion = "" }: HeroSectionProps) {
 	return (
 		<section
 			id="top"
-			className="relative overflow-hidden px-6 pb-[120px] pt-[112px]"
-			style={{
-				background:
-					"linear-gradient(180deg, hsl(230 50% 98%) 0%, hsl(260 40% 96%) 45%, hsl(0 0% 100%) 100%)",
-			}}
+			className="hero-section relative overflow-hidden px-6 pb-[120px] pt-[112px]"
 		>
 			<HeroGrid />
 			<HeroOrbs />
 			<div
 				aria-hidden="true"
-				className="pointer-events-none absolute inset-x-0 bottom-0 h-[140px]"
-				style={{
-					background:
-						"linear-gradient(180deg, transparent 0%, hsl(0 0% 100%) 100%)",
-					zIndex: 1,
-				}}
+				className="hero-fade pointer-events-none absolute inset-x-0 bottom-0 h-[140px]"
+				style={{ zIndex: 1 }}
 			/>
 
 			<div className="relative z-10 mx-auto grid max-w-[1100px] grid-cols-1 items-center gap-12 min-[900px]:grid-cols-2">

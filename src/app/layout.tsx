@@ -22,8 +22,8 @@ export default function RootLayout({
 			<body className="min-h-screen antialiased">
 				<RootProvider
 					theme={{
-						defaultTheme: "light",
-						enableSystem: false,
+						defaultTheme: "system",
+						enableSystem: true,
 					}}
 				>
 					{children}
