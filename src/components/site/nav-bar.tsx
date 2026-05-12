@@ -24,11 +24,11 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 							aria-hidden="true"
 							className="h-8 w-auto"
 						/>
-						<span className="flex items-baseline gap-2 leading-none">
-							<span className="text-base font-semibold tracking-tight text-foreground">
+						<span className="flex flex-col leading-tight">
+							<span className="text-[15px] font-semibold tracking-tight text-foreground">
 								Olympus
 							</span>
-							<span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
+							<span className="font-mono text-[10px] text-muted-foreground">
 								open-source identity
 							</span>
 						</span>
@@ -36,11 +36,11 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 				) : (
 					<a href="#" className="flex items-center gap-2.5 no-underline">
 						<Logo size={24} />
-						<span className="flex items-baseline gap-2 leading-none">
-							<span className="text-base font-semibold tracking-tight text-foreground">
+						<span className="flex flex-col leading-tight">
+							<span className="text-[15px] font-semibold tracking-tight text-foreground">
 								Olympus
 							</span>
-							<span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
+							<span className="font-mono text-[10px] text-muted-foreground">
 								open-source identity
 							</span>
 						</span>
