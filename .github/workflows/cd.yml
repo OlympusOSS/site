@@ -104,10 +104,25 @@ jobs:
 
       - name: Push image by digest
         id: push
+        # GHCR occasionally returns 504 Gateway Timeout on blob uploads
+        # (seen mid-run on 2026-05-12). One transient failure was enough
+        # to break the whole multi-arch pipeline and force a manual
+        # re-dispatch. Retry the push up to 3 times with a short backoff
+        # so the chain self-recovers on registry hiccups.
         run: |
-          DIGEST=$(podman push --digestfile /tmp/digest ${{ env.IMAGE_NAME }}:build-${{ github.sha }}-${{ strategy.job-index }} && cat /tmp/digest)
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
-          echo "Pushed digest: ${DIGEST}"
+          IMAGE_TAG="${{ env.IMAGE_NAME }}:build-${{ github.sha }}-${{ strategy.job-index }}"
+          for attempt in 1 2 3; do
+            if podman push --digestfile /tmp/digest "${IMAGE_TAG}"; then
+              DIGEST=$(cat /tmp/digest)
+              echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+              echo "Pushed digest on attempt ${attempt}: ${DIGEST}"
+              exit 0
+            fi
+            echo "::warning::podman push attempt ${attempt} failed; retrying after ${attempt}0s..."
+            sleep $((attempt * 10))
+          done
+          echo "::error::podman push failed after 3 attempts"
+          exit 1
 
       - name: Export digest
         run: |
