@@ -28,7 +28,7 @@ function HeroOrbs() {
 		<>
 			<div
 				aria-hidden="true"
-				className="pointer-events-none absolute inset-0 -z-0 overflow-hidden"
+				className="pointer-events-none absolute inset-0 z-[1] overflow-hidden"
 			>
 				<div
 					className="hero-orb absolute -right-[100px] -top-[120px] h-[520px] w-[520px] rounded-full"
@@ -83,7 +83,7 @@ function HeroGrid() {
 	return (
 		<div
 			aria-hidden="true"
-			className="pointer-events-none absolute inset-0 -z-10"
+			className="pointer-events-none absolute inset-0 z-0"
 			style={{
 				backgroundImage:
 					"linear-gradient(hsl(230 30% 80% / 0.35) 1px, transparent 1px), linear-gradient(90deg, hsl(230 30% 80% / 0.35) 1px, transparent 1px)",
