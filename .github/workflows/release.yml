@@ -1,0 +1,99 @@
+name: Release — Site
+
+# Changesets-powered release for the site. Runs ONLY after CI completes
+# successfully on main. On each run:
+#   1. If there are pending changesets, consume them locally (version bump +
+#      CHANGELOG update), commit directly to main, push the resulting
+#      `v<version>` git tag.
+#   2. If no pending changesets, this workflow is a no-op.
+#
+# The existing CD — Site workflow (.github/workflows/cd.yml) listens for
+# `v*` tags and handles the container build + deploy from there. This
+# workflow does NOT publish to npm — the site is `"private": true`, so
+# `changeset publish` just creates the git tag locally and exits without
+# hitting any registry.
+#
+# Avoids the PR-creation path entirely so it does not need the
+# "Allow GitHub Actions to create and approve pull requests" repo setting.
+
+on:
+  workflow_run:
+    workflows: ["CI — Site"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # workflow_run fires on every completion (success/failure/cancelled).
+    # Gate to success-only so a red CI doesn't bump the version.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # workflow_run runs against the default branch by default; pin to the
+          # SHA that triggered CI so we tag the exact code that was tested.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Configure npm for GitHub Packages (canvas dep resolution)
+        run: |
+          echo "@olympusoss:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+
+      - run: bun install --frozen-lockfile
+
+      # CI already ran typecheck/build/E2E on this SHA, so we don't repeat
+      # them here — just consume changesets, bump, commit, tag, push.
+
+      - name: Check for pending changesets
+        id: has_changesets
+        run: |
+          count=$(find .changeset -maxdepth 1 -name "*.md" ! -name "README.md" 2>/dev/null | wc -l | tr -d ' ')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Found $count pending changeset(s)."
+
+      - name: Configure git
+        if: steps.has_changesets.outputs.count != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Version packages
+        if: steps.has_changesets.outputs.count != '0'
+        run: |
+          bun run version-packages
+          git add .
+          if git diff --cached --quiet; then
+            echo "No version changes to commit."
+          else
+            git commit -m "chore: version packages [skip ci]"
+            # Rebase onto latest main before pushing. workflow_run checks out
+            # `head_sha` which can be stale if other pushes have landed since
+            # CI started; without rebase the push is rejected non-fast-forward.
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
+          fi
+
+      - name: Tag release
+        if: steps.has_changesets.outputs.count != '0'
+        run: |
+          # `changeset publish` is what creates the `v<version>` git tag for
+          # single-package private repos. It does NOT publish to npm because
+          # package.json has "private": true — it just tags and exits.
+          bun run release
+          git push --tags
