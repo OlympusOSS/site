@@ -201,16 +201,12 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -T 10 -p ${{ vars.DEPLOY_SSH_PORT || 22 }} ${{ vars.DEPLOY_SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Login to GHCR on server (best-effort)
-        # ghcr.io/olympusoss/site is public, so an anonymous pull works.
-        # Auth is still useful when private/internal canvas images get added
-        # later, so try logging in — but don't abort the deploy if the
-        # GHCR_PAT secret is stale or missing scope. The subsequent
-        # `podman compose pull` will succeed against the public package.
-        continue-on-error: true
-        run: |
-          ssh ${{ env.SSH_OPTS }} ${{ env.SSH_TARGET }} \
-            "echo '${{ secrets.GHCR_PAT }}' | podman login ghcr.io -u ${{ vars.GHCR_USERNAME }} --password-stdin"
+      # GHCR login step removed. `ghcr.io/olympusoss/site` is public
+      # (`gh api /orgs/OlympusOSS/packages/container/site --jq .visibility`
+      # returns "public"), so anonymous `podman compose pull` works.
+      # Re-add an auth step here only when a private image is added to
+      # compose.prod.yml; until then a stale GHCR_PAT was the only thing
+      # blocking deploy after the multi-arch image landed in GHCR.
 
       - name: Pull updated images
         run: |
