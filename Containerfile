@@ -29,9 +29,16 @@ RUN chown -R nextjs:nodejs /app
 USER nextjs
 
 EXPOSE 3000
+# Build arg passed from CD's `podman build --build-arg APP_VERSION=...`.
+# Baked into the runtime as an ENV so /health reports the right version
+# regardless of how next.config.mjs's `env:` substitution behaves under
+# `output: "standalone"`. Defaults to "unknown" for local container builds
+# that don't supply the arg.
+ARG APP_VERSION=unknown
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV APP_VERSION=${APP_VERSION}
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
   CMD wget --spider --quiet http://localhost:3000/health || exit 1
