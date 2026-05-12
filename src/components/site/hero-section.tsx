@@ -112,7 +112,7 @@ function HeroTerminal() {
 					~60 seconds · zero config
 				</div>
 				<h3 className="m-0 text-[19px] font-semibold leading-[1.3] tracking-[-0.015em] text-foreground">
-					Stand up the whole stack with one command.
+					Stand up the whole stack locally with one command.
 				</h3>
 				<p className="mt-1.5 text-[13.5px] leading-[1.55] text-muted-foreground">
 					<code className="font-mono text-[12.5px] text-foreground">
