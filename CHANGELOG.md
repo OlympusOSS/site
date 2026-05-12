@@ -1,5 +1,13 @@
 # site
 
+## 1.1.3
+
+### Patch Changes
+
+- 3ff3d7c: CD: drop stale GHCR creds on the server before pull and fail loudly on pull
+  errors. The previous deploy was silently restarting the old container because
+  `podman compose pull` swallowed a 403 from cached credentials.
+
 ## 1.1.2
 
 ### Patch Changes
