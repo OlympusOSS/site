@@ -17,16 +17,33 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 			linkComponent={Link}
 			logo={
 				logoSrc ? (
-					<a href="#" className="flex items-center no-underline">
+					<a href="#" className="flex items-center gap-2.5 no-underline">
 						<img
 							src={logoSrc}
-							alt="OlympusOSS"
+							alt=""
+							aria-hidden="true"
 							className="h-8 w-auto"
 						/>
+						<span className="flex items-baseline gap-2 leading-none">
+							<span className="text-base font-semibold tracking-tight text-foreground">
+								Olympus
+							</span>
+							<span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
+								open-source identity
+							</span>
+						</span>
 					</a>
 				) : (
-					<a href="#" className="no-underline">
+					<a href="#" className="flex items-center gap-2.5 no-underline">
 						<Logo size={24} />
+						<span className="flex items-baseline gap-2 leading-none">
+							<span className="text-base font-semibold tracking-tight text-foreground">
+								Olympus
+							</span>
+							<span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
+								open-source identity
+							</span>
+						</span>
 					</a>
 				)
 			}
