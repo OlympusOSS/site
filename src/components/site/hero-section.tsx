@@ -90,7 +90,7 @@ function HeroOrbs() {
 					animation: hero-rainbow-shine 6s linear infinite;
 				}
 				@keyframes hero-rainbow-shine {
-					to { background-position: 200% 0; }
+					to { background-position: -200% 0; }
 				}
 				@media (prefers-reduced-motion: reduce) {
 					.hero-orb { animation: none !important; }
