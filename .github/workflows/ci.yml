@@ -26,7 +26,12 @@ jobs:
           echo "@olympusoss:registry=https://registry.npmjs.org" >> .npmrc
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
       - run: bun install --frozen-lockfile
-      - run: bun run typecheck
+      # `next build` generates the fumadocs `.source/` runtime AND runs the
+      # full TypeScript check against the produced source — same engine the
+      # standalone `bun run typecheck` script would invoke. Skipping the
+      # separate typecheck step keeps `.source/` generation in the right
+      # order: a bare `tsc --noEmit` runs before MDX scaffolding exists and
+      # fails to resolve `./.source/server`.
       - run: bun run build
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
