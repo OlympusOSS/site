@@ -64,8 +64,7 @@ export function SiteFooter({ logoSrc }: { logoSrc?: string }) {
 								<img
 									src={logoSrc}
 									alt="Olympus"
-									width={22}
-									height={22}
+									className="h-[22px] w-auto"
 								/>
 							)}
 							<span className="text-sm font-semibold text-foreground">

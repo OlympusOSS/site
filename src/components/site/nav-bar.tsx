@@ -18,7 +18,11 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 			logo={
 				logoSrc ? (
 					<a href="#" className="flex items-center no-underline">
-						<img src={logoSrc} alt="OlympusOSS" width={40} height={40} />
+						<img
+							src={logoSrc}
+							alt="OlympusOSS"
+							className="h-8 w-auto"
+						/>
 					</a>
 				) : (
 					<a href="#" className="no-underline">
