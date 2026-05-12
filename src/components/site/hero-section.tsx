@@ -70,8 +70,31 @@ function HeroOrbs() {
 					0%, 100% { transform: translate(0, 0); }
 					50% { transform: translate(-34px, -26px); }
 				}
+				.hero-rainbow {
+					background-image: linear-gradient(
+						90deg,
+						#ef4444,
+						#f97316,
+						#eab308,
+						#22c55e,
+						#06b6d4,
+						#6366f1,
+						#a855f7,
+						#ef4444
+					);
+					background-size: 200% 100%;
+					background-clip: text;
+					-webkit-background-clip: text;
+					color: transparent;
+					-webkit-text-fill-color: transparent;
+					animation: hero-rainbow-shine 6s linear infinite;
+				}
+				@keyframes hero-rainbow-shine {
+					to { background-position: -200% 0; }
+				}
 				@media (prefers-reduced-motion: reduce) {
 					.hero-orb { animation: none !important; }
+					.hero-rainbow { animation: none !important; }
 				}
 			`}</style>
 		</>
@@ -191,7 +214,7 @@ export function HeroSection({ canvasVersion = "" }: HeroSectionProps) {
 							variant="outline"
 							className="border-border bg-background/70 font-mono text-[11px] font-normal backdrop-blur-[6px] transition-colors hover:bg-background"
 						>
-							{badgeLabel}
+							<span className="hero-rainbow">{badgeLabel}</span>
 						</Badge>
 					</a>
 					<h1 className="mb-[18px] mt-4 text-[clamp(40px,5vw,52px)] font-semibold leading-[1.05] tracking-[-0.03em] text-foreground text-balance">
