@@ -21,16 +21,20 @@ export default defineConfig({
 	],
 	webServer: process.env.CI
 		? {
-				// `bun run start` defers to `next start` which defaults to port
-				// 3000, but baseURL is :2000 (the canonical site port the prod
-				// container exposes via Caddy). Pass PORT explicitly so the
-				// running server matches the URL Playwright is polling — without
-				// this the webServer step times out after 120s waiting on the
-				// wrong port.
-				command: "bun run build && PORT=2000 bun run start",
+				// Use `next dev` for E2E rather than `next start`. next.config
+				// sets `output: "standalone"` (so the Containerfile can copy a
+				// self-contained server bundle), and Next refuses `next start`
+				// against a standalone build — it warns and exits without
+				// binding the port, so Playwright times out with
+				// ERR_CONNECTION_REFUSED. The standalone server (`node
+				// .next/standalone/server.js`) works but needs `public/` and
+				// `.next/static/` copied next to it first; dev mode does not,
+				// and the suite is just redirect/cookie checks that don't
+				// depend on prod optimisations.
+				command: "PORT=2000 bun run dev",
 				url: baseURL,
 				reuseExistingServer: false,
-				timeout: 120_000,
+				timeout: 180_000,
 			}
 		: undefined,
 });
