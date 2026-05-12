@@ -25,6 +25,12 @@ on:
 
 permissions:
   contents: write
+  # `actions: write` lets the workflow's GITHUB_TOKEN call the
+  # workflow_dispatch API to fire `CD — Site` on the new tag. Without
+  # it the dispatch returns "HTTP 403: Resource not accessible by
+  # integration" (default GITHUB_TOKEN permissions don't include
+  # cross-workflow dispatch).
+  actions: write
 
 concurrency:
   group: release
