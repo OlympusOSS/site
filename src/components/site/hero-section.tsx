@@ -72,7 +72,6 @@ function HeroOrbs() {
 				}
 				@media (prefers-reduced-motion: reduce) {
 					.hero-orb { animation: none !important; }
-					.hero-dot { animation: none !important; }
 				}
 			`}</style>
 		</>
@@ -103,11 +102,11 @@ function HeroTerminal() {
 			<div className="mb-3.5">
 				<div className="mb-2 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
 					<span
-						className="hero-dot inline-block h-1.5 w-1.5 rounded-full"
+						aria-hidden="true"
+						className="inline-block h-1.5 w-1.5 rounded-full"
 						style={{
 							background: "#22c55e",
 							boxShadow: "0 0 0 3px rgb(34 197 94 / 0.18)",
-							animation: "hero-pulse 2s ease-in-out infinite",
 						}}
 					/>
 					~60 seconds · zero config
@@ -136,12 +135,6 @@ function HeroTerminal() {
 				<span style={{ color: "#a5b4fc" }}>admin@olympus.local</span>
 				{TERMINAL_TAIL}
 			</Terminal>
-			<style>{`
-				@keyframes hero-pulse {
-					0%, 100% { box-shadow: 0 0 0 3px rgb(34 197 94 / 0.18); }
-					50% { box-shadow: 0 0 0 5px rgb(34 197 94 / 0.08); }
-				}
-			`}</style>
 		</div>
 	);
 }
@@ -150,7 +143,7 @@ export function HeroSection() {
 	return (
 		<section
 			id="top"
-			className="relative overflow-hidden px-4 pb-[120px] pt-[112px] sm:px-6"
+			className="relative overflow-hidden px-6 pb-[120px] pt-[112px]"
 			style={{
 				background:
 					"linear-gradient(180deg, hsl(230 50% 98%) 0%, hsl(260 40% 96%) 45%, hsl(0 0% 100%) 100%)",
@@ -168,7 +161,7 @@ export function HeroSection() {
 				}}
 			/>
 
-			<div className="relative z-10 mx-auto grid max-w-[1100px] grid-cols-1 items-center gap-12 lg:grid-cols-2">
+			<div className="relative z-10 mx-auto grid max-w-[1100px] grid-cols-1 items-center gap-12 min-[900px]:grid-cols-2">
 				<motion.div
 					initial={false}
 					animate={{ opacity: 1, y: 0 }}
@@ -176,11 +169,11 @@ export function HeroSection() {
 				>
 					<Badge
 						variant="outline"
-						className="border-border bg-background/70 font-mono text-[11px] font-normal backdrop-blur"
+						className="border-border bg-background/70 font-mono text-[11px] font-normal backdrop-blur-[6px]"
 					>
 						v2.3.0 · canvas design system
 					</Badge>
-					<h1 className="mb-4 mt-4 text-[40px] font-semibold leading-[1.05] tracking-[-0.03em] text-foreground text-balance sm:text-[52px]">
+					<h1 className="mb-[18px] mt-4 text-[clamp(40px,5vw,52px)] font-semibold leading-[1.05] tracking-[-0.03em] text-foreground text-balance">
 						Identity and OAuth2, on your terms.
 					</h1>
 					<p className="mb-7 max-w-[520px] text-[17px] leading-[1.55] text-muted-foreground">
@@ -197,7 +190,7 @@ export function HeroSection() {
 						</a>
 						<a
 							href="/docs"
-							className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background/80 px-8 text-sm font-medium text-foreground no-underline shadow-sm backdrop-blur transition-colors hover:bg-accent"
+							className="inline-flex h-10 items-center justify-center rounded-md border border-input bg-background/80 px-8 text-sm font-medium text-foreground no-underline shadow-sm backdrop-blur-[6px] transition-colors hover:bg-accent"
 						>
 							Read the docs
 						</a>
