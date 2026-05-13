@@ -1,0 +1,274 @@
+---
+title: Runtime configuration via env vars
+description: Best practices for .env management
+---
+
+Olympus services read configuration from environment variables. Done well, this is clean. Done poorly, it's fragile.
+
+## Layers
+
+```
+.env.sample           ← committed; placeholders, docs
+.env.local            ← per-developer, NOT committed
+.env                  ← per-environment, NOT committed, secrets
+```
+
+## .env.sample
+
+```bash
+# Olympus configuration sample
+# Copy to .env and fill in real values
+
+# Domain
+DOMAIN=your-domain.com
+HERA_PUBLIC_URL=https://ciam.${DOMAIN}
+ATHENA_PUBLIC_URL=https://iam.${DOMAIN}
+
+# Database
+POSTGRES_PASSWORD=                       # 32-char random — required
+POSTGRES_DB=olympus
+POSTGRES_USER=olympus
+
+# Kratos secrets (32-byte base64)
+KRATOS_SECRETS_COOKIE=                   # required
+KRATOS_SECRETS_CIPHER=                   # required
+
+# Hydra secrets
+HYDRA_SECRETS_SYSTEM=                    # required, 16+ char
+HYDRA_SECRETS_COOKIE=                    # required
+
+# Encryption
+OLYMPUS_ENCRYPTION_KEY_PRIMARY=          # 32-byte base64, REQUIRED
+OLYMPUS_ENCRYPTION_KEY_ID=2026-01       # rotation marker
+
+# Email courier
+COURIER_SMTP_HOST=
+COURIER_SMTP_PORT=587
+COURIER_SMTP_USER=
+COURIER_SMTP_PASSWORD=                   # required for sending email
+
+# Optional: image tag overrides
+KRATOS_TAG=v1.4.0
+HYDRA_TAG=v2.2.0
+HERA_TAG=v1.4.0
+ATHENA_TAG=v1.4.0
+```
+
+Commented. Marked required vs optional.
+
+## Generating secrets
+
+```bash
+# Random secrets
+openssl rand -base64 32
+
+# Or via SDK
+node -e "console.log(crypto.randomBytes(32).toString('base64'))"
+```
+
+## .env validation script
+
+```bash
+#!/bin/bash
+# scripts/validate-env.sh
+set -e
+
+REQUIRED=(
+  POSTGRES_PASSWORD
+  KRATOS_SECRETS_COOKIE
+  KRATOS_SECRETS_CIPHER
+  HYDRA_SECRETS_SYSTEM
+  HYDRA_SECRETS_COOKIE
+  OLYMPUS_ENCRYPTION_KEY_PRIMARY
+)
+
+source .env
+for var in "${REQUIRED[@]}"; do
+  if [ -z "${!var}" ]; then
+    echo "ERROR: $var is empty"
+    exit 1
+  fi
+done
+
+# Check key length
+if [ $(echo -n "$OLYMPUS_ENCRYPTION_KEY_PRIMARY" | base64 -d | wc -c) -ne 32 ]; then
+  echo "ERROR: OLYMPUS_ENCRYPTION_KEY_PRIMARY must decode to 32 bytes"
+  exit 1
+fi
+
+echo "✓ .env validated"
+```
+
+Run before starting:
+
+```bash
+./scripts/validate-env.sh && podman-compose up -d
+```
+
+## Templating
+
+```bash
+# .env (template)
+SERVICE_X_URL=http://service-x:3000
+
+# At compose time
+envsubst < docker-compose.template.yml > docker-compose.yml
+```
+
+For complex setups. Most Olympus deployments: direct .env is fine.
+
+## Per-environment
+
+```
+.env.dev
+.env.staging
+.env.prod
+```
+
+Activate:
+
+```bash
+podman-compose --env-file .env.staging up -d
+```
+
+Or symlink:
+
+```bash
+ln -sf .env.staging .env
+podman-compose up -d
+```
+
+## Secret rotation
+
+```bash
+# Rotate POSTGRES_PASSWORD
+NEW_PW=$(openssl rand -base64 32)
+
+# 1. Update DB
+podman exec ciam-postgres psql -c "ALTER USER olympus PASSWORD '$NEW_PW'"
+
+# 2. Update .env
+sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$NEW_PW/" .env
+
+# 3. Restart services
+podman-compose restart
+```
+
+For automated, see [Cron secret rotator](/docs/cookbook/cron-secret-rotator).
+
+## Sourcing from secret vault
+
+For more secure setups, don't store secrets in .env at all. Pull from vault at startup:
+
+```bash
+# entrypoint.sh
+export POSTGRES_PASSWORD=$(vault read secret/olympus/postgres password)
+export OLYMPUS_ENCRYPTION_KEY=$(vault read secret/olympus/encryption_key value)
+
+exec podman-compose up
+```
+
+Secrets never on disk.
+
+## Don't commit secrets
+
+`.gitignore`:
+
+```
+.env
+.env.*
+!.env.sample
+```
+
+Pre-commit hook to prevent accidents:
+
+```bash
+# .git/hooks/pre-commit
+if git diff --cached --name-only | grep -E "^\\.env$|^\\.env\\.local$|^\\.env\\.prod$"; then
+  echo "ERROR: Don't commit .env files"
+  exit 1
+fi
+```
+
+## Don't put secrets in source
+
+```ts
+// BAD
+const DB_PASSWORD = "supersecret123";
+
+// GOOD
+const DB_PASSWORD = process.env.DB_PASSWORD;
+if (!DB_PASSWORD) throw new Error("DB_PASSWORD not set");
+```
+
+## Audit at startup
+
+Print non-secret config at startup:
+
+```
+[INFO] Starting Hera v1.4.0
+[INFO] DOMAIN=your-domain.com
+[INFO] HERA_PUBLIC_URL=https://ciam.your-domain.com
+[INFO] Kratos URL: http://ciam-kratos:5000
+```
+
+DON'T print:
+```
+[INFO] DB_PASSWORD=supersecret123  ← never
+```
+
+## Sane defaults
+
+```ts
+const PORT = parseInt(process.env.PORT ?? "3000");
+const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
+```
+
+Required values: throw, don't default.
+
+```ts
+const DB_URL = process.env.DB_URL;
+if (!DB_URL) throw new Error("DB_URL is required");
+```
+
+## Type-safe env
+
+Use zod / similar:
+
+```ts
+import { z } from "zod";
+
+const envSchema = z.object({
+  POSTGRES_PASSWORD: z.string().min(16),
+  KRATOS_PUBLIC_URL: z.string().url(),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+});
+
+export const env = envSchema.parse(process.env);
+```
+
+Misconfigured env → fails at startup with clear error.
+
+## Reload without restart
+
+For some config (template paths, feature flags), in-process reload via signals:
+
+```ts
+process.on("SIGHUP", () => {
+  reloadFromVault();
+});
+```
+
+```bash
+kill -HUP <pid>
+```
+
+Most config requires restart. Don't optimize prematurely.
+
+## Related
+
+- [Cookbook — Secrets rotation](/docs/cookbook/secrets-rotation)
+- [Cookbook — Cron secret rotator](/docs/cookbook/cron-secret-rotator)
+- [Cookbook — Multiple environments](/docs/cookbook/multiple-environments)
+- [Reference — Environment variables](/docs/reference/env-vars/overview)
+- [Operate — Secrets management](/docs/operate/secrets-management)

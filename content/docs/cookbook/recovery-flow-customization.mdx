@@ -1,0 +1,250 @@
+---
+title: Customize recovery flow per audience
+description: Different recovery UX for B2C vs B2B vs internal
+---
+
+Default Kratos recovery: enter email, get link, set new password. Works for most. Sometimes you need variations.
+
+## Variants
+
+### Standard (default)
+
+```
+1. User enters email.
+2. Email sent with recovery link.
+3. User clicks → set new password.
+4. Sign in.
+```
+
+For B2C consumer apps. Familiar.
+
+### Code-based (no clickable link)
+
+```
+1. User enters email.
+2. Email sent with 6-digit code.
+3. User types code in app.
+4. Set new password.
+5. Sign in.
+```
+
+Better for users whose email client doesn't render HTML well (corporate spam filters), or who prefer copy-paste.
+
+Configure:
+```yaml
+selfservice:
+  flows:
+    recovery:
+      use: code  # vs "link"
+```
+
+### MFA-required recovery
+
+For high-stakes accounts:
+
+```
+1. User enters email.
+2. Email sent with link.
+3. User clicks → forced to enter MFA factor.
+4. MFA validates → set new password.
+```
+
+Doesn't break "I lost my password" UX. Does block "I lost password AND MFA" with same recovery.
+
+```yaml
+selfservice:
+  flows:
+    recovery:
+      after:
+        hooks:
+          - hook: require_aal2
+```
+
+Adds AAL2 requirement to recovery flow.
+
+### Support-mediated
+
+```
+1. User contacts support: "I can't recover."
+2. Support verifies identity (out-of-band).
+3. Support generates recovery link via admin API.
+4. Support sends link to user via verified channel.
+5. User clicks → set new password.
+```
+
+For locked-out users (no email access, no MFA backup).
+
+In Athena:
+
+```ts
+async function adminTriggerRecovery(targetUserId, adminId) {
+  const link = await kratos.adminCreateRecoveryLink({
+    identity_id: targetUserId,
+    expires_in: "1h",
+  });
+  await audit.log({
+    event: "support_recovery_link",
+    actor: adminId,
+    target: targetUserId,
+  });
+  return link;
+}
+```
+
+### Disposable account
+
+For high-frequency accounts, allow lower-friction:
+
+```
+1. User signs in with magic link (no password).
+2. No password → no recovery flow needed.
+```
+
+If you don't have passwords, no recovery problem.
+
+## Brand customization
+
+For each tenant's recovery email:
+
+```jinja
+Subject: Reset your {{ Tenant.Name }} password
+
+Hi {{ .Identity.traits.first_name }},
+
+Click below to set a new password:
+{{ .RecoveryURL }}
+
+This link expires in 1 hour.
+
+Need help? Reply to this email or contact {{ Tenant.SupportEmail }}.
+```
+
+Tenant-specific brand and support channels.
+
+## Multi-channel
+
+Some apps allow recovery via multiple channels:
+- Email (primary).
+- SMS (backup).
+- Recovery codes.
+
+User picks during recovery:
+
+```tsx
+<RadioGroup label="How would you like to recover?">
+  <Radio value="email">Email me a link to {redactEmail(user.email)}</Radio>
+  <Radio value="sms">Text me a code at {redactPhone(user.phone)}</Radio>
+  <Radio value="code">Enter a backup code I saved</Radio>
+</RadioGroup>
+```
+
+Each path different verification flow.
+
+## Hint at attempted email
+
+If user types `aliceee@example.com` (typo), no email sent, but they see:
+```
+"If an account exists with that email, we've sent a recovery link."
+```
+
+Don't reveal whether email exists. Prevent enumeration.
+
+## Throttle
+
+```yaml
+selfservice:
+  flows:
+    recovery:
+      lifespan: 1h
+      attempts: 3   # max 3 codes per flow
+```
+
+After 3 failures, flow invalidated.
+
+Plus per-IP:
+
+```caddy
+@recovery path /self-service/recovery method POST
+rate_limit @recovery {
+  zone recovery
+  events 5
+  window 5m
+}
+```
+
+## Custom expiry
+
+For most: 1 hour link expiry. For high-stakes: 15 min:
+
+```yaml
+selfservice:
+  flows:
+    recovery:
+      lifespan: 15m
+```
+
+Short window reduces theft risk.
+
+## What recovery doesn't do
+
+After recovery, the user can change their password. But:
+- MFA stays enrolled.
+- Sessions still active (unless you revoke).
+- OAuth grants still valid.
+
+For paranoid: post-recovery, revoke all sessions:
+
+```yaml
+selfservice:
+  flows:
+    recovery:
+      after:
+        hooks:
+          - hook: revoke_active_sessions
+```
+
+User logged out everywhere. Has to re-sign-in from scratch.
+
+## Notify on recovery
+
+Email user post-recovery:
+
+```
+Subject: Your password was changed
+
+Hi,
+
+You recently reset your password. If this was you, no action needed.
+
+If not, change your password immediately and review recent activity.
+```
+
+If they didn't request: gives them a chance to act.
+
+## Recovery audit
+
+Every recovery event logged:
+
+```sql
+INSERT INTO security_audit (event_type, identity_id, source_ip, metadata)
+VALUES (
+  'recovery_started',
+  $user_id,
+  $ip,
+  '{"channel": "email", "expires_in": "1h"}'
+);
+
+-- Later:
+INSERT INTO security_audit (event_type, identity_id, source_ip)
+VALUES ('recovery_completed', $user_id, $ip);
+```
+
+Trail of recovery attempts. Useful for investigating attacker activity.
+
+## Related
+
+- [Identity — Recovery flow](/docs/identity/recovery-flow)
+- [Cookbook — Multi-factor recovery](/docs/cookbook/multi-factor-recovery)
+- [Cookbook — Recovery codes best practices](/docs/cookbook/recovery-codes-best-practices)
+- [Cookbook — Notification templates](/docs/cookbook/notification-templates)
+- [Operate — Locked account unlock](/docs/operate/locked-account-unlock)

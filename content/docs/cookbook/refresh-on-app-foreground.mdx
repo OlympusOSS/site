@@ -1,0 +1,243 @@
+---
+title: Refresh auth on app foreground
+description: User returns to app after a long break — check session
+---
+
+Mobile and PWA apps often go to background for hours. When user returns, refresh the session before letting them act.
+
+## Why
+
+- Session might have expired.
+- Server might have invalidated (admin revoked, account locked).
+- User's role / plan might have changed.
+
+Without refresh: app shows stale state, user takes actions that fail server-side.
+
+## Mobile / PWA pattern
+
+```ts
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    refreshSession();
+  }
+});
+```
+
+Triggers when user switches back to your tab / app.
+
+## Stale checks
+
+```ts
+async function refreshSession() {
+  try {
+    const session = await olympus.toSession();
+    if (!session) {
+      // Server says no session — redirect to login
+      window.location.href = "/login";
+      return;
+    }
+    // Update local state
+    setUser(session.identity);
+  } catch (err) {
+    console.error("session_refresh_failed", err);
+    // Fall back to login
+    window.location.href = "/login";
+  }
+}
+```
+
+## Optimization: skip if recently checked
+
+```ts
+let lastCheck = 0;
+async function refreshSession() {
+  if (Date.now() - lastCheck < 60_000) return;  // skip if checked < 60s ago
+  lastCheck = Date.now();
+  // ... actually refresh
+}
+```
+
+Avoid hammering server.
+
+## Web app pattern
+
+For desktop browsers:
+
+```ts
+let lastActivity = Date.now();
+
+document.addEventListener("mousemove", () => lastActivity = Date.now());
+document.addEventListener("keypress", () => lastActivity = Date.now());
+
+window.addEventListener("focus", () => {
+  if (Date.now() - lastActivity > 5 * 60_000) {  // idle 5+ min
+    refreshSession();
+  }
+});
+```
+
+Smart: only refresh when user was AFK.
+
+## Server response
+
+Server can hint about staleness:
+
+```http
+Response headers:
+X-Session-Age: 1735  # seconds since session created
+X-Refresh-In: 60     # refresh in 60 seconds
+```
+
+Client uses to schedule next refresh.
+
+## Sliding sessions
+
+If you want sliding expiration (extends on activity):
+
+```ts
+async function refreshSession() {
+  const session = await olympus.toSession();
+  if (session) {
+    // Server extends expiry based on this hit
+  }
+}
+
+setInterval(refreshSession, 5 * 60_000);  // every 5 min
+```
+
+Kratos's `whoami` doesn't auto-extend by default. Configure:
+
+```yaml
+session:
+  earliest_possible_extend: 1h
+```
+
+`whoami` extends if remaining lifespan < 1h.
+
+## Battery considerations
+
+Mobile: frequent network calls drain battery.
+
+For PWAs, lessen:
+- Refresh on visibility change only (not interval).
+- Background sync API for occasional check.
+
+```ts
+if ("BackgroundSync" in window && document.visibilityState === "hidden") {
+  // browser-managed background check
+}
+```
+
+## Auth state across tabs
+
+When user signs out in one tab, others should know:
+
+```ts
+// In one tab on logout:
+localStorage.setItem("auth_logout", Date.now().toString());
+
+// Other tabs listen:
+window.addEventListener("storage", (e) => {
+  if (e.key === "auth_logout") {
+    window.location.reload();  // re-check auth, will fail, redirect to login
+  }
+});
+```
+
+Cross-tab sync.
+
+## Service Worker token refresh
+
+For PWAs:
+
+```ts
+self.addEventListener("fetch", async (event) => {
+  const response = await fetch(event.request);
+  if (response.status === 401) {
+    // Try to refresh
+    const refreshed = await refreshTokens();
+    if (refreshed) {
+      // Retry original request
+      return fetch(event.request);
+    } else {
+      // Redirect to login
+      return Response.redirect("/login");
+    }
+  }
+  return response;
+});
+```
+
+Auto-refresh in background.
+
+## Notification when session ends
+
+When session has truly expired (refresh fails):
+
+```tsx
+<Toast type="info">
+  You were signed out due to inactivity. <Link href="/login">Sign in</Link> to continue.
+</Toast>
+```
+
+Don't just redirect silently. Inform.
+
+## Edge: server says token revoked
+
+You refresh; server returns "token_revoked" (admin action, security event).
+
+```ts
+try {
+  await refreshSession();
+} catch (err) {
+  if (err.code === "token_revoked") {
+    showAlert("Your session was ended. This might be due to a security event.");
+    redirectTo("/login");
+  }
+}
+```
+
+Honest message.
+
+## Refresh during pending action
+
+User opens a form, AFK for an hour, comes back, submits:
+
+```ts
+async function submit(formData) {
+  try {
+    await api.submit(formData);
+  } catch (err) {
+    if (err.code === "session_expired") {
+      // Try to refresh and retry
+      await refreshSession();
+      await api.submit(formData);  // retry
+    } else {
+      throw err;
+    }
+  }
+}
+```
+
+Sneaky-good UX: user doesn't see "session expired" if it can be transparently refreshed.
+
+## Don't refresh on every request
+
+Per-request introspection is fine on the server. Don't make every API call also refresh-the-session-locally.
+
+Refresh:
+- On app visible.
+- Periodically (5-15 min).
+- On 401 response.
+
+Not:
+- Before every request.
+- Every render.
+
+## Related
+
+- [Cookbook — SPA token refresh](/docs/cookbook/spa-token-refresh)
+- [Cookbook — Refresh token rotation](/docs/cookbook/refresh-token-rotation)
+- [Reference — Diagrams — Session management](/docs/reference/diagrams/seq-session-management)
+- [Cookbook — Login history page](/docs/cookbook/login-history-page)
+- [Cookbook — BFF whoami pattern](/docs/cookbook/whoami-bff)
