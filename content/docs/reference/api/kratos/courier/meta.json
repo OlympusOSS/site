@@ -1,0 +1,8 @@
+{
+  "title": "courier",
+  "pages": [
+    "overview",
+    "listcouriermessages",
+    "getcouriermessage"
+  ]
+}

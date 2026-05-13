@@ -1,0 +1,35 @@
+---
+title: "Create Recovery Flow for Native Apps"
+description: "This endpoint initiates a recovery flow for API clients such as mobile devices, smart TVs, and so on."
+---
+
+## `GET /self-service/recovery/api`
+
+This endpoint initiates a recovery flow for API clients such as mobile devices, smart TVs, and so on.
+
+If a valid provided session cookie or session token is provided, a 400 Bad Request error.
+
+On an existing recovery flow, use the `getRecoveryFlow` API endpoint.
+
+You MUST NOT use this endpoint in client-side (Single Page Apps, ReactJS, AngularJS) nor server-side (Java Server
+Pages, NodeJS, PHP, Golang, ...) browser applications. Using this endpoint in these applications will make
+you vulnerable to a variety of CSRF attacks.
+
+This endpoint MUST ONLY be used in scenarios such as native mobile apps (React Native, Objective C, Swift, Java, ...).
+
+More information can be found at [Ory Kratos Account Recovery Documentation](../self-service/flows/account-recovery).
+
+**Operation ID:** `createNativeRecoveryFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | recoveryFlow | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

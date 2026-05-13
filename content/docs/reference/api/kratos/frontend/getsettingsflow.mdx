@@ -1,0 +1,57 @@
+---
+title: "Get Settings Flow"
+description: "When accessing this endpoint through Ory Kratos' Public API you must ensure that either the Ory Kratos Session Cookie"
+---
+
+## `GET /self-service/settings/flows`
+
+When accessing this endpoint through Ory Kratos' Public API you must ensure that either the Ory Kratos Session Cookie
+or the Ory Kratos Session Token are set.
+
+Depending on your configuration this endpoint might return a 403 error if the session has a lower Authenticator
+Assurance Level (AAL) than is possible for the identity. This can happen if the identity has password + webauthn
+credentials (which would result in AAL2) but the session has only AAL1. If this error occurs, ask the user
+to sign in with the second factor or change the configuration.
+
+You can access this endpoint without credentials when using Ory Kratos' Admin API.
+
+If this endpoint is called via an AJAX request, the response contains the flow without a redirect. In the
+case of an error, the `error.id` of the JSON response body can be one of:
+
+`security_csrf_violation`: Unable to fetch the flow because a CSRF violation occurred.
+`session_inactive`: No Ory Session was found - sign in a user first.
+`security_identity_mismatch`: The flow was interrupted with `session_refresh_required` but apparently some other
+identity logged in instead.
+
+More information can be found at [Ory Kratos User Settings & Profile Management Documentation](../self-service/flows/user-settings).
+
+**Operation ID:** `getSettingsFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | ID is the Settings Flow ID  The value for this parameter comes from `flow` URL Query parameter sent to your application (e.g. `/settings?flow=abcde`). |
+
+#### Header parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `X-Session-Token` | string | no | The Session Token  When using the SDK in an app without a browser, please include the session token here. |
+| `Cookie` | string | no | HTTP Cookies  When using the SDK in a browser app, on the server side you must include the HTTP Cookie Header sent by the client to your server here. This ensures that CSRF and session cookies are respected. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | settingsFlow | `application/json` — object |
+| 401 | errorGeneric | `application/json` — object |
+| 403 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| 410 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

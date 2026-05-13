@@ -1,0 +1,45 @@
+---
+title: "Patch an Identity"
+description: "Partially updates an [identity's](https://www.ory.com/docs/kratos/concepts/identity-user-model) field using [JSON Patch](https://jsonpatch.com/)."
+---
+
+## `PATCH /admin/identities/{id}`
+
+Partially updates an [identity's](https://www.ory.com/docs/kratos/concepts/identity-user-model) field using [JSON Patch](https://jsonpatch.com/).
+The fields `id`, `stateChangedAt` and `credentials` can not be updated using this method.
+
+**Operation ID:** `patchIdentity` &nbsp;&nbsp; **Tag:** identity
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | ID must be set to the ID of identity you want to update |
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: array of object
+
+Schema: `jsonPatchDocument` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | identity | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| 409 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

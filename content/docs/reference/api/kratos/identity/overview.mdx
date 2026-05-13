@@ -1,0 +1,30 @@
+---
+title: identity
+description: identity endpoints in the Ory Identities API (vunknown)
+---
+
+Endpoints in the **identity** group of the Ory Identities API.
+
+| Method | Path | Summary |
+|--------|------|---------|
+| `GET` | [`/admin/identities`](./listidentities) | List Identities |
+| `POST` | [`/admin/identities`](./createidentity) | Create an Identity |
+| `PATCH` | [`/admin/identities`](./batchpatchidentities) | Create multiple identities |
+| `GET` | [`/admin/identities/by/external/{externalID}`](./getidentitybyexternalid) | Get an Identity by its External ID |
+| `GET` | [`/admin/identities/{id}`](./getidentity) | Get an Identity |
+| `PUT` | [`/admin/identities/{id}`](./updateidentity) | Update an Identity |
+| `DELETE` | [`/admin/identities/{id}`](./deleteidentity) | Delete an Identity |
+| `PATCH` | [`/admin/identities/{id}`](./patchidentity) | Patch an Identity |
+| `DELETE` | [`/admin/identities/{id}/credentials/{type}`](./deleteidentitycredentials) | Delete a credential for a specific identity |
+| `GET` | [`/admin/identities/{id}/sessions`](./listidentitysessions) | List an Identity's Sessions |
+| `DELETE` | [`/admin/identities/{id}/sessions`](./deleteidentitysessions) | Delete & Invalidate an Identity's Sessions |
+| `POST` | [`/admin/recovery/code`](./createrecoverycodeforidentity) | Create a Recovery Code |
+| `POST` | [`/admin/recovery/link`](./createrecoverylinkforidentity) | Create a Recovery Link |
+| `GET` | [`/admin/sessions`](./listsessions) | List All Sessions |
+| `POST` | [`/admin/sessions`](./managesessions) | Manage sessions in bulk |
+| `GET` | [`/admin/sessions/{id}`](./getsession) | Get Session |
+| `DELETE` | [`/admin/sessions/{id}`](./disablesession) | Deactivate a Session |
+| `PATCH` | [`/admin/sessions/{id}/extend`](./extendsession) | Extend a Session |
+| `POST` | [`/admin/test-login-flows`](./createtestloginflow) | Create a test OIDC login flow |
+| `GET` | [`/schemas`](./listidentityschemas) | Get all Identity Schemas |
+| `GET` | [`/schemas/{id}`](./getidentityschema) | Get Identity JSON Schema |

@@ -1,0 +1,36 @@
+---
+title: "List Messages"
+description: "Lists all messages by given status and recipient."
+---
+
+## `GET /admin/courier/messages`
+
+Lists all messages by given status and recipient.
+
+**Operation ID:** `listCourierMessages` &nbsp;&nbsp; **Tag:** courier
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `page_size` | integer (int64) | no | Items per Page  This is the number of items per page to return. For details on pagination please head over to the [pagination documentation](https://www.ory.com/docs/ecosystem/api-design#pagination). |
+| `page_token` | string | no | Next Page Token  The next page token. For details on pagination please head over to the [pagination documentation](https://www.ory.com/docs/ecosystem/api-design#pagination). |
+| `status` | enum: `queued`, `sent`, `processing`, `abandoned` | no | Status filters out messages based on status. If no value is provided, it doesn't take effect on filter. |
+| `recipient` | string | no | Recipient filters out messages based on recipient. If no value is provided, it doesn't take effect on filter. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | Paginated Courier Message List Response | `application/json` — array of object |
+| 400 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

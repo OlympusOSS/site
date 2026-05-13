@@ -1,0 +1,45 @@
+---
+title: "Create a Logout URL for Browsers"
+description: "This endpoint initializes a browser-based user logout flow and a URL which can be used to log out the user."
+---
+
+## `GET /self-service/logout/browser`
+
+This endpoint initializes a browser-based user logout flow and a URL which can be used to log out the user.
+
+This endpoint is NOT INTENDED for API clients and only works
+with browsers (Chrome, Firefox, ...). For API clients you can
+call the `/self-service/logout/api` URL directly with the Ory Session Token.
+
+The URL is only valid for the currently signed in user. If no user is signed in, this endpoint returns
+a 401 error.
+
+When calling this endpoint from a backend, please ensure to properly forward the HTTP cookies.
+
+**Operation ID:** `createBrowserLogoutFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `return_to` | string | no | Return to URL  The URL to which the browser should be redirected to after the logout has been performed. |
+
+#### Header parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `cookie` | string | no | HTTP Cookies  If you call this endpoint from a backend, please include the original Cookie header in the request. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | logoutFlow | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| 401 | errorGeneric | `application/json` — object |
+| 500 | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

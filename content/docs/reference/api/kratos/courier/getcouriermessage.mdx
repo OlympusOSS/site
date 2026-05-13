@@ -1,0 +1,33 @@
+---
+title: "Get a Message"
+description: "Gets a specific messages by the given ID."
+---
+
+## `GET /admin/courier/messages/{id}`
+
+Gets a specific messages by the given ID.
+
+**Operation ID:** `getCourierMessage` &nbsp;&nbsp; **Tag:** courier
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | MessageID is the ID of the message. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | message | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

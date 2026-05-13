@@ -1,0 +1,36 @@
+---
+title: "List All Sessions"
+description: "Listing all sessions that exist."
+---
+
+## `GET /admin/sessions`
+
+Listing all sessions that exist.
+
+**Operation ID:** `listSessions` &nbsp;&nbsp; **Tag:** identity
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `page_size` | integer (int64) | no | Items per Page  This is the number of items per page to return. For details on pagination please head over to the [pagination documentation](https://www.ory.com/docs/ecosystem/api-design#pagination). |
+| `page_token` | string | no | Next Page Token  The next page token. For details on pagination please head over to the [pagination documentation](https://www.ory.com/docs/ecosystem/api-design#pagination). |
+| `active` | boolean | no | Active is a boolean flag that filters out sessions based on the state. If no value is provided, all sessions are returned. |
+| `expand` | array of enum: `identity`, `devices` | no | ExpandOptions is a query parameter encoded list of all properties that must be expanded in the Session. If no value is provided, the expandable properties are skipped. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | Session List Response  The response given when listing sessions in an administrative context. | `application/json` — array of object |
+| 400 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

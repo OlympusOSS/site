@@ -1,0 +1,40 @@
+---
+title: "Delete a test OIDC login flow"
+description: "Deletes a dry-run OIDC test login flow. A flow whose debug payload has"
+---
+
+## `DELETE /self-service/login/test`
+
+Deletes a dry-run OIDC test login flow. A flow whose debug payload has
+been captured requires the HMAC cookie set by the OIDC callback; a flow
+still in the initial choose-method state is deletable with just the flow
+ID (it carries no PII, and the admin may want to abandon it).
+
+**Operation ID:** `deleteTestLoginFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | ID of the test login flow to delete. |
+
+#### Header parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `Cookie` | string | no | HTTP Cookies. A captured test flow requires the ory_kratos_test_flow cookie set by the OIDC callback; a flow still in the initial choose-method state does not. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| 400 | errorGeneric | `application/json` — object |
+| 403 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

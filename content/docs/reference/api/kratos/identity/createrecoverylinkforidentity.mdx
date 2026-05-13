@@ -1,0 +1,44 @@
+---
+title: "Create a Recovery Link"
+description: "This endpoint creates a recovery link which should be given to the user in order for them to recover"
+---
+
+## `POST /admin/recovery/link`
+
+This endpoint creates a recovery link which should be given to the user in order for them to recover
+(or activate) their account.
+
+**Operation ID:** `createRecoveryLinkForIdentity` &nbsp;&nbsp; **Tag:** identity
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `return_to` | string | no |  |
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `createRecoveryLinkForIdentityBody` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | recoveryLinkForIdentity | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

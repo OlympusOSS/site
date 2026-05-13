@@ -1,0 +1,29 @@
+---
+title: "Get Identity JSON Schema"
+description: "Return a specific identity schema."
+---
+
+## `GET /schemas/{id}`
+
+Return a specific identity schema.
+
+**Operation ID:** `getIdentitySchema` &nbsp;&nbsp; **Tag:** identity
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | ID must be set to the ID of schema you want to get |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | identitySchema | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

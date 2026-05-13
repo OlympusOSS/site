@@ -1,0 +1,39 @@
+---
+title: "Perform Logout for Native Apps"
+description: "Use this endpoint to log out an identity using an Ory Session Token. If the Ory Session Token was successfully"
+---
+
+## `DELETE /self-service/logout/api`
+
+Use this endpoint to log out an identity using an Ory Session Token. If the Ory Session Token was successfully
+revoked, the server returns a 204 No Content response. A 204 No Content response is also sent when
+the Ory Session Token has been revoked already before.
+
+If the Ory Session Token is malformed or does not exist a 403 Forbidden response will be returned.
+
+This endpoint does not remove any HTTP
+Cookies - use the Browser-Based Self-Service Logout Flow instead.
+
+**Operation ID:** `performNativeLogout` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `performNativeLogoutBody` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| 400 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

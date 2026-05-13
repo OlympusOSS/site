@@ -1,0 +1,42 @@
+---
+title: frontend
+description: frontend endpoints in the Ory Identities API (vunknown)
+---
+
+Endpoints in the **frontend** group of the Ory Identities API.
+
+| Method | Path | Summary |
+|--------|------|---------|
+| `GET` | [`/.well-known/ory/webauthn.js`](./getwebauthnjavascript) | Get WebAuthn JavaScript |
+| `GET` | [`/self-service/errors`](./getflowerror) | Get User-Flow Errors |
+| `GET` | [`/self-service/fed-cm/parameters`](./createfedcmflow) | Get FedCM Parameters |
+| `POST` | [`/self-service/fed-cm/token`](./updatefedcmflow) | Submit a FedCM token |
+| `POST` | [`/self-service/login`](./updateloginflow) | Submit a Login Flow |
+| `GET` | [`/self-service/login/api`](./createnativeloginflow) | Create Login Flow for Native Apps |
+| `GET` | [`/self-service/login/browser`](./createbrowserloginflow) | Create Login Flow for Browsers |
+| `GET` | [`/self-service/login/flows`](./getloginflow) | Get Login Flow |
+| `DELETE` | [`/self-service/login/test`](./deletetestloginflow) | Delete a test OIDC login flow |
+| `GET` | [`/self-service/logout`](./updatelogoutflow) | Update Logout Flow |
+| `DELETE` | [`/self-service/logout/api`](./performnativelogout) | Perform Logout for Native Apps |
+| `GET` | [`/self-service/logout/browser`](./createbrowserlogoutflow) | Create a Logout URL for Browsers |
+| `POST` | [`/self-service/recovery`](./updaterecoveryflow) | Update Recovery Flow |
+| `GET` | [`/self-service/recovery/api`](./createnativerecoveryflow) | Create Recovery Flow for Native Apps |
+| `GET` | [`/self-service/recovery/browser`](./createbrowserrecoveryflow) | Create Recovery Flow for Browsers |
+| `GET` | [`/self-service/recovery/flows`](./getrecoveryflow) | Get Recovery Flow |
+| `POST` | [`/self-service/registration`](./updateregistrationflow) | Update Registration Flow |
+| `GET` | [`/self-service/registration/api`](./createnativeregistrationflow) | Create Registration Flow for Native Apps |
+| `GET` | [`/self-service/registration/browser`](./createbrowserregistrationflow) | Create Registration Flow for Browsers |
+| `GET` | [`/self-service/registration/flows`](./getregistrationflow) | Get Registration Flow |
+| `POST` | [`/self-service/settings`](./updatesettingsflow) | Complete Settings Flow |
+| `GET` | [`/self-service/settings/api`](./createnativesettingsflow) | Create Settings Flow for Native Apps |
+| `GET` | [`/self-service/settings/browser`](./createbrowsersettingsflow) | Create Settings Flow for Browsers |
+| `GET` | [`/self-service/settings/flows`](./getsettingsflow) | Get Settings Flow |
+| `POST` | [`/self-service/verification`](./updateverificationflow) | Complete Verification Flow |
+| `GET` | [`/self-service/verification/api`](./createnativeverificationflow) | Create Verification Flow for Native Apps |
+| `GET` | [`/self-service/verification/browser`](./createbrowserverificationflow) | Create Verification Flow for Browser Clients |
+| `GET` | [`/self-service/verification/flows`](./getverificationflow) | Get Verification Flow |
+| `GET` | [`/sessions`](./listmysessions) | Get My Active Sessions |
+| `DELETE` | [`/sessions`](./disablemyothersessions) | Disable my other sessions |
+| `GET` | [`/sessions/token-exchange`](./exchangesessiontoken) | Exchange Session Token |
+| `GET` | [`/sessions/whoami`](./tosession) | Check Who the Current HTTP Session Belongs To |
+| `DELETE` | [`/sessions/{id}`](./disablemysession) | Disable one of my sessions |

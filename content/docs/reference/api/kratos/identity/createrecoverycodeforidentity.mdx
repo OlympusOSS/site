@@ -1,0 +1,38 @@
+---
+title: "Create a Recovery Code"
+description: "This endpoint creates a recovery code which should be given to the user in order for them to recover"
+---
+
+## `POST /admin/recovery/code`
+
+This endpoint creates a recovery code which should be given to the user in order for them to recover
+(or activate) their account.
+
+**Operation ID:** `createRecoveryCodeForIdentity` &nbsp;&nbsp; **Tag:** identity
+
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `createRecoveryCodeForIdentityBody` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 201 | recoveryCodeForIdentity | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

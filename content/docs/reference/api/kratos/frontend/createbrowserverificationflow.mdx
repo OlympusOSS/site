@@ -1,0 +1,36 @@
+---
+title: "Create Verification Flow for Browser Clients"
+description: "This endpoint initializes a browser-based account verification flow. Once initialized, the browser will be redirected to"
+---
+
+## `GET /self-service/verification/browser`
+
+This endpoint initializes a browser-based account verification flow. Once initialized, the browser will be redirected to
+`selfservice.flows.verification.ui_url` with the flow ID set as the query parameter `?flow=`.
+
+If this endpoint is called via an AJAX request, the response contains the recovery flow without any redirects.
+
+This endpoint is NOT INTENDED for API clients and only works with browsers (Chrome, Firefox, ...).
+
+More information can be found at [Ory Kratos Email and Phone Verification Documentation](https://www.ory.com/docs/kratos/self-service/flows/verify-email-account-activation).
+
+**Operation ID:** `createBrowserVerificationFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `return_to` | string | no | The URL to return the browser to after the flow was completed. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | verificationFlow | `application/json` — object |
+| 303 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

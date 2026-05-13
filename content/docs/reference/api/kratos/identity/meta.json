@@ -1,0 +1,27 @@
+{
+  "title": "identity",
+  "pages": [
+    "overview",
+    "listidentities",
+    "createidentity",
+    "batchpatchidentities",
+    "getidentitybyexternalid",
+    "getidentity",
+    "updateidentity",
+    "deleteidentity",
+    "patchidentity",
+    "deleteidentitycredentials",
+    "listidentitysessions",
+    "deleteidentitysessions",
+    "createrecoverycodeforidentity",
+    "createrecoverylinkforidentity",
+    "listsessions",
+    "managesessions",
+    "getsession",
+    "disablesession",
+    "extendsession",
+    "createtestloginflow",
+    "listidentityschemas",
+    "getidentityschema"
+  ]
+}

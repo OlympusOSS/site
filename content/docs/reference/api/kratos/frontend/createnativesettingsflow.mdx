@@ -1,0 +1,50 @@
+---
+title: "Create Settings Flow for Native Apps"
+description: "This endpoint initiates a settings flow for API clients such as mobile devices, smart TVs, and so on."
+---
+
+## `GET /self-service/settings/api`
+
+This endpoint initiates a settings flow for API clients such as mobile devices, smart TVs, and so on.
+You must provide a valid Ory Kratos Session Token for this endpoint to respond with HTTP 200 OK.
+
+To fetch an existing settings flow call `/self-service/settings/flows?flow=<flow_id>`.
+
+You MUST NOT use this endpoint in client-side (Single Page Apps, ReactJS, AngularJS) nor server-side (Java Server
+Pages, NodeJS, PHP, Golang, ...) browser applications. Using this endpoint in these applications will make
+you vulnerable to a variety of CSRF attacks.
+
+Depending on your configuration this endpoint might return a 403 error if the session has a lower Authenticator
+Assurance Level (AAL) than is possible for the identity. This can happen if the identity has password + webauthn
+credentials (which would result in AAL2) but the session has only AAL1. If this error occurs, ask the user
+to sign in with the second factor or change the configuration.
+
+In the case of an error, the `error.id` of the JSON response body can be one of:
+
+`security_csrf_violation`: Unable to fetch the flow because a CSRF violation occurred.
+`session_inactive`: No Ory Session was found - sign in a user first.
+
+This endpoint MUST ONLY be used in scenarios such as native mobile apps (React Native, Objective C, Swift, Java, ...).
+
+More information can be found at [Ory Kratos User Settings & Profile Management Documentation](../self-service/flows/user-settings).
+
+**Operation ID:** `createNativeSettingsFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Header parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `X-Session-Token` | string | no | The Session Token of the Identity performing the settings flow. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | settingsFlow | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

@@ -1,0 +1,45 @@
+---
+title: "Extend a Session"
+description: "Calling this endpoint extends the given session ID. If `session.earliest_possible_extend` is set it"
+---
+
+## `PATCH /admin/sessions/{id}/extend`
+
+Calling this endpoint extends the given session ID. If `session.earliest_possible_extend` is set it
+will only extend the session after the specified time has passed.
+
+This endpoint returns per default a 204 No Content response on success. Older Ory Network projects may
+return a 200 OK response with the session in the body. Returning the session as part of the response
+will be deprecated in the future and should not be relied upon.
+
+This endpoint ignores consecutive requests to extend the same session and returns a 404 error in those
+scenarios. This endpoint also returns 404 errors if the session does not exist.
+
+Retrieve the session ID from the `/sessions/whoami` endpoint / `toSession` SDK method.
+
+**Operation ID:** `extendSession` &nbsp;&nbsp; **Tag:** identity
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | ID is the session's ID. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | session | `application/json` — object |
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| 400 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

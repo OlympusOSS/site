@@ -1,0 +1,36 @@
+---
+title: "Get User-Flow Errors"
+description: "This endpoint returns the error associated with a user-facing self service errors."
+---
+
+## `GET /self-service/errors`
+
+This endpoint returns the error associated with a user-facing self service errors.
+
+This endpoint supports stub values to help you implement the error UI:
+
+`?id=stub:500` - returns a stub 500 (Internal Server Error) error.
+
+More information can be found at [Ory Kratos User User Facing Error Documentation](https://www.ory.com/docs/kratos/self-service/flows/user-facing-errors).
+
+**Operation ID:** `getFlowError` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | Error is the error's ID |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | flowError | `application/json` — object |
+| 403 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| 500 | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

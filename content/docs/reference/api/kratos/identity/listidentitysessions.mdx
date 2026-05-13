@@ -1,0 +1,44 @@
+---
+title: "List an Identity's Sessions"
+description: "This endpoint returns all sessions that belong to the given Identity."
+---
+
+## `GET /admin/identities/{id}/sessions`
+
+This endpoint returns all sessions that belong to the given Identity.
+
+**Operation ID:** `listIdentitySessions` &nbsp;&nbsp; **Tag:** identity
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | ID is the identity's ID. |
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `per_page` | integer (int64) | no | Deprecated Items per Page  DEPRECATED: Please use `page_token` instead. This parameter will be removed in the future.  This is the number of items per page. |
+| `page` | integer (int64) | no | Deprecated Pagination Page  DEPRECATED: Please use `page_token` instead. This parameter will be removed in the future.  This value is currently an integer, but it is not sequential. The value is not the page number, but a reference. The next page can be any number and some numbers might return an empty list.  For example, page 2 might not follow after page 1. And even if page 3 and 5 exist, but page 4 might not exist. The first page can be retrieved by omitting this parameter. Following page pointers will be returned in the `Link` header. |
+| `page_size` | integer (int64) | no | Page Size  This is the number of items per page to return. For details on pagination please head over to the [pagination documentation](https://www.ory.com/docs/ecosystem/api-design#pagination). |
+| `page_token` | string | no | Next Page Token  The next page token. For details on pagination please head over to the [pagination documentation](https://www.ory.com/docs/ecosystem/api-design#pagination). |
+| `active` | boolean | no | Active is a boolean flag that filters out sessions based on the state. If no value is provided, all sessions are returned. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | List Identity Sessions Response | `application/json` — array of object |
+| 400 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

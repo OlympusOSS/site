@@ -1,0 +1,102 @@
+---
+title: "Complete Settings Flow"
+description: "Use this endpoint to complete a settings flow by sending an identity's updated password. This endpoint"
+---
+
+## `POST /self-service/settings`
+
+Use this endpoint to complete a settings flow by sending an identity's updated password. This endpoint
+behaves differently for API and browser flows.
+
+API-initiated flows expect `application/json` to be sent in the body and respond with
+HTTP 200 and an application/json body with the session token on success;
+HTTP 303 redirect to a fresh settings flow if the original flow expired with the appropriate error messages set;
+HTTP 400 on form validation errors.
+HTTP 401 when the endpoint is called without a valid session token.
+HTTP 403 when `selfservice.flows.settings.privileged_session_max_age` was reached or the session's AAL is too low.
+Implies that the user needs to re-authenticate.
+
+Browser flows without HTTP Header `Accept` or with `Accept: text/*` respond with
+a HTTP 303 redirect to the post/after settings URL or the `return_to` value if it was set and if the flow succeeded;
+a HTTP 303 redirect to the Settings UI URL with the flow ID containing the validation errors otherwise.
+a HTTP 303 redirect to the login endpoint when `selfservice.flows.settings.privileged_session_max_age` was reached or the session's AAL is too low.
+
+Browser flows with HTTP Header `Accept: application/json` respond with
+HTTP 200 and a application/json body with the signed in identity and a `Set-Cookie` header on success;
+HTTP 303 redirect to a fresh login flow if the original flow expired with the appropriate error messages set;
+HTTP 401 when the endpoint is called without a valid session cookie.
+HTTP 403 when the page is accessed without a session cookie or the session's AAL is too low.
+HTTP 400 on form validation errors.
+
+Depending on your configuration this endpoint might return a 403 error if the session has a lower Authenticator
+Assurance Level (AAL) than is possible for the identity. This can happen if the identity has password + webauthn
+credentials (which would result in AAL2) but the session has only AAL1. If this error occurs, ask the user
+to sign in with the second factor (happens automatically for server-side browser flows) or change the configuration.
+
+If this endpoint is called with a `Accept: application/json` HTTP header, the response contains the flow without a redirect. In the
+case of an error, the `error.id` of the JSON response body can be one of:
+
+`session_refresh_required`: The identity requested to change something that needs a privileged session. Redirect
+the identity to the login init endpoint with query parameters `?refresh=true&return_to=<the-current-browser-url>`,
+or initiate a refresh login flow otherwise.
+`security_csrf_violation`: Unable to fetch the flow because a CSRF violation occurred.
+`session_inactive`: No Ory Session was found - sign in a user first.
+`security_identity_mismatch`: The flow was interrupted with `session_refresh_required` but apparently some other
+identity logged in instead.
+`security_identity_mismatch`: The requested `?return_to` address is not allowed to be used. Adjust this in the configuration!
+`browser_location_change_required`: Usually sent when an AJAX request indicates that the browser needs to open a specific URL.
+Most likely used in Social Sign In flows.
+
+More information can be found at [Ory Kratos User Settings & Profile Management Documentation](../self-service/flows/user-settings).
+
+**Operation ID:** `updateSettingsFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `flow` | string | yes | The Settings Flow ID  The value for this parameter comes from `flow` URL Query parameter sent to your application (e.g. `/settings?flow=abcde`). |
+
+#### Header parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `X-Session-Token` | string | no | The Session Token of the Identity performing the settings flow. |
+| `Cookie` | string | no | HTTP Cookies  When using the SDK in a browser app, on the server side you must include the HTTP Cookie Header sent by the client to your server here. This ensures that CSRF and session cookies are respected. |
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: —
+
+Schema: `updateSettingsFlowBody` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+Type: —
+
+Schema: `updateSettingsFlowBody` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | settingsFlow | `application/json` — object |
+| 303 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| 400 | settingsFlow | `application/json` — object |
+| 401 | errorGeneric | `application/json` — object |
+| 403 | errorGeneric | `application/json` — object |
+| 410 | errorGeneric | `application/json` — object |
+| 422 | errorBrowserLocationChangeRequired | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `sessionToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

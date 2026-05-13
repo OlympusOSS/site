@@ -1,0 +1,48 @@
+---
+title: "Update Logout Flow"
+description: "This endpoint logs out an identity in a self-service manner."
+---
+
+## `GET /self-service/logout`
+
+This endpoint logs out an identity in a self-service manner.
+
+If the `Accept` HTTP header is not set to `application/json`, the browser will be redirected (HTTP 303 See Other)
+to the `return_to` parameter of the initial request or fall back to `urls.default_return_to`.
+
+If the `Accept` HTTP header is set to `application/json`, a 204 No Content response
+will be sent on successful logout instead.
+
+This endpoint is NOT INTENDED for API clients and only works
+with browsers (Chrome, Firefox, ...). For API clients you can
+call the `/self-service/logout/api` URL directly with the Ory Session Token.
+
+More information can be found at [Ory Kratos User Logout Documentation](https://www.ory.com/docs/next/kratos/self-service/flows/user-logout).
+
+**Operation ID:** `updateLogoutFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `token` | string | no | A Valid Logout Token  If you do not have a logout token because you only have a session cookie, call `/self-service/logout/browser` to generate a URL for this endpoint. |
+| `return_to` | string | no | The URL to return to after the logout was completed. |
+
+#### Header parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `Cookie` | string | no | HTTP Cookies  When using the SDK in a browser app, on the server side you must include the HTTP Cookie Header sent by the client to your server here. This ensures that CSRF and session cookies are respected. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| 303 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

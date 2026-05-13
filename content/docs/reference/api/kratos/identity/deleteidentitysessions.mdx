@@ -1,0 +1,35 @@
+---
+title: "Delete & Invalidate an Identity's Sessions"
+description: "Calling this endpoint irrecoverably and permanently deletes and invalidates all sessions that belong to the given Identity."
+---
+
+## `DELETE /admin/identities/{id}/sessions`
+
+Calling this endpoint irrecoverably and permanently deletes and invalidates all sessions that belong to the given Identity.
+
+**Operation ID:** `deleteIdentitySessions` &nbsp;&nbsp; **Tag:** identity
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | ID is the identity's ID. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| 400 | errorGeneric | `application/json` — object |
+| 401 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

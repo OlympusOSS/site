@@ -1,0 +1,40 @@
+---
+title: "Get an Identity by its External ID"
+description: "Return an [identity](https://www.ory.com/docs/kratos/concepts/identity-user-model) by its external ID. You can optionally"
+---
+
+## `GET /admin/identities/by/external/{externalID}`
+
+Return an [identity](https://www.ory.com/docs/kratos/concepts/identity-user-model) by its external ID. You can optionally
+include credentials (e.g. social sign in connections) in the response by using the `include_credential` query parameter.
+
+**Operation ID:** `getIdentityByExternalID` &nbsp;&nbsp; **Tag:** identity
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `externalID` | string | yes | ExternalID must be set to the ID of identity you want to get |
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `include_credential` | array of enum: `password`, `oidc`, `totp`, `lookup_secret`, `webauthn`, `code`, `passkey`, `profile`, `saml`, `deviceauthn`, `identifier_first`, `link_recovery`, `code_recovery` | no | Include Credentials in Response  Include any credential, for example `password` or `oidc`, in the response. When set to `oidc`, This will return the initial OAuth 2.0 Access Token, OAuth 2.0 Refresh Token, and the OpenID Connect ID Token if available. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | identity | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+#### Security
+
+- `oryAccessToken`
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

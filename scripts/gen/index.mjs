@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 
 const GENERATORS = [
 	{ name: "OpenAPI → Hydra", cmd: ["bun", "run", "scripts/gen/openapi-to-mdx.mjs", "../athena/openapi.json", "content/docs/reference/api/hydra", "hydra"] },
+	{ name: "OpenAPI → Kratos", cmd: ["bun", "run", "scripts/gen/openapi-to-mdx.mjs", "scripts/gen/specs/kratos-api.json", "content/docs/reference/api/kratos", "kratos"] },
 	{ name: "Compose services", cmd: ["bun", "run", "scripts/gen/compose-services.mjs"] },
 	{ name: "Env-var catalog", cmd: ["bun", "run", "scripts/gen/env-vars.mjs"] },
 	{ name: "Identity schemas", cmd: ["bun", "run", "scripts/gen/identity-schemas.mjs"] },

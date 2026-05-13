@@ -1,0 +1,60 @@
+---
+title: "Create Login Flow for Native Apps"
+description: "This endpoint initiates a login flow for native apps that do not use a browser, such as mobile devices, smart TVs, and so on."
+---
+
+## `GET /self-service/login/api`
+
+This endpoint initiates a login flow for native apps that do not use a browser, such as mobile devices, smart TVs, and so on.
+
+If a valid provided session cookie or session token is provided, a 400 Bad Request error
+will be returned unless the URL query parameter `?refresh=true` is set.
+
+To fetch an existing login flow call `/self-service/login/flows?flow=<flow_id>`.
+
+You MUST NOT use this endpoint in client-side (Single Page Apps, ReactJS, AngularJS) nor server-side (Java Server
+Pages, NodeJS, PHP, Golang, ...) browser applications. Using this endpoint in these applications will make
+you vulnerable to a variety of CSRF attacks, including CSRF login attacks.
+
+In the case of an error, the `error.id` of the JSON response body can be one of:
+
+`session_already_available`: The user is already signed in.
+`session_aal1_required`: Multi-factor auth (e.g. 2fa) was requested but the user has no session yet.
+`security_csrf_violation`: Unable to fetch the flow because a CSRF violation occurred.
+
+This endpoint MUST ONLY be used in scenarios such as native mobile apps (React Native, Objective C, Swift, Java, ...).
+
+More information can be found at [Ory Kratos User Login](https://www.ory.com/docs/kratos/self-service/flows/user-login) and [User Registration Documentation](https://www.ory.com/docs/kratos/self-service/flows/user-registration).
+
+**Operation ID:** `createNativeLoginFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `refresh` | boolean | no | Refresh a login session  If set to true, this will refresh an existing login session by asking the user to sign in again. This will reset the authenticated_at time of the session. |
+| `aal` | string | no | Request a Specific AuthenticationMethod Assurance Level  Use this parameter to upgrade an existing session's authenticator assurance level (AAL). This allows you to ask for multi-factor authentication. When an identity sign in using e.g. username+password, the AAL is 1. If you wish to "upgrade" the session's security by asking the user to perform TOTP / WebAuth/ ... you would set this to "aal2". |
+| `return_session_token_exchange_code` | boolean | no | EnableSessionTokenExchangeCode requests the login flow to include a code that can be used to retrieve the session token after the login flow has been completed. |
+| `return_to` | string | no | The URL to return the browser to after the flow was completed. |
+| `organization` | string | no | An optional organization ID that should be used for logging this user in. This parameter is only effective in the Ory Network. |
+| `via` | string | no | Via should contain the identity's credential the code should be sent to. Only relevant in aal2 flows.  DEPRECATED: This field is deprecated. Please remove it from your requests. The user will now see a choice of MFA credentials to choose from to perform the second factor instead. |
+| `identity_schema` | string | no | An optional identity schema to use for the login flow. |
+
+#### Header parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `X-Session-Token` | string | no | The Session Token of the Identity performing the settings flow. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | loginFlow | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

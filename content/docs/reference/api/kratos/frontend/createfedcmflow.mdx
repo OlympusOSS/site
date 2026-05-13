@@ -1,0 +1,23 @@
+---
+title: "Get FedCM Parameters"
+description: "This endpoint returns a list of all available FedCM providers. It is only supported on the Ory Network."
+---
+
+## `GET /self-service/fed-cm/parameters`
+
+This endpoint returns a list of all available FedCM providers. It is only supported on the Ory Network.
+
+**Operation ID:** `createFedcmFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | createFedcmFlowResponse | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

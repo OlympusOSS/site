@@ -1,0 +1,40 @@
+---
+title: "Create Recovery Flow for Browsers"
+description: "This endpoint initializes a browser-based account recovery flow. Once initialized, the browser will be redirected to"
+---
+
+## `GET /self-service/recovery/browser`
+
+This endpoint initializes a browser-based account recovery flow. Once initialized, the browser will be redirected to
+`selfservice.flows.recovery.ui_url` with the flow ID set as the query parameter `?flow=`. If a valid user session
+exists, the browser is returned to the configured return URL.
+
+If this endpoint is called via an AJAX request, the response contains the recovery flow without any redirects
+or a 400 bad request error if the user is already authenticated.
+
+This endpoint is NOT INTENDED for clients that do not have a browser (Chrome, Firefox, ...) as cookies are needed.
+
+More information can be found at [Ory Kratos Account Recovery Documentation](../self-service/flows/account-recovery).
+
+**Operation ID:** `createBrowserRecoveryFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `return_to` | string | no | The URL to return the browser to after the flow was completed. |
+| `skip_settings` | string | no | Skip redirection to the settings UI after the recovery flow was completed. Instead, the user will be redirected to the URL specified in `return_to` query parameter or the default return URL if `return_to` is not set. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | recoveryFlow | `application/json` — object |
+| 303 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| 400 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

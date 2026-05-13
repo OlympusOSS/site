@@ -1,0 +1,68 @@
+---
+title: "Complete Verification Flow"
+description: "Use this endpoint to complete a verification flow. This endpoint"
+---
+
+## `POST /self-service/verification`
+
+Use this endpoint to complete a verification flow. This endpoint
+behaves differently for API and browser flows and has several states:
+
+`choose_method` expects `flow` (in the URL query) and `email` (in the body) to be sent
+and works with API- and Browser-initiated flows.
+For API clients and Browser clients with HTTP Header `Accept: application/json` it either returns a HTTP 200 OK when the form is valid and HTTP 400 OK when the form is invalid
+and a HTTP 303 See Other redirect with a fresh verification flow if the flow was otherwise invalid (e.g. expired).
+For Browser clients without HTTP Header `Accept` or with `Accept: text/*` it returns a HTTP 303 See Other redirect to the Verification UI URL with the Verification Flow ID appended.
+`sent_email` is the success state after `choose_method` when using the `link` method and allows the user to request another verification email. It
+works for both API and Browser-initiated flows and returns the same responses as the flow in `choose_method` state.
+`passed_challenge` expects a `token` to be sent in the URL query and given the nature of the flow ("sending a verification link")
+does not have any API capabilities. The server responds with a HTTP 303 See Other redirect either to the Settings UI URL
+(if the link was valid) and instructs the user to update their password, or a redirect to the Verification UI URL with
+a new Verification Flow ID which contains an error message that the verification link was invalid.
+
+More information can be found at [Ory Kratos Email and Phone Verification Documentation](https://www.ory.com/docs/kratos/self-service/flows/verify-email-account-activation).
+
+**Operation ID:** `updateVerificationFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `flow` | string | yes | The Verification Flow ID  The value for this parameter comes from `flow` URL Query parameter sent to your application (e.g. `/verification?flow=abcde`). |
+| `token` | string | no | Verification Token  The verification token which completes the verification request. If the token is invalid (e.g. expired) an error will be shown to the end-user.  This parameter is usually set in a link and not used by any direct API call. |
+
+#### Header parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `Cookie` | string | no | HTTP Cookies  When using the SDK in a browser app, on the server side you must include the HTTP Cookie Header sent by the client to your server here. This ensures that CSRF and session cookies are respected. |
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: —
+
+Schema: `updateVerificationFlowBody` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+Type: —
+
+Schema: `updateVerificationFlowBody` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | verificationFlow | `application/json` — object |
+| 303 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| 400 | verificationFlow | `application/json` — object |
+| 410 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*

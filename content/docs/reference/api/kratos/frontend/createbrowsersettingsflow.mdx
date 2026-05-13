@@ -1,0 +1,63 @@
+---
+title: "Create Settings Flow for Browsers"
+description: "This endpoint initializes a browser-based user settings flow. Once initialized, the browser will be redirected to"
+---
+
+## `GET /self-service/settings/browser`
+
+This endpoint initializes a browser-based user settings flow. Once initialized, the browser will be redirected to
+`selfservice.flows.settings.ui_url` with the flow ID set as the query parameter `?flow=`. If no valid
+Ory Kratos Session Cookie is included in the request, a login flow will be initialized.
+
+If this endpoint is opened as a link in the browser, it will be redirected to
+`selfservice.flows.settings.ui_url` with the flow ID set as the query parameter `?flow=`. If no valid user session
+was set, the browser will be redirected to the login endpoint.
+
+If this endpoint is called via an AJAX request, the response contains the settings flow without any redirects
+or a 401 forbidden error if no valid session was set.
+
+Depending on your configuration this endpoint might return a 403 error if the session has a lower Authenticator
+Assurance Level (AAL) than is possible for the identity. This can happen if the identity has password + webauthn
+credentials (which would result in AAL2) but the session has only AAL1. If this error occurs, ask the user
+to sign in with the second factor (happens automatically for server-side browser flows) or change the configuration.
+
+If this endpoint is called via an AJAX request, the response contains the flow without a redirect. In the
+case of an error, the `error.id` of the JSON response body can be one of:
+
+`security_csrf_violation`: Unable to fetch the flow because a CSRF violation occurred.
+`session_inactive`: No Ory Session was found - sign in a user first.
+`security_identity_mismatch`: The requested `?return_to` address is not allowed to be used. Adjust this in the configuration!
+
+This endpoint is NOT INTENDED for clients that do not have a browser (Chrome, Firefox, ...) as cookies are needed.
+
+More information can be found at [Ory Kratos User Settings & Profile Management Documentation](../self-service/flows/user-settings).
+
+**Operation ID:** `createBrowserSettingsFlow` &nbsp;&nbsp; **Tag:** frontend
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `return_to` | string | no | The URL to return the browser to after the flow was completed. |
+
+#### Header parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `Cookie` | string | no | HTTP Cookies  When using the SDK in a browser app, on the server side you must include the HTTP Cookie Header sent by the client to your server here. This ensures that CSRF and session cookies are respected. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | settingsFlow | `application/json` — object |
+| 303 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| 400 | errorGeneric | `application/json` — object |
+| 401 | errorGeneric | `application/json` — object |
+| 403 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
+
+---
+
+*Generated from `/tmp/kratos-api.json` at build time.*
