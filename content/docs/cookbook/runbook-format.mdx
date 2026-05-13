@@ -1,0 +1,255 @@
+---
+title: Operational runbook template
+description: How to write a useful runbook for Olympus operations
+---
+
+A runbook is "what to do when [thing] happens." For 3 AM incidents, having one beats not having one.
+
+## Anatomy
+
+```markdown
+# Runbook: Auth flow failures spike
+
+## When this fires
+Login success rate < 95% over 5 min OR error rate > 5%.
+
+## Severity
+- 90-95% success: warn (slack ping).
+- < 90%: page (on-call).
+
+## Detect
+- Grafana alert: olympus-login-success-rate.
+- Status page: yellow if < 95%, red if < 80%.
+
+## Diagnose (in order)
+1. Is Kratos up? `podman ps | grep ciam-kratos` → if down, restart.
+2. Is Postgres up? `podman exec ciam-postgres pg_isready` → if not, see [Postgres recovery].
+3. Network: `curl https://ciam.your-domain.com/health/ready` from same network as ops.
+4. Recent deploys? `git log --since="1 hour ago"` — recent push? Suspect.
+5. Rate limit: are we hitting our own DDoS protections? Check Caddy logs.
+
+## Mitigate
+- If recent deploy is the suspect:
+  ```
+  cd /opt/olympus && git revert HEAD --no-edit && git push
+  podman-compose up -d
+  ```
+- If DB is slow:
+  - Check `pg_stat_activity` for stuck queries.
+  - Restart Postgres only as last resort.
+- If Kratos / Hydra panicking:
+  - Restart container.
+  - If keeps crashing, check disk space, RAM, configs.
+
+## Verify resolution
+- Login success rate climbs to > 99%.
+- Synthetic test passes.
+- Status page back to green.
+
+## Communicate
+- Update status page when resolved.
+- Slack message to #alerts: "Resolved, RCA tomorrow."
+
+## Followup (within 5 business days)
+- Postmortem document.
+- Action items in tracker.
+```
+
+## Principles
+
+### Be specific
+
+Bad: "If Kratos is having issues, restart it."
+Good: "Check `podman ps | grep ciam-kratos`. If status is not 'Up', run `podman start ciam-kratos`. Wait 30s. Check `curl ...health/ready`."
+
+3 AM person doesn't remember context. Spell it out.
+
+### One thing per runbook
+
+Don't have "general troubleshooting" runbook. Split:
+- `runbook-login-failures.md`
+- `runbook-database-down.md`
+- `runbook-email-not-sending.md`
+
+Each focused. Find quickly.
+
+### Up-to-date
+
+Runbooks decay. Review:
+- After every incident: was it useful? Update.
+- Quarterly: walk through. Find broken commands.
+- After dependency changes (Hydra v2 → v3): update commands.
+
+### Test in non-emergency
+
+Practice runbooks during chaos drills (see [chaos engineering](/docs/operate/chaos-engineering)). Find bugs when not stressed.
+
+## Sections
+
+### When this fires
+
+Trigger condition. Specific.
+
+```
+Alert "high_error_rate" — rate(http_requests{status=~"5.."}[5m]) > 0.05
+```
+
+### Severity
+
+When to wake people. Don't page for routine.
+
+### Detect
+
+How to confirm the issue exists. Multiple sources:
+- Grafana metrics.
+- Logs.
+- Direct check.
+
+### Diagnose
+
+Steps in priority order. Most common first.
+
+### Mitigate
+
+Actions to take. Each command verbatim.
+
+### Verify resolution
+
+Concrete check that "the bad thing stopped."
+
+### Communicate
+
+Who needs to know. How.
+
+### Followup
+
+Postmortem, action items.
+
+## Index
+
+```markdown
+# Olympus Runbooks
+
+## Authentication
+- [Login failures spike](./runbook-login-failures.md)
+- [MFA enrollment broken](./runbook-mfa-broken.md)
+- [OAuth2 token endpoint down](./runbook-oauth2-token.md)
+
+## Database
+- [Postgres unavailable](./runbook-pg-down.md)
+- [Postgres slow queries](./runbook-pg-slow.md)
+- [Disk full](./runbook-disk-full.md)
+
+## Email
+- [Verification emails not sending](./runbook-email-fail.md)
+- [Bounce rate spike](./runbook-email-bounce.md)
+
+## Security
+- [Account takeover reported](./runbook-ato.md)
+- [Brute force detected](./runbook-brute-force.md)
+
+## Operational
+- [Cert expiring soon](./runbook-cert-expiry.md)
+- [Backup failed](./runbook-backup-fail.md)
+```
+
+Easy to navigate.
+
+## Tools
+
+### Markdown in git
+
+Simple, version-controlled. Reviewable changes.
+
+### Slab / Notion
+
+Web-friendly. Search. Comments.
+
+### Atlassian Confluence
+
+If you're already on it. Not the easiest to maintain.
+
+### Code annotations
+
+For tighter coupling:
+
+```ts
+/**
+ * If this throws frequently, see [runbook-login-failures.md].
+ */
+function processLogin() { ... }
+```
+
+Find runbook from code.
+
+## Templates
+
+For consistent runbooks:
+
+```bash
+# scripts/new-runbook.sh
+cp templates/runbook.md docs/runbooks/$NAME.md
+sed -i "s/{name}/$NAME/" docs/runbooks/$NAME.md
+```
+
+```markdown
+# templates/runbook.md
+# Runbook: {name}
+
+## When this fires
+[Specific trigger]
+
+## Severity
+[]
+
+## Detect
+1. 
+2. 
+
+## Diagnose
+1. 
+2. 
+
+## Mitigate
+1. 
+2. 
+
+## Verify resolution
+- 
+
+## Communicate
+- 
+
+## Followup
+- 
+```
+
+Filling in is fast.
+
+## Avoid
+
+### "Use your judgment"
+
+3 AM judgment is worse than rested judgment. Tell them what to do.
+
+### Open-ended steps
+
+"Check the logs" → for what?
+
+Specific:
+```
+Check logs for "panic" or "fatal":
+  podman logs ciam-kratos --since 30m | grep -E "(panic|fatal)"
+```
+
+### Outdated tools
+
+If runbook says "ssh to the Hetzner box" but you've migrated to AWS, it's actively misleading. Maintain.
+
+## Related
+
+- [Operate — Incident response](/docs/operate/incident-response)
+- [Operate — Disaster recovery](/docs/operate/disaster-recovery)
+- [Operate — Chaos engineering](/docs/operate/chaos-engineering)
+- [Cookbook — Uptime incident comms](/docs/cookbook/uptime-incident-comms)
+- [Cookbook — Timeline of incident](/docs/cookbook/timeline-of-incident)
