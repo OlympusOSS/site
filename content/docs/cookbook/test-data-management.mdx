@@ -1,0 +1,244 @@
+---
+title: Test data management
+description: Synthetic users for dev, staging, E2E tests
+---
+
+You need users for testing — but real user data shouldn't be in dev or test. Synthetic data is the answer. Done right, it's reusable, realistic, and safe.
+
+## Tiers of test data
+
+### Local dev
+A few hand-crafted users. Specific identities for local testing.
+
+```bash
+# scripts/seed-dev.sh
+create_user "alice@example.com" "AlicePass123!" "alice" "Alice" "Smith"
+create_user "bob@example.com" "BobPass123!" "bob" "Bob" "Jones"
+create_user "carol@example.com" "CarolPass123!" "carol" "Carol" "Brown"
+```
+
+5-10 users. Hard-coded passwords. Easy to remember.
+
+### Staging
+Larger synthetic dataset mirroring prod distribution.
+
+```bash
+# scripts/seed-staging.sh
+node generate-fake-users.js 1000
+```
+
+```ts
+import { faker } from "@faker-js/faker";
+for (let i = 0; i < 1000; i++) {
+  await createUser({
+    email: faker.internet.email(),
+    firstName: faker.person.firstName(),
+    lastName: faker.person.lastName(),
+    password: "StagingPass123!",
+  });
+}
+```
+
+Diverse, realistic but synthetic.
+
+### E2E tests
+Per-test ephemeral users.
+
+```ts
+test("login flow", async () => {
+  const user = await createTestUser();  // fresh per test
+  await loginPage.login(user.email, user.password);
+  await expectDashboard();
+  await deleteTestUser(user.id);  // cleanup
+});
+```
+
+Created/destroyed per test.
+
+## Naming convention
+
+Mark synthetic data clearly so it's never confused with real:
+
+- Email: `loadtest+<id>@example.com`
+- First name: prefix with "Test" → `Test Alice`
+- Or use a TLD: `alice@e2e.olympus-test`
+
+Make it visually distinct.
+
+## Cleanup
+
+After E2E tests:
+
+```ts
+afterEach(async () => {
+  await db`
+    DELETE FROM identities 
+    WHERE traits->>'email' LIKE 'e2e+%@example.com'
+      AND created_at < NOW() - INTERVAL '1 hour'
+  `;
+});
+```
+
+Old test users get cleaned up automatically.
+
+## Stable fixtures
+
+For some tests, you want the SAME data across runs:
+
+```ts
+const FIXTURES = {
+  admin: { id: "01HQ-FIXED-UUID", email: "admin@e2e.olympus-test", role: "admin" },
+  user1: { id: "02HQ-FIXED-UUID", email: "user1@e2e.olympus-test", role: "user" },
+};
+
+beforeAll(async () => {
+  await seedFixtures(FIXTURES);
+});
+```
+
+Predictable IDs make assertions stable.
+
+## Datasets
+
+For larger synthetic datasets, generate once, version-control the dataset:
+
+```bash
+# scripts/build-dataset.sh
+node generate-users.js > datasets/users-v1.json
+git add datasets/users-v1.json
+```
+
+Repeatable. Load via:
+
+```bash
+# scripts/load-dataset.sh
+cat datasets/users-v1.json | jq -c '.[]' | while read user; do
+  curl -X POST $KRATOS_ADMIN/admin/identities -d "$user"
+done
+```
+
+## Don't leak prod data
+
+Common mistake: copy prod DB to staging "for realistic testing." Data breach risk:
+- Staging has weaker access controls.
+- Multiple engineers can access.
+- More likely to have backup misconfigurations.
+
+If you NEED prod-like data:
+- Anonymize first (replace emails, names with synthetic).
+- Strip sensitive fields entirely.
+
+```sql
+UPDATE identities SET traits = jsonb_build_object(
+  'email', md5(traits->>'email') || '@anon.local',
+  'first_name', 'Anon',
+  'last_name', 'User'
+);
+```
+
+But synthetic is safer. Always preferred.
+
+## Test passwords
+
+NEVER use real production passwords in test data.
+
+A common, well-known test password:
+```
+TestPassword123!
+```
+
+Or environment-specific:
+```
+StagingPass123!
+DevPass123!
+```
+
+Easy to remember during dev. Won't be confused with real.
+
+## Test users for specific scenarios
+
+Predefined users for testing edge cases:
+
+```ts
+const TESTS = {
+  no_email_verified: { email: "unverified@test.com", emailVerified: false },
+  with_mfa: { email: "mfa@test.com", mfaEnrolled: true },
+  locked_account: { email: "locked@test.com", state: "inactive" },
+  has_recovery_pending: { email: "recovery@test.com" /* has active recovery flow */ },
+};
+```
+
+Tests use these directly. No setup per test.
+
+## Multi-tenant test data
+
+For multi-tenant Olympus:
+
+```ts
+const tenants = ["acme", "bigcorp", "test-tenant"];
+for (const tenant of tenants) {
+  for (let i = 0; i < 10; i++) {
+    await createUser({
+      email: `user${i}@${tenant}.test`,
+      tenant_id: tenant,
+    });
+  }
+}
+```
+
+Each tenant has its own pocket of users.
+
+## Locale / language
+
+Test for i18n:
+
+```ts
+await createUser({ email: "...", traits: { locale: "fr-FR" } });
+await createUser({ email: "...", traits: { locale: "ja-JP" } });
+```
+
+Verify emails render in correct language.
+
+## Performance testing
+
+For load tests, large dataset:
+
+```ts
+// scripts/load-50k-users.ts
+for (let i = 0; i < 50000; i++) {
+  await createUser(...);
+}
+```
+
+Don't run nightly — overwhelms dev DB. Run once, snapshot DB, restore for tests.
+
+## Test data privacy
+
+Even synthetic test data should not include:
+- Real names of real people (even celebrities can be irritated).
+- Profanity / offensive content.
+- Real cards (use Stripe test cards 4242 4242 4242 4242).
+
+Be respectful.
+
+## CI cleanup
+
+CI tests run, create users, leave them. Cleanup before each CI run:
+
+```bash
+# In CI:
+psql -c "TRUNCATE identities CASCADE"
+psql -c "DELETE FROM kratos.sessions"
+# Re-seed
+./scripts/seed-ci.sh
+# Run tests
+```
+
+Or use throwaway DB per CI job (Docker container, ephemeral).
+
+## Related
+
+- [Cookbook — Staging environment](/docs/cookbook/staging-environment)
+- [Cookbook — Multiple environments](/docs/cookbook/multiple-environments)
+- [Develop — Running tests](/docs/develop/running-tests)
+- [Develop — Local dev environment](/docs/develop/local-dev-environment)

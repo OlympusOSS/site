@@ -1,0 +1,234 @@
+---
+title: User avatar / photo upload
+description: Profile photos done safely
+---
+
+A common identity feature: profile photos. Each user uploads an image. Looks simple — actually a security and ops challenge.
+
+## Threats
+
+- Malicious uploads (malware, EICAR).
+- Decompression bombs (zip-like images that explode RAM).
+- SVG with embedded scripts (XSS).
+- Tracking pixels (1x1 PNG with metadata).
+- Adult / illegal content.
+
+## Server-side validation
+
+```ts
+import sharp from "sharp";
+import fs from "fs/promises";
+
+async function processAvatar(buffer: Buffer): Promise<Buffer> {
+  // Limit size BEFORE decompression
+  if (buffer.length > 5 * 1024 * 1024) throw new Error("too_large");
+  
+  // Validate type by content, not extension
+  const type = await fileType.fromBuffer(buffer);
+  const allowed = ["image/jpeg", "image/png", "image/webp"];
+  if (!type || !allowed.includes(type.mime)) throw new Error("invalid_type");
+  
+  // Re-encode through Sharp (kills exploits in the source)
+  return sharp(buffer, { limitInputPixels: 24_000_000 })  // 24MP cap
+    .resize(512, 512, { fit: "cover" })
+    .webp({ quality: 80 })
+    .toBuffer();
+}
+```
+
+`limitInputPixels`: protection against decompression bombs.
+Re-encoding: strips ALL metadata (EXIF, malicious code embedded).
+
+## No SVG
+
+```ts
+if (mime === "image/svg+xml") throw new Error("svg_not_allowed");
+```
+
+SVGs are XML, can include `<script>`. Path of least resistance: don't allow SVG uploads. Use raster only.
+
+For icons you need, ship pre-vetted SVGs in your app.
+
+## Storage
+
+Don't store in DB. Use:
+- Local filesystem (single host).
+- S3 / R2 / Spaces (cloud).
+- Image CDN (Cloudflare Images, Imgix).
+
+```sql
+ALTER TABLE identities 
+  ADD COLUMN avatar_url TEXT;  -- URL only, not bytes
+```
+
+```ts
+const avatarKey = `avatars/${identityId}.webp`;
+await s3.putObject({ Bucket: "olympus-avatars", Key: avatarKey, Body: processed });
+const url = `https://cdn.your-domain.com/${avatarKey}`;
+await kratos.adminPatch(identityId, [
+  { op: "replace", path: "/traits/avatar_url", value: url }
+]);
+```
+
+## Access control
+
+Public bucket? Many apps make avatars publicly accessible. Anyone with the URL can view.
+
+OK if:
+- User explicitly chose to upload.
+- Privacy policy says avatars are public.
+
+NOT OK if:
+- Internal-only app.
+- Sensitive userbase (whistleblowers, etc.).
+
+Private bucket → signed URLs:
+
+```ts
+const url = await s3.getSignedUrl("getObject", {
+  Bucket: "...", 
+  Key: avatarKey,
+  Expires: 3600,
+});
+```
+
+Each viewer gets a time-limited URL.
+
+## Avatar URLs in tokens
+
+Don't put avatar URLs in OAuth2 access tokens — they're long, change often, and aren't needed for authz.
+
+In ID token: OK (OIDC's `picture` claim). It's short-lived.
+
+In profile API: best (always-fresh).
+
+## Default avatars
+
+When user hasn't uploaded:
+
+```tsx
+function Avatar({ user }) {
+  if (user.traits.avatar_url) {
+    return <img src={user.traits.avatar_url} />;
+  }
+  return <DefaultAvatar name={user.traits.first_name} />;
+}
+
+function DefaultAvatar({ name }) {
+  const initial = name?.[0] ?? "?";
+  const bgColor = hashToColor(name);
+  return (
+    <div style={{ backgroundColor: bgColor }} className="avatar">
+      {initial}
+    </div>
+  );
+}
+```
+
+Generated initials. No image needed.
+
+## Update flow
+
+```tsx
+<form onSubmit={uploadAvatar} encType="multipart/form-data">
+  <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" />
+  <button>Upload</button>
+</form>
+```
+
+Server:
+```ts
+async function uploadAvatar(formData: FormData) {
+  const file = formData.get("avatar") as File;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const processed = await processAvatar(buffer);
+  const key = `avatars/${session.identity.id}-${Date.now()}.webp`;
+  await s3.putObject({ Bucket: "...", Key: key, Body: processed });
+  await kratos.adminPatch(session.identity.id, [
+    { op: "replace", path: "/traits/avatar_url", value: `https://cdn.../$key` }
+  ]);
+  return revalidatePath("/profile");
+}
+```
+
+## Replace not delete
+
+When user uploads new avatar:
+- Don't delete old immediately (caches still serve it).
+- Mark old as "to delete after 30 days."
+- Garbage collect via cron.
+
+```sql
+INSERT INTO avatar_garbage (key, deleted_at)
+VALUES ($old_key, NOW());
+
+-- Cron daily:
+SELECT key FROM avatar_garbage 
+WHERE deleted_at < NOW() - INTERVAL '30 days';
+-- For each: s3.deleteObject + db.delete
+```
+
+## Content moderation
+
+If user-supplied avatars need moderation:
+- AWS Rekognition, Azure Content Moderator: auto-classify.
+- Hive Moderation: more aggressive.
+- Self-host: harder.
+
+Flag suspicious → human review. Don't auto-publish.
+
+For most B2B SaaS: trust users; moderate only on report.
+
+## CDN integration
+
+Each upload triggers CDN cache. Pre-warm if expected (e.g., new branding):
+
+```ts
+await fetch(avatarUrl);  // CDN caches on first hit
+```
+
+Or warm cache directly via CDN API.
+
+## Image variants
+
+For different display sizes:
+
+```ts
+const sizes = [32, 64, 128, 256, 512];
+const variants = await Promise.all(sizes.map(size => 
+  sharp(buffer).resize(size, size, { fit: "cover" }).webp().toBuffer()
+));
+for (const [i, variant] of variants.entries()) {
+  await s3.put(`avatars/${id}-${sizes[i]}.webp`, variant);
+}
+```
+
+Serve right size per use:
+
+```tsx
+<picture>
+  <source srcset={`${cdn}/${id}-32.webp 1x, ${cdn}/${id}-64.webp 2x`} media="(max-width: 100px)" />
+  <source srcset={`${cdn}/${id}-128.webp 1x, ${cdn}/${id}-256.webp 2x`} />
+  <img src={`${cdn}/${id}-256.webp`} />
+</picture>
+```
+
+Or use an image CDN that resizes on-the-fly (Imgix, Cloudflare Images, Cloudinary):
+
+```tsx
+<img src={`${imgcdn}/${avatarKey}?w=128&h=128&fit=cover`} />
+```
+
+## Cost
+
+- Storage: ~$0.02/GB. 100k users with 50KB avatars = 5GB = $0.10/mo.
+- Bandwidth: depends. CDN with cache cuts cost significantly.
+
+Trivial for typical apps.
+
+## Related
+
+- [Cookbook — Customize registration form](/docs/cookbook/customize-registration-form)
+- [Identity — Identity schemas](/docs/identity/identity-schemas)
+- [Security — SSRF prevention](/docs/security/ssrf-prevention)
+- [Cookbook — Customize Hera UI](/docs/cookbook/customize-hera-ui)

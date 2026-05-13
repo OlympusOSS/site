@@ -1,0 +1,220 @@
+---
+title: Audit log search query language
+description: A simple syntax for non-SQL users to filter audit
+---
+
+Auditors and support agents need to query audit logs but shouldn't write SQL. Build a simple search-bar syntax.
+
+## Examples of queries
+
+```
+event:login failed
+user:alice@example.com
+ip:10.0.0.1
+between:2026-05-12..2026-05-13
+event:password_changed actor:admin
+event:login user:alice failed
+```
+
+User-friendly. Parses to SQL.
+
+## Parser
+
+```ts
+const TOKENS = {
+  event: /^event:(\S+)/,
+  user: /^user:(\S+)/,
+  actor: /^actor:(\S+)/,
+  ip: /^ip:(\S+)/,
+  between: /^between:(\S+)\.\.(\S+)/,
+  outcome: /^(succeeded|failed|success|failure)$/,
+};
+
+function parse(query: string) {
+  const tokens = query.split(/\s+/);
+  const filters: any = {};
+  for (const t of tokens) {
+    for (const [key, re] of Object.entries(TOKENS)) {
+      const m = t.match(re);
+      if (m) {
+        if (key === "between") {
+          filters.from = m[1];
+          filters.to = m[2];
+        } else {
+          filters[key] = m[1] ?? t;
+        }
+      }
+    }
+  }
+  return filters;
+}
+```
+
+## Query
+
+```ts
+async function search(query: string) {
+  const f = parse(query);
+  let sql = sql`SELECT * FROM security_audit WHERE 1=1`;
+  if (f.event) sql = sql`${sql} AND event_type = ${f.event}`;
+  if (f.user) {
+    sql = sql`${sql} AND identity_id IN (SELECT id FROM identities WHERE traits->>'email' = ${f.user})`;
+  }
+  if (f.ip) sql = sql`${sql} AND source_ip = ${f.ip}`;
+  if (f.from) sql = sql`${sql} AND created_at >= ${f.from}`;
+  if (f.to) sql = sql`${sql} AND created_at <= ${f.to}`;
+  if (f.outcome) sql = sql`${sql} AND outcome = ${f.outcome}`;
+  sql = sql`${sql} ORDER BY created_at DESC LIMIT 100`;
+  return await db.unsafe(sql);
+}
+```
+
+## UI
+
+```tsx
+<input 
+  type="text" 
+  placeholder='event:login user:alice failed between:2026-05-01..2026-05-31'
+  onChange={(e) => debouncedSearch(e.target.value)}
+/>
+<HelpButton>
+  <SearchHelp />
+</HelpButton>
+```
+
+## Suggestions
+
+As user types, suggest valid filters:
+
+```tsx
+const [suggestions, setSuggestions] = useState<string[]>([]);
+
+useEffect(() => {
+  if (query.endsWith("event:")) {
+    setSuggestions([
+      "login", "login_failed", "password_changed", 
+      "mfa_enrolled", "admin_user_locked"
+    ]);
+  } else if (query.endsWith("user:")) {
+    // Fetch some recent users
+    fetchRecentUsers().then(setSuggestions);
+  }
+}, [query]);
+
+<datalist id="search-suggestions">
+  {suggestions.map(s => <option key={s} value={s} />)}
+</datalist>
+```
+
+## Saved searches
+
+```tsx
+<aside>
+  <h3>Saved searches</h3>
+  <Link href="/audit?q=event:login failed">Failed logins</Link>
+  <Link href="/audit?q=event:admin_user_locked">Account locks</Link>
+  <Link href="/audit?q=event:password_changed actor:admin">Admin password resets</Link>
+</aside>
+```
+
+Common queries pre-saved. User picks.
+
+## Output
+
+```tsx
+function ResultsTable({ events }) {
+  return (
+    <table>
+      {events.map(e => (
+        <tr key={e.id}>
+          <td>{e.created_at}</td>
+          <td>{e.event_type}</td>
+          <td>{e.user_email}</td>
+          <td>{e.source_ip}</td>
+          <td>{e.outcome}</td>
+        </tr>
+      ))}
+    </table>
+  );
+}
+```
+
+CSV download for analysis offline:
+
+```tsx
+<Button onClick={() => exportCsv(events)}>Download CSV</Button>
+```
+
+## Permissions
+
+Audit log is sensitive — most users shouldn't see all. Restrict:
+
+- Tenant admins: their tenant's audit log only.
+- Super admins: all.
+- Regular users: their own activity only.
+
+```ts
+function scopedQuery(filters, currentUser) {
+  if (currentUser.role === "user") {
+    filters.user = currentUser.email;  // can't override
+  } else if (currentUser.role === "tenant_admin") {
+    filters.tenant = currentUser.tenant_id;
+  }
+  // super_admin: no scoping
+  return search(filters);
+}
+```
+
+## Audit the audit access
+
+Yes, log who accessed audit:
+
+```sql
+INSERT INTO security_audit (event_type, actor_id, metadata)
+VALUES ('audit_search', $admin_id, $filter_json);
+```
+
+If audit is misused (random fishing through user data), discoverable.
+
+## Performance
+
+Wide-open searches (`SELECT * FROM security_audit`) without filters: bad. Slow on large tables.
+
+Force filters:
+
+```ts
+function search(filters) {
+  if (Object.keys(filters).length === 0) {
+    throw new Error("at_least_one_filter_required");
+  }
+  // ...
+}
+```
+
+User must specify at least one filter. UI hints: "search by user, IP, or date."
+
+## Limits
+
+```ts
+const MAX_RESULTS = 1000;
+sql = sql`${sql} LIMIT ${MAX_RESULTS}`;
+```
+
+For larger: paginate or export.
+
+## Search syntax extensions
+
+```
+NOT event:login        -- exclude
+event:login OR event:logout   -- multiple matching
+ip:10.* -- pattern (need careful parsing)
+```
+
+Get complex — careful balance with UX.
+
+## Related
+
+- [Cookbook — Admin audit page](/docs/cookbook/admin-audit-page)
+- [Operate — Audit log query](/docs/operate/audit-log-query)
+- [Cookbook — Audit anonymization](/docs/cookbook/audit-anonymization)
+- [Cookbook — Compliance audit export](/docs/cookbook/compliance-audit-export)
