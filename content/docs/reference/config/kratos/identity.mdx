@@ -1,0 +1,21 @@
+---
+title: "identity"
+description: "Kratos identity configuration"
+---
+
+# `identity` section
+
+Identity schema pointer.
+
+Every `identity.*` key across the four Kratos instances:
+
+| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |
+|-----|----------|-----------|---------|----------|
+| `default_schema_id` | `default` | `default` | `admin` | `admin` |
+| `schemas` | array[3] | array[3] | array[1] | array[1] |
+
+See [Ory Kratos config reference](https://www.ory.sh/docs/kratos/reference/configuration) for the full schema.
+
+---
+
+*Generated from kratos.yml files at build time.*

@@ -1,0 +1,22 @@
+---
+title: hydra.yml
+description: "Reference for the four Hydra configuration files"
+---
+
+Olympus runs four Hydra instances. Configuration split across 4 sections.
+
+- **CIAM dev** — `platform/dev/ciam-hydra/hydra.yml`
+- **CIAM prod** — `platform/prod/ciam-hydra/hydra.yml`
+- **IAM dev** — `platform/dev/iam-hydra/hydra.yml`
+- **IAM prod** — `platform/prod/iam-hydra/hydra.yml`
+
+## Sections
+
+| Section | Keys |
+|---------|------|
+| [`oidc`](./oidc) | 2 |
+| [`secrets`](./secrets) | 1 |
+| [`serve`](./serve) | 3 |
+| [`urls`](./urls) | 4 |
+
+10 keys total. Upstream: [Ory Hydra config](https://www.ory.sh/docs/hydra/reference/configuration).

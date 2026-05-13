@@ -1,0 +1,99 @@
+---
+title: FastAPI integration
+description: Validate Olympus access tokens in a FastAPI service
+---
+
+FastAPI service integrates with Olympus via the standard introspection endpoint.
+
+## Setup
+
+```bash
+pip install fastapi authlib python-jose
+```
+
+## Token validator dependency
+
+```python
+# auth.py
+from fastapi import Depends, HTTPException, Header
+import os, requests
+
+INTROSPECT_URL = os.environ["HYDRA_INTROSPECT_URL"]
+ADMIN_AUTH = (os.environ["HYDRA_ADMIN_USER"], os.environ["HYDRA_ADMIN_PASS"])
+
+def validate_token(token: str) -> dict:
+    response = requests.post(INTROSPECT_URL, data={"token": token}, auth=ADMIN_AUTH, timeout=5)
+    response.raise_for_status()
+    info = response.json()
+    if not info.get("active"):
+        raise HTTPException(401, "inactive token")
+    return info
+
+async def get_current_user(authorization: str = Header(...)) -> dict:
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(401, "missing token")
+    return validate_token(authorization[7:])
+```
+
+## Use in routes
+
+```python
+from fastapi import FastAPI, Depends
+from auth import get_current_user
+
+app = FastAPI()
+
+@app.get("/widgets")
+async def list_widgets(user: dict = Depends(get_current_user)):
+    return {"widgets": [...], "user": user["sub"]}
+
+@app.post("/widgets")
+async def create_widget(user: dict = Depends(get_current_user)):
+    if "write:widgets" not in (user.get("scope", "") or "").split():
+        raise HTTPException(403, "insufficient_scope")
+    # ... create widget
+```
+
+## With JWT access tokens
+
+If you've configured Hydra to issue JWT access tokens:
+
+```python
+from jose import jwt
+import requests
+
+ISSUER = os.environ["OLYMPUS_ISSUER"]
+_jwks = None
+
+def get_jwks():
+    global _jwks
+    if _jwks is None:
+        _jwks = requests.get(f"{ISSUER}/.well-known/jwks.json").json()
+    return _jwks
+
+def validate_jwt(token: str) -> dict:
+    return jwt.decode(token, get_jwks(), algorithms=["RS256"], issuer=ISSUER)
+```
+
+## Caching
+
+For high-throughput services, cache introspection results briefly (30s):
+
+```python
+from cachetools import TTLCache
+_cache = TTLCache(maxsize=1000, ttl=30)
+
+def validate_cached(token: str) -> dict:
+    if token in _cache:
+        return _cache[token]
+    info = validate_token(token)
+    _cache[token] = info
+    return info
+```
+
+Note: caching delays revocation visibility. Accept the trade-off, or skip cache for sensitive operations.
+
+## Related
+
+- [Cookbook — Validate access token (Python)](/docs/cookbook/validate-token-python)
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)

@@ -1,0 +1,44 @@
+---
+title: Global block
+description: "Global Caddy configuration applied to all host blocks"
+---
+
+The Caddyfile global block applies to every host block. 33 directives.
+
+```text
+email {$ACME_EMAIL:noreply@example.com}
+import security_headers
+reverse_proxy site:3000
+import security_headers
+rate_limit {
+zone login_limit {
+match {
+method POST
+path /login* /self-service/login*
+import security_headers
+reverse_proxy ciam-hydra:5002
+import security_headers
+reverse_proxy ciam-athena:3000 {
+transport http {
+keepalive 65s
+keepalive_idle_conns 10
+dial_timeout 10s
+response_header_timeout 60s
+read_timeout 120s
+import security_headers
+reverse_proxy iam-hera:4000
+import security_headers
+reverse_proxy iam-hydra:7002
+import security_headers
+reverse_proxy iam-athena:3000 {
+transport http {
+keepalive 65s
+keepalive_idle_conns 10
+dial_timeout 10s
+response_header_timeout 60s
+read_timeout 120s
+import security_headers
+reverse_proxy pgadmin:80
+```
+
+See [Caddy directives reference](https://caddyserver.com/docs/caddyfile/options).

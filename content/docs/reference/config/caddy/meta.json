@@ -1,0 +1,9 @@
+{
+  "title": "Caddyfile",
+  "pages": [
+    "overview",
+    "global",
+    "security-headers",
+    "policy-password"
+  ]
+}

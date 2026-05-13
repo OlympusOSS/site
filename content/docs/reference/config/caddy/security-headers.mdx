@@ -1,0 +1,22 @@
+---
+title: "(security_headers)"
+description: "Caddy host block for (security_headers)"
+---
+
+Host block for `(security_headers)` — 7 directives.
+
+```text
+header {
+Strict-Transport-Security "max-age=31536000; includeSubDomains"
+X-Frame-Options "DENY"
+X-Content-Type-Options "nosniff"
+Referrer-Policy "strict-origin-when-cross-origin"
+Permissions-Policy "camera=(), microphone=(), geolocation=()"
+}
+```
+
+## Upstream reference
+
+- [Caddy directives](https://caddyserver.com/docs/caddyfile/directives)
+- [reverse_proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
+- [rate_limit module](https://github.com/mholt/caddy-ratelimit)

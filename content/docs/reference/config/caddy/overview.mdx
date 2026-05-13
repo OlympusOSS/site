@@ -1,0 +1,21 @@
+---
+title: Caddyfile
+description: "Production Caddy reverse-proxy configuration"
+---
+
+The production Caddyfile defines:
+- Global block with 33 directives.
+- 2 host blocks.
+
+## Host blocks
+
+| Host | Directives |
+|------|------------|
+| [`(security_headers)`](./security-headers) | 7 |
+| [`@policy_password`](./policy-password) | 1 |
+
+## Related
+
+- [Global block](./global)
+- [Security — Caddy supply chain](/docs/security/caddy-supply-chain)
+- [Security — Rate limiting](/docs/security/rate-limiting)

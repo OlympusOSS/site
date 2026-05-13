@@ -1,0 +1,65 @@
+---
+title: Add GitHub as a social login provider
+description: Configure GitHub OAuth as an alternate login method
+---
+
+## Prerequisites
+
+- A GitHub account.
+- An Olympus deployment with HTTPS (GitHub requires HTTPS for OAuth callbacks).
+
+## Step 1: Register GitHub OAuth App
+
+1. GitHub → Settings → Developer Settings → OAuth Apps → **New OAuth App**.
+2. Application name: "Your App via Olympus"
+3. Homepage URL: `https://app.your-domain`
+4. Authorization callback URL: `https://ciam.your-domain/self-service/methods/oidc/callback/github`
+5. Register.
+6. Note **Client ID** and **Client Secret**.
+
+## Step 2: Configure Kratos
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      enabled: true
+      config:
+        providers:
+          - id: github
+            provider: github
+            client_id: <github-client-id>
+            client_secret: <github-client-secret>
+            scope: [user:email]
+            mapper_url: file:///etc/config/kratos/oidc.github.jsonnet
+```
+
+`oidc.github.jsonnet`:
+
+```text
+local claims = std.extVar('claims');
+{
+  identity: {
+    traits: {
+      email: claims.email,
+      name: { first: claims.name },
+    },
+  },
+}
+```
+
+GitHub doesn't reliably return first/last name as separate fields — it sends `name` as a single string. Split client-side if needed.
+
+## Step 3: Surface in Athena → Social Connections
+
+Same flow as Google — see [Cookbook — Add Google](/docs/cookbook/add-social-provider-google).
+
+## Caveats
+
+- **Email visibility:** users with hidden email on GitHub return a `noreply.github.com` address. Test how your flow handles these.
+- **No `email_verified` claim** from GitHub. Kratos's own verification flow runs (which is good — see [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust)).
+
+## Related
+
+- [Cookbook — Add Google](/docs/cookbook/add-social-provider-google)
+- [Identity — Social login](/docs/identity/social-login)

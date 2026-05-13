@@ -1,0 +1,96 @@
+---
+title: Spring Boot integration
+description: Authenticate via Olympus in a Spring Boot backend
+---
+
+Spring Boot + Spring Security has first-class OAuth2 resource server support.
+
+## Setup
+
+`pom.xml`:
+
+```xml
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+</dependency>
+```
+
+## Configuration
+
+`application.yml`:
+
+```yaml
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # If using JWT access tokens
+          issuer-uri: https://ciam.your-domain
+        opaquetoken:
+          # If using opaque tokens (default)
+          introspection-uri: https://ciam.your-domain/admin/oauth2/introspect
+          client-id: ${HYDRA_ADMIN_USER}
+          client-secret: ${HYDRA_ADMIN_PASS}
+```
+
+Pick one — `jwt` if Hydra is configured for JWT access tokens, `opaquetoken` if Hydra issues opaque tokens (default).
+
+## Security config
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+    @Bean
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .authorizeHttpRequests(authz -> authz
+                .requestMatchers("/api/public/**").permitAll()
+                .requestMatchers("/api/admin/**").hasAuthority("SCOPE_admin")
+                .anyRequest().authenticated()
+            )
+            .oauth2ResourceServer(oauth -> oauth.opaqueToken(Customizer.withDefaults()));
+        return http.build();
+    }
+}
+```
+
+## In controllers
+
+```java
+@RestController
+public class WidgetController {
+    @GetMapping("/api/widgets")
+    public List<Widget> list(@AuthenticationPrincipal OAuth2IntrospectionAuthenticatedPrincipal principal) {
+        String userId = principal.getAttribute("sub");
+        return widgetService.findByUserId(userId);
+    }
+}
+```
+
+## Custom claims → authorities
+
+To map custom claims (e.g. `role: admin`) into Spring Security authorities:
+
+```java
+@Bean
+OpaqueTokenIntrospector introspector() {
+    var base = new NimbusOpaqueTokenIntrospector(introspectionUri, clientId, clientSecret);
+    return token -> {
+        var principal = base.introspect(token);
+        var attrs = principal.getAttributes();
+        var authorities = new ArrayList<GrantedAuthority>();
+        if ("admin".equals(attrs.get("role"))) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        }
+        return new DefaultOAuth2AuthenticatedPrincipal(principal.getName(), attrs, authorities);
+    };
+}
+```
+
+## Related
+
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)
+- [Cookbook — Map roles to scopes](/docs/cookbook/map-roles-to-scopes)

@@ -1,11 +1,10 @@
 #!/usr/bin/env bun
 /**
- * Generate a Hydra configuration reference. Same structure as the Kratos generator
- * but reads the four hydra.yml files.
+ * Generate Hydra configuration reference. One page per top-level section.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
+import { resolve, join } from "node:path";
 import { parse as parseYaml } from "yaml";
 
 const FILES = [
@@ -15,7 +14,7 @@ const FILES = [
 	{ slug: "iam-prod", path: "../platform/prod/iam-hydra/hydra.yml", label: "IAM prod" },
 ];
 
-const OUT = "content/docs/reference/config/hydra-yml.mdx";
+const OUT_DIR = "content/docs/reference/config/hydra";
 
 function flatten(obj, prefix = "") {
 	const out = {};
@@ -45,6 +44,9 @@ for (const f of FILES) {
 	}
 }
 
+if (existsSync(OUT_DIR)) rmSync(OUT_DIR, { recursive: true, force: true });
+mkdirSync(OUT_DIR, { recursive: true });
+
 const allKeys = new Set();
 const flat = {};
 for (const cfg of loaded) {
@@ -70,23 +72,43 @@ function formatValue(v) {
 	return `\`${String(v).replace(/\|/g, "\\|")}\``;
 }
 
-let body = `---\ntitle: hydra.yml\ndescription: ${JSON.stringify("Field-by-field reference for every Hydra configuration file across CIAM/IAM and dev/prod")}\n---\n\n`;
-body += `Olympus runs **four** Hydra instances. Each has its own \`hydra.yml\` config file:\n\n`;
-body += loaded.map((f) => `- **${f.label}** — \`${f.path.replace("../", "")}\``).join("\n");
-body += `\n\n> The full Hydra configuration schema is documented in [Ory's reference](https://www.ory.sh/docs/hydra/reference/configuration). This page documents the **Olympus-specific** values.\n\n`;
+const sectionDescriptions = {
+	serve: "HTTP server — public and admin listen, CORS, TLS.",
+	urls: "Externally-visible URLs — issuer, login, consent, logout.",
+	secrets: "System secret (encrypts client secrets), cookie secret.",
+	oidc: "OIDC subject strategy, discovery customizations.",
+	oauth2: "PKCE enforcement, token TTLs, refresh rotation.",
+	dsn: "Database connection string.",
+	log: "Logging level and `leak_sensitive_values`.",
+	ttl: "Token and session TTLs.",
+	strategies: "Opaque vs JWT access tokens.",
+};
 
 for (const section of Object.keys(sections).sort()) {
-	body += `## \`${section}\`\n\n`;
-	body += `| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |\n`;
-	body += `|-----|----------|-----------|---------|----------|\n`;
+	let body = `---\ntitle: ${JSON.stringify(section)}\ndescription: ${JSON.stringify(`Hydra ${section} configuration`)}\n---\n\n# \`${section}\` section\n\n`;
+	if (sectionDescriptions[section]) body += `${sectionDescriptions[section]}\n\n`;
+	body += `| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |\n|-----|----------|-----------|---------|----------|\n`;
 	for (const key of sections[section]) {
-		const shortKey = key.replace(`${section}.`, "");
+		const shortKey = key.replace(`${section}.`, "") || section;
 		body += `| \`${shortKey}\` | ${formatValue(flat["ciam-dev"]?.[key])} | ${formatValue(flat["ciam-prod"]?.[key])} | ${formatValue(flat["iam-dev"]?.[key])} | ${formatValue(flat["iam-prod"]?.[key])} |\n`;
 	}
-	body += "\n";
+	body += `\nSee [Ory Hydra config reference](https://www.ory.sh/docs/hydra/reference/configuration).\n`;
+	body += `\n---\n\n*Generated from hydra.yml files at build time.*\n`;
+	writeFileSync(join(OUT_DIR, `${section}.mdx`), body);
 }
 
-body += `---\n\n*Generated from the four \`hydra.yml\` files at build time.*\n`;
+let overview = `---\ntitle: hydra.yml\ndescription: ${JSON.stringify("Reference for the four Hydra configuration files")}\n---\n\nOlympus runs four Hydra instances. Configuration split across ${Object.keys(sections).length} sections.\n\n`;
+for (const f of loaded) overview += `- **${f.label}** — \`${f.path.replace("../", "")}\`\n`;
+overview += `\n## Sections\n\n| Section | Keys |\n|---------|------|\n`;
+for (const section of Object.keys(sections).sort()) {
+	overview += `| [\`${section}\`](./${section}) | ${sections[section].length} |\n`;
+}
+overview += `\n${keys.length} keys total. Upstream: [Ory Hydra config](https://www.ory.sh/docs/hydra/reference/configuration).\n`;
+writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
-writeFileSync(OUT, body);
-console.log(`Generated Hydra config reference at ${OUT} (${keys.length} keys, ${Object.keys(sections).length} sections)`);
+writeFileSync(
+	join(OUT_DIR, "meta.json"),
+	JSON.stringify({ title: "hydra.yml", pages: ["overview", ...Object.keys(sections).sort()] }, null, 2),
+);
+
+console.log(`Generated ${Object.keys(sections).length + 1} Hydra config pages in ${OUT_DIR}`);

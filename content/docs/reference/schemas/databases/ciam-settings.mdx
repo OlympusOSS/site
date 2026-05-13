@@ -1,0 +1,31 @@
+---
+title: "ciam_settings"
+description: "Key-value settings vault for the CIAM domain. Encrypted values use the `v2:` prefix."
+---
+
+## Table `ciam_settings`
+
+Key-value settings vault for the CIAM domain. Encrypted values use the `v2:` prefix.
+
+**Database:** `olympus`
+
+**Owner:** SDK settings module
+
+## Columns
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| `key` | `TEXT` | no | Setting key (e.g. `social.google.client_id`) |
+| `value` | `TEXT` | yes | Setting value. May be encrypted (see prefix). |
+| `encrypted` | `BOOLEAN` | no | Whether the value is encrypted. |
+| `created_at` | `TIMESTAMPTZ` | no | Row creation time. |
+| `modified_at` | `TIMESTAMPTZ` | no | Last modification time. |
+
+## Related
+
+- [/docs/security/encryption-at-rest](/docs/security/encryption-at-rest)
+- [/docs/reference/api/sdk/settings](/docs/reference/api/sdk/settings)
+
+---
+
+*Schema owned by SDK settings module. Migrations live in `sdk/src/db.ts`.*

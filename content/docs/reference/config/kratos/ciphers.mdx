@@ -1,0 +1,20 @@
+---
+title: "ciphers"
+description: "Kratos ciphers configuration"
+---
+
+# `ciphers` section
+
+Symmetric cipher algorithm choice.
+
+Every `ciphers.*` key across the four Kratos instances:
+
+| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |
+|-----|----------|-----------|---------|----------|
+| `algorithm` | `xchacha20-poly1305` | `xchacha20-poly1305` | — | — |
+
+See [Ory Kratos config reference](https://www.ory.sh/docs/kratos/reference/configuration) for the full schema.
+
+---
+
+*Generated from kratos.yml files at build time.*

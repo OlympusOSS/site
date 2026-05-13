@@ -1,0 +1,59 @@
+---
+title: Add LinkedIn as a social login provider
+description: Configure LinkedIn OAuth as an alternate login method
+---
+
+LinkedIn login is most useful for B2B products targeting professionals. The flow is straightforward but LinkedIn's API has changed often — check current docs.
+
+## Step 1: Register LinkedIn App
+
+1. [LinkedIn Developers](https://www.linkedin.com/developers/apps) → Create App.
+2. Verify company (LinkedIn requires this).
+3. Products → **Sign In with LinkedIn using OpenID Connect** → request.
+4. Auth → OAuth 2.0 settings → Authorized redirect URLs: `https://ciam.your-domain/self-service/methods/oidc/callback/linkedin`.
+5. Copy Client ID and Client Secret.
+
+## Step 2: Configure Kratos
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: linkedin
+            provider: generic
+            issuer_url: https://www.linkedin.com/oauth
+            client_id: <linkedin-client-id>
+            client_secret: <linkedin-client-secret>
+            scope: [openid, profile, email]
+            mapper_url: file:///etc/config/kratos/oidc.linkedin.jsonnet
+```
+
+`oidc.linkedin.jsonnet`:
+
+```text
+local claims = std.extVar('claims');
+{
+  identity: {
+    traits: {
+      email: claims.email,
+      name: { first: claims.given_name, last: claims.family_name },
+    },
+  },
+}
+```
+
+Note: Kratos has `provider: linkedin` shorthand for older versions; newer Kratos uses `generic` + `issuer_url` per the OIDC standard.
+
+## Use cases
+
+- B2B SaaS where the audience is professionals.
+- Networking / recruiting platforms.
+
+For pure B2C, Google + Apple cover more users.
+
+## Related
+
+- [Identity — Social login](/docs/identity/social-login)
+- [Cookbook — Add Google](/docs/cookbook/add-social-provider-google)

@@ -1,0 +1,31 @@
+---
+title: "login_attempts"
+description: "Recent login attempts, used by the brute-force protection logic."
+---
+
+## Table `login_attempts`
+
+Recent login attempts, used by the brute-force protection logic.
+
+**Database:** `olympus`
+
+**Owner:** SDK brute-force module
+
+## Columns
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| `id` | `UUID` | no | Primary key. |
+| `domain` | `TEXT` | no | `ciam` or `iam`. |
+| `identifier` | `TEXT` | no | Login identifier (typically email). |
+| `source_ip` | `INET` | yes | Client IP. |
+| `success` | `BOOLEAN` | no | Whether the attempt succeeded. |
+| `created_at` | `TIMESTAMPTZ` | no | Attempt time. |
+
+## Related
+
+- [/docs/security/brute-force](/docs/security/brute-force)
+
+---
+
+*Schema owned by SDK brute-force module. Migrations live in `sdk/src/db.ts`.*

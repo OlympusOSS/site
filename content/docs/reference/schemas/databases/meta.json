@@ -1,0 +1,17 @@
+{
+  "title": "Databases",
+  "pages": [
+    "overview",
+    "ciam-kratos",
+    "ciam-hydra",
+    "iam-kratos",
+    "iam-hydra",
+    "olympus",
+    "ciam-settings",
+    "iam-settings",
+    "locations",
+    "login-attempts",
+    "lockouts",
+    "security-audit"
+  ]
+}

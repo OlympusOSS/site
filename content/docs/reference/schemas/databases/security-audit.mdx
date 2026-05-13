@@ -1,0 +1,34 @@
+---
+title: "security_audit"
+description: "Audit log of security-relevant events."
+---
+
+## Table `security_audit`
+
+Audit log of security-relevant events.
+
+**Database:** `olympus`
+
+**Owner:** SDK (all modules)
+
+## Columns
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| `id` | `UUID` | no | Primary key. |
+| `domain` | `TEXT` | no | `ciam` or `iam`. |
+| `identity_id` | `UUID` | yes | Subject identity (NULL for unauth events). |
+| `event_type` | `TEXT` | no | Event type (`login.success`, `lockout.applied`, etc.). |
+| `source_ip` | `INET` | yes | Client IP. |
+| `user_agent` | `TEXT` | yes | Browser user agent. |
+| `metadata` | `JSONB` | no | Event-specific data. |
+| `created_at` | `TIMESTAMPTZ` | no | Event time. |
+
+## Related
+
+- [/docs/operate/audit-log-retention](/docs/operate/audit-log-retention)
+- [/docs/security/brute-force](/docs/security/brute-force)
+
+---
+
+*Schema owned by SDK (all modules). Migrations live in `sdk/src/db.ts`.*

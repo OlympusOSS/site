@@ -20,6 +20,7 @@ const GENERATORS = [
 	{ name: "Kratos config", cmd: ["bun", "run", "scripts/gen/kratos-config.mjs"] },
 	{ name: "Hydra config", cmd: ["bun", "run", "scripts/gen/hydra-config.mjs"] },
 	{ name: "Caddyfile", cmd: ["bun", "run", "scripts/gen/caddyfile.mjs"] },
+	{ name: "Database schemas", cmd: ["bun", "run", "scripts/gen/database-schemas.mjs"] },
 ];
 
 let failed = 0;

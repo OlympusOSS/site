@@ -1,0 +1,33 @@
+---
+title: "locations"
+description: "Login location history per session."
+---
+
+## Table `locations`
+
+Login location history per session.
+
+**Database:** `olympus`
+
+**Owner:** SDK locations module
+
+## Columns
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| `id` | `UUID` | no | Primary key. |
+| `domain` | `TEXT` | no | `ciam` or `iam`. |
+| `identity_id` | `UUID` | no | Kratos identity ID. |
+| `session_id` | `UUID` | yes | Kratos session ID. |
+| `ip` | `INET` | no | Client IP address (from Caddy's `X-Real-IP`). |
+| `country` | `TEXT` | yes | Geo-IP country code (best-effort). |
+| `city` | `TEXT` | yes | Geo-IP city (best-effort). |
+| `created_at` | `TIMESTAMPTZ` | no | Login time. |
+
+## Related
+
+- [/docs/reference/api/sdk/locations](/docs/reference/api/sdk/locations)
+
+---
+
+*Schema owned by SDK locations module. Migrations live in `sdk/src/db.ts`.*

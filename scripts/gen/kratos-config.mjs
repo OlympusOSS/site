@@ -1,12 +1,10 @@
 #!/usr/bin/env bun
 /**
- * Generate a Kratos configuration reference by walking the 4 kratos.yml files
- * (dev/prod × CIAM/IAM) and producing a single MDX page that surfaces every
- * setting with its values per environment/domain.
+ * Generate Kratos configuration reference. One page per top-level section.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
+import { resolve, join } from "node:path";
 import { parse as parseYaml } from "yaml";
 
 const FILES = [
@@ -16,7 +14,7 @@ const FILES = [
 	{ slug: "iam-prod", path: "../platform/prod/iam-kratos/kratos.yml", label: "IAM prod" },
 ];
 
-const OUT = "content/docs/reference/config/kratos-yml.mdx";
+const OUT_DIR = "content/docs/reference/config/kratos";
 
 function flatten(obj, prefix = "") {
 	const out = {};
@@ -46,7 +44,9 @@ for (const f of FILES) {
 	}
 }
 
-// Collect all unique keys
+if (existsSync(OUT_DIR)) rmSync(OUT_DIR, { recursive: true, force: true });
+mkdirSync(OUT_DIR, { recursive: true });
+
 const allKeys = new Set();
 const flat = {};
 for (const cfg of loaded) {
@@ -55,7 +55,6 @@ for (const cfg of loaded) {
 }
 const keys = [...allKeys].sort();
 
-// Group by top-level section
 const sections = {};
 for (const k of keys) {
 	const top = k.split(".")[0];
@@ -73,24 +72,45 @@ function formatValue(v) {
 	return `\`${String(v).replace(/\|/g, "\\|")}\``;
 }
 
-let body = `---\ntitle: kratos.yml\ndescription: ${JSON.stringify("Field-by-field reference for every Kratos configuration file across CIAM/IAM and dev/prod")}\n---\n\n`;
-body += `Olympus runs **four** Kratos instances — one per CIAM/IAM × dev/prod combination. Each has its own \`kratos.yml\` config file in the platform repo:\n\n`;
-body += loaded.map((f) => `- **${f.label}** — \`${f.path.replace("../", "")}\``).join("\n");
-body += `\n\nThis page lists every leaf configuration key found in those files, grouped by top-level section. Each row shows the value present in each of the four instances. Empty cells mean the key is not set in that file.\n\n`;
-body += `> The full Kratos configuration schema is documented in [Ory's reference](https://www.ory.sh/docs/kratos/reference/configuration). This page documents the **Olympus-specific** values.\n\n`;
+const sectionDescriptions = {
+	version: "Schema version pinned to the Kratos version's spec.",
+	dsn: "Database connection string.",
+	serve: "HTTP server config — listen, CORS, cookie domain.",
+	selfservice: "Self-service flow config — the user-facing surface.",
+	identity: "Identity schema pointer.",
+	log: "Logging level and redaction.",
+	secrets: "Cryptographic secrets — cookie HMAC, recovery cipher.",
+	ciphers: "Symmetric cipher algorithm choice.",
+	hashers: "Password hash algorithm and parameters.",
+	courier: "Email courier — SMTP, sender, templates.",
+};
 
 for (const section of Object.keys(sections).sort()) {
-	body += `## \`${section}\`\n\n`;
-	body += `| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |\n`;
-	body += `|-----|----------|-----------|---------|----------|\n`;
+	let body = `---\ntitle: ${JSON.stringify(section)}\ndescription: ${JSON.stringify(`Kratos ${section} configuration`)}\n---\n\n# \`${section}\` section\n\n`;
+	if (sectionDescriptions[section]) body += `${sectionDescriptions[section]}\n\n`;
+	body += `Every \`${section}.*\` key across the four Kratos instances:\n\n`;
+	body += `| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |\n|-----|----------|-----------|---------|----------|\n`;
 	for (const key of sections[section]) {
-		const shortKey = key.replace(`${section}.`, "");
+		const shortKey = key.replace(`${section}.`, "") || section;
 		body += `| \`${shortKey}\` | ${formatValue(flat["ciam-dev"]?.[key])} | ${formatValue(flat["ciam-prod"]?.[key])} | ${formatValue(flat["iam-dev"]?.[key])} | ${formatValue(flat["iam-prod"]?.[key])} |\n`;
 	}
-	body += "\n";
+	body += `\nSee [Ory Kratos config reference](https://www.ory.sh/docs/kratos/reference/configuration) for the full schema.\n`;
+	body += `\n---\n\n*Generated from kratos.yml files at build time.*\n`;
+	writeFileSync(join(OUT_DIR, `${section}.mdx`), body);
 }
 
-body += `---\n\n*Generated from the four \`kratos.yml\` files at build time.*\n`;
+let overview = `---\ntitle: kratos.yml\ndescription: ${JSON.stringify("Reference for the four Kratos configuration files")}\n---\n\nOlympus runs four Kratos instances. The configuration is split across ${Object.keys(sections).length} top-level sections.\n\n## Files\n\n`;
+for (const f of loaded) overview += `- **${f.label}** — \`${f.path.replace("../", "")}\`\n`;
+overview += `\n## Sections\n\n| Section | Keys | Description |\n|---------|------|-------------|\n`;
+for (const section of Object.keys(sections).sort()) {
+	overview += `| [\`${section}\`](./${section}) | ${sections[section].length} | ${(sectionDescriptions[section] || "—").slice(0, 80)} |\n`;
+}
+overview += `\n${keys.length} keys total. Upstream schema: [Ory Kratos](https://www.ory.sh/docs/kratos/reference/configuration).\n`;
+writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
-writeFileSync(OUT, body);
-console.log(`Generated Kratos config reference at ${OUT} (${keys.length} keys, ${Object.keys(sections).length} sections)`);
+writeFileSync(
+	join(OUT_DIR, "meta.json"),
+	JSON.stringify({ title: "kratos.yml", pages: ["overview", ...Object.keys(sections).sort()] }, null, 2),
+);
+
+console.log(`Generated ${Object.keys(sections).length + 1} Kratos config pages in ${OUT_DIR}`);

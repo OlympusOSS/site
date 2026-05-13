@@ -1,0 +1,33 @@
+---
+title: "lockouts"
+description: "Active and historical brute-force lockouts."
+---
+
+## Table `lockouts`
+
+Active and historical brute-force lockouts.
+
+**Database:** `olympus`
+
+**Owner:** SDK brute-force module
+
+## Columns
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| `id` | `UUID` | no | Primary key. |
+| `domain` | `TEXT` | no | `ciam` or `iam`. |
+| `identifier` | `TEXT` | no | Locked identifier. |
+| `locked_until` | `TIMESTAMPTZ` | no | Lockout expiry. NULL = never expires (manual unlock required). |
+| `reason` | `TEXT` | yes | Lockout reason (`brute_force`, `manual`, etc.). |
+| `applied_by` | `UUID` | yes | Identity who manually applied (if `manual`). |
+| `created_at` | `TIMESTAMPTZ` | no | Lockout start. |
+
+## Related
+
+- [/docs/operate/locked-account-unlock](/docs/operate/locked-account-unlock)
+- [/docs/security/account-lockout](/docs/security/account-lockout)
+
+---
+
+*Schema owned by SDK brute-force module. Migrations live in `sdk/src/db.ts`.*
