@@ -1,0 +1,220 @@
+---
+title: Role hierarchy design
+description: How to think about roles, permissions, and inheritance
+---
+
+Most apps start with a few roles (admin, user) and grow into a tangle. A few patterns help keep it sane.
+
+## Anti-patterns
+
+### One role per feature
+
+```
+roles = ["user", "billing_admin", "support_admin", "blog_editor", "blog_publisher", "data_exporter", ...]
+```
+
+20+ roles, each user has 5-10. Nobody knows what anyone can do. Permission errors are confusing.
+
+### One role per person ("rolemania")
+
+```
+roles = ["alice_admin", "bob_admin", "carol_admin"]
+```
+
+Personal roles. New hire = new role. Doesn't scale.
+
+### Booleans on the user object
+
+```
+{
+  email: "...",
+  can_admin: true,
+  can_billing: true,
+  can_export: false,
+}
+```
+
+Works briefly. Then becomes 50 booleans, half conflicting.
+
+## Patterns that scale
+
+### Pattern A: Roles → Permissions
+
+Roles are bundles of permissions:
+
+```yaml
+roles:
+  user:
+    permissions: [order:create, order:read_own, profile:edit_own]
+  support:
+    permissions: [user:read, order:read, order:refund]
+    inherits: [user]
+  admin:
+    permissions: [user:create, user:delete, settings:edit]
+    inherits: [support]
+```
+
+User has one role. Role implies permissions.
+
+Decisions:
+- Inheritance: `admin > support > user`. Each adds permissions, never removes.
+- Multiple roles per user: support's "billing manager" might have `support + billing` roles.
+
+Storage:
+
+```sql
+CREATE TABLE roles (
+  id UUID PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL
+);
+CREATE TABLE permissions (
+  id UUID PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL  -- e.g. "order:refund"
+);
+CREATE TABLE role_permissions (
+  role_id UUID REFERENCES roles(id),
+  permission_id UUID REFERENCES permissions(id),
+  PRIMARY KEY (role_id, permission_id)
+);
+CREATE TABLE user_roles (
+  user_id UUID,
+  role_id UUID REFERENCES roles(id),
+  PRIMARY KEY (user_id, role_id)
+);
+```
+
+### Pattern B: Attributes / claims (ABAC)
+
+Instead of "role X can refund," use "users in support team can refund."
+
+```yaml
+permissions:
+  order:refund:
+    when: |
+      user.team in ["support", "admin"]
+      AND order.amount < 1000
+```
+
+Pros: very flexible.
+Cons: harder to audit ("who can refund?" requires running the policy engine).
+
+For most apps, RBAC + a few ABAC rules is the sweet spot.
+
+### Pattern C: Relationship-based (ReBAC)
+
+For sharing/collaboration: permission depends on relationship to the resource.
+
+```
+project:my-project
+  owner: alice
+  editor: bob, carol
+  viewer: dave
+```
+
+Permissions inferred:
+- owner > editor > viewer.
+- alice can do everything.
+- bob can edit but not delete.
+- dave can view only.
+
+This is the model behind Zanzibar / OpenFGA / Google Drive.
+
+Olympus integrates with OPA and Cedar for ABAC, and a custom ReBAC store for relationships. See:
+- [Authz — RBAC](/docs/security/authz-rbac)
+- [Authz — ABAC](/docs/security/authz-abac)
+- [Authz — ReBAC](/docs/security/authz-rebac)
+
+## Picking a model
+
+| Use case | Model |
+|---|---|
+| Small team (< 10 roles, < 50 perms) | RBAC |
+| Many overlapping perms, simple resources | RBAC + permissions |
+| Resource sharing (docs, projects) | ReBAC |
+| Heavy policy logic (financial, healthcare) | ABAC |
+| Most apps | RBAC for org, ReBAC for resources |
+
+## Storing roles in Kratos
+
+Add to identity schema:
+
+```json
+"traits": {
+  "type": "object",
+  "properties": {
+    "email": { "type": "string", "format": "email" },
+    "role": { "type": "string", "enum": ["user", "support", "admin"] }
+  }
+}
+```
+
+For multi-role:
+
+```json
+"roles": {
+  "type": "array",
+  "items": { "type": "string", "enum": ["..."] }
+}
+```
+
+Role lookup in your app:
+```ts
+const identity = session.identity;
+if (identity.traits.role === "admin") { /* allow */ }
+```
+
+For more dynamic role mgmt, store in a separate roles table (in your app DB or Athena's settings vault).
+
+## Role assignment audit
+
+Every role change should be logged:
+
+```sql
+INSERT INTO audit_log (action, actor_id, target_id, before, after)
+VALUES ('role_changed', $admin_id, $user_id, '"user"', '"admin"');
+```
+
+When auditors ask "who promoted X to admin?", you can answer.
+
+## Periodic review
+
+Quarterly:
+- Export list of all admins.
+- Send to each admin's manager: "Confirm still needed."
+- Default to revoke if no response.
+
+See [Cookbook — Compliance audit export](/docs/cookbook/compliance-audit-export).
+
+## Common pitfalls
+
+### Role explosion
+
+Don't create roles for one-off needs. Audit yearly; merge unused.
+
+### Forgetting to remove
+
+When user changes job, remove their old role. Easy to forget. Build into HR handoff process.
+
+### "All admin" abuse
+
+If every employee is "admin," role loses meaning. Pull admin role back, grant specific permissions where needed.
+
+### Role names that don't age
+
+`temp_admin_for_q3_project` lives forever once added. Avoid time/project-specific names; use role + expiry instead.
+
+## Soft delete vs hard delete
+
+When removing a role from a user:
+- **Hard delete**: row gone, no audit. Lost history.
+- **Soft delete**: `removed_at` column. Audit preserved.
+
+Always soft-delete role assignments. Cleanup of soft-deleted rows after legal retention.
+
+## Related
+
+- [Security — Authz — RBAC](/docs/security/authz-rbac)
+- [Security — Authz — ABAC](/docs/security/authz-abac)
+- [Security — Authz — ReBAC](/docs/security/authz-rebac)
+- [Cookbook — Force MFA by role](/docs/cookbook/force-mfa-by-role)
+- [Cookbook — Map roles to scopes](/docs/cookbook/map-roles-to-scopes)

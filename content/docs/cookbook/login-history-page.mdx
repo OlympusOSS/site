@@ -1,0 +1,222 @@
+---
+title: "User: account activity / login history page"
+description: Show users where their account has been signed in from
+---
+
+A user-facing "Sign in activity" or "Account activity" page that displays where, when, and how the user (or someone using their credentials) has logged in.
+
+## What to show
+
+| Column | Source |
+|---|---|
+| Date / time | session.created_at |
+| Approximate location | IP → geo lookup |
+| Device / browser | parse user_agent |
+| Method | password / OIDC / passkey |
+| Status | success / failure |
+| Current? | session matches active cookie |
+
+## Data source
+
+From `security_audit` table (or `sessions` for active ones):
+
+```sql
+SELECT 
+  created_at,
+  source_ip,
+  user_agent,
+  event_type,
+  metadata->>'method' AS method,
+  outcome
+FROM security_audit
+WHERE identity_id = $identity_id
+  AND event_type IN ('login', 'mfa_challenge', 'login_failed')
+  AND created_at > NOW() - INTERVAL '90 days'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Active sessions:
+
+```sql
+SELECT id, created_at, expires_at, devices->>'user_agent' AS user_agent
+FROM kratos.sessions
+WHERE identity_id = $identity_id
+  AND revoked_at IS NULL
+  AND expires_at > NOW();
+```
+
+## Page in your app
+
+```tsx
+// app/settings/activity/page.tsx
+import { kratos } from "@/lib/kratos";
+import { geoLookup } from "@/lib/geo";
+
+export default async function Activity() {
+  const session = await getSession();
+  const events = await db`
+    SELECT * FROM security_audit
+    WHERE identity_id = ${session.identity.id}
+      AND event_type IN ('login', 'mfa_challenge', 'login_failed')
+    ORDER BY created_at DESC
+    LIMIT 50
+  `;
+  
+  return (
+    <table>
+      <thead>
+        <tr><th>When</th><th>Device</th><th>Location</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {events.map(e => (
+          <tr key={e.id}>
+            <td>{formatDate(e.created_at)}</td>
+            <td>{parseUA(e.user_agent)}</td>
+            <td>{geoLookup(e.source_ip)}</td>
+            <td>{e.outcome === "success" ? "Signed in" : "Failed attempt"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+## Sign out other sessions
+
+A button to revoke all sessions except current:
+
+```tsx
+async function logoutOthers() {
+  "use server";
+  const currentSession = await getCurrentSession();
+  await kratos.adminListSessions({ identity_id: currentSession.identity.id })
+    .then(sessions => Promise.all(
+      sessions
+        .filter(s => s.id !== currentSession.id)
+        .map(s => kratos.adminDisableSession({ id: s.id }))
+    ));
+}
+```
+
+```tsx
+<form action={logoutOthers}>
+  <button>Sign out everywhere else</button>
+</form>
+```
+
+## Highlight current session
+
+```tsx
+{events.map(e => (
+  <tr key={e.id} className={e.is_current ? "bg-green-50" : ""}>
+    {e.is_current && <span>This device</span>}
+    ...
+  </tr>
+))}
+```
+
+`is_current` is set if the session id matches the cookie value.
+
+## Geolocation
+
+Use a free GeoLite2 database:
+
+```ts
+import { Reader } from "maxmind";
+const reader = await Reader.open("GeoLite2-City.mmdb");
+
+function geoLookup(ip: string): string {
+  const result = reader.get(ip);
+  return `${result?.city?.names?.en ?? "Unknown"}, ${result?.country?.names?.en ?? ""}`;
+}
+```
+
+Or use IP-API / IPinfo for higher accuracy ($).
+
+## Privacy
+
+This page exposes IP addresses (the user's own). That's fine — they're already in the headers.
+
+Don't expose:
+- Other users' IPs.
+- Raw user_agent (parse first; UAs sometimes contain device names).
+
+## User-friendly device names
+
+```ts
+import { UAParser } from "ua-parser-js";
+function parseUA(ua: string) {
+  const parser = new UAParser(ua);
+  return `${parser.getBrowser().name} on ${parser.getOS().name}`;
+}
+// "Chrome on macOS"
+```
+
+Better than the raw `Mozilla/5.0 (Macintosh; Intel...)`.
+
+## Suspicious activity flagging
+
+Highlight events that look risky:
+
+```tsx
+function isSuspicious(event) {
+  return (
+    event.outcome === "failure" ||
+    event.method === "password" && !event.previous_devices.includes(event.user_agent) ||
+    distance(event.location, knownLocations) > 1000  // km
+  );
+}
+```
+
+Show a small icon ⚠️ next to suspicious rows.
+
+User can click for details + actions ("This wasn't me" → trigger lockdown).
+
+## Account compromise reporting
+
+```tsx
+<button onClick={reportCompromise}>
+  This wasn't me
+</button>
+```
+
+```ts
+async function reportCompromise() {
+  "use server";
+  // Trigger ATO response flow
+  await revokeAllSessions(userId);
+  await forcePasswordChange(userId);
+  await notifySecurityTeam(userId, "user_reported_ato");
+  redirect("/recovery");
+}
+```
+
+See [Account takeover response](/docs/cookbook/account-takeover-response).
+
+## Audit-vs-Display retention
+
+The audit log retains 90 days. The user-facing display shows the same. Match retention to display, or shorter.
+
+## Mobile considerations
+
+On mobile screens, collapse:
+
+```tsx
+<MobileView>
+  {events.map(e => (
+    <Card key={e.id}>
+      <CardHeader>{formatDate(e.created_at)}</CardHeader>
+      <CardBody>{parseUA(e.user_agent)} • {geoLookup(e.source_ip)}</CardBody>
+    </Card>
+  ))}
+</MobileView>
+```
+
+## Related
+
+- [Identity — Sessions](/docs/identity/sessions)
+- [Cookbook — Notify on new device](/docs/cookbook/notify-new-device)
+- [Cookbook — Account takeover response](/docs/cookbook/account-takeover-response)
+- [Reference — Diagrams — Session management](/docs/reference/diagrams/seq-session-management)

@@ -1,0 +1,171 @@
+---
+title: Token refresh strategies for SPAs
+description: Silent and refresh-token flows for browser apps
+---
+
+OAuth2 access tokens are short-lived (15 min default in Olympus). When they expire, the SPA needs to get a new one without forcing the user to log in again. There are two refresh mechanisms.
+
+## Approach 1: Refresh tokens
+
+After Authorization Code + PKCE, your SPA has:
+- `access_token` (15 min).
+- `refresh_token` (180 days, single-use, rotates).
+
+When `access_token` expires:
+
+```ts
+async function refreshAccessToken() {
+  const res = await fetch(`${HYDRA_URL}/oauth2/token`, {
+    method: "POST",
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: localStorage.getItem("refresh_token"),
+      client_id: CLIENT_ID,
+    }),
+  });
+  const tokens = await res.json();
+  localStorage.setItem("access_token", tokens.access_token);
+  localStorage.setItem("refresh_token", tokens.refresh_token); // rotated
+  return tokens.access_token;
+}
+```
+
+### Single-use rotation
+
+Each refresh issues a new refresh_token AND invalidates the old one. If an attacker steals an old refresh_token and tries to use it, Hydra detects (used token) and revokes the entire token family — sign-out for the user (a sign of theft, mitigates further damage).
+
+### Storage problem
+
+Refresh tokens in `localStorage` are vulnerable to XSS. Anyone running JS on your origin can read them.
+
+Mitigations:
+- Use a BFF (refresh tokens never reach SPA). See [BFF whoami pattern](/docs/cookbook/whoami-bff).
+- Strict CSP + SRI to prevent XSS.
+- Use HttpOnly cookie for refresh_token (if SPA and OAuth server are same-origin).
+
+## Approach 2: Silent renewal (no refresh token)
+
+Don't request `offline_access` scope. No refresh token issued. Instead, when access_token expires:
+
+```ts
+async function silentRenew() {
+  // Open hidden iframe to Hydra's /oauth2/auth?prompt=none
+  const iframe = document.createElement("iframe");
+  iframe.style.display = "none";
+  iframe.src = `${HYDRA_URL}/oauth2/auth?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${callback}&scope=openid&prompt=none&state=...`;
+  document.body.appendChild(iframe);
+  // Wait for postMessage from iframe with code
+  // Exchange code → new access_token
+}
+```
+
+If the user has an active Olympus session (Kratos cookie present), Hydra silently issues a new code. If not, the iframe loads a Hydra page that — with `prompt=none` — returns `error=login_required` instead of showing UI.
+
+### Third-party cookie blocking
+
+This approach is dying. Safari (since 2020) and Chrome (2025) block third-party cookies in iframes by default. The Kratos session cookie isn't visible to Hydra in the iframe → silent renew fails.
+
+Fixes:
+- Same-origin: serve SPA from same domain as Hydra. Then iframe is first-party. Works.
+- Different origin: silent renew won't work. Use refresh tokens or BFF.
+
+## Approach 3: Token refresh middleware
+
+In your HTTP client (axios, ky, native fetch), intercept 401 responses and refresh:
+
+```ts
+async function apiFetch(url: string, options: RequestInit = {}) {
+  let token = localStorage.getItem("access_token");
+  let res = await fetch(url, {
+    ...options,
+    headers: { ...options.headers, authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    token = await refreshAccessToken();
+    res = await fetch(url, {
+      ...options,
+      headers: { ...options.headers, authorization: `Bearer ${token}` },
+    });
+  }
+  return res;
+}
+```
+
+If the refresh itself fails (refresh_token expired or revoked), redirect to login.
+
+### Concurrency hazard
+
+If multiple API calls happen and the token expires:
+
+```
+Call 1 → 401 → refresh starts
+Call 2 → 401 → refresh starts (duplicate!)
+Call 3 → 401 → refresh starts (duplicate!)
+```
+
+Three refreshes, only one valid. Sign-out potential.
+
+Fix: a single-flight pattern.
+
+```ts
+let refreshInFlight: Promise<string> | null = null;
+
+async function refreshAccessToken(): Promise<string> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = doRefresh().finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
+}
+```
+
+All callers await the same promise.
+
+## Proactive refresh
+
+Wait until 401 → small race window where some requests fail. Instead, refresh proactively:
+
+```ts
+const expiresAt = JSON.parse(atob(token.split(".")[1])).exp * 1000;
+const refreshAt = expiresAt - 60_000; // 60s before
+setTimeout(() => refreshAccessToken(), refreshAt - Date.now());
+```
+
+Skip 401s entirely.
+
+## Library choices
+
+- `oidc-client-ts` — does silent renew + refresh. Battle-tested.
+- `oauth4webapi` — lower-level, more control.
+
+Either is fine for Olympus. SDK's auth utilities wrap one of these.
+
+## Logout = revoke
+
+On logout, revoke the refresh token:
+
+```ts
+await fetch(`${HYDRA_URL}/oauth2/revoke`, {
+  method: "POST",
+  body: new URLSearchParams({ token: refreshToken }),
+  headers: { Authorization: `Basic ${btoa(client_id + ":")}` },
+});
+```
+
+Otherwise, the refresh token stays valid for 180 days. Stolen token = persistent access.
+
+## What Olympus recommends
+
+For SPAs: BFF pattern + refresh tokens in BFF cookie. SPA only sees session cookie. No localStorage tokens.
+
+If you must do SPA-only:
+- Use refresh tokens.
+- Set `refresh_token_rotation: true` (Hydra default).
+- Implement single-flight refresh.
+- Implement proactive refresh.
+- Logout revokes refresh token.
+
+## Related
+
+- [Integrate — SPA integration](/docs/integrate/spa-integration)
+- [Cookbook — BFF whoami pattern](/docs/cookbook/whoami-bff)
+- [Reference — Diagrams — Refresh token](/docs/reference/diagrams/seq-refresh-token)
+- [Reference — OAuth2 grants — refresh-token](/docs/reference/oauth2/grant-refresh-token)

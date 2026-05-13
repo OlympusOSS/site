@@ -1,0 +1,192 @@
+---
+title: BFF whoami pattern
+description: A simple backend-for-frontend pattern for SPA auth
+---
+
+For SPAs that want to be served from a custom domain but auth via Olympus, a Backend-for-Frontend (BFF) is the safest pattern. The SPA never sees tokens; the BFF (a thin server-side proxy) handles all the auth state.
+
+## Architecture
+
+```
+Browser (SPA) ──cookie──► BFF (Caddy + small Node app) ──tokens──► API services
+                                  │
+                                  └──tokens──► Olympus
+```
+
+## Roles
+
+- **SPA**: serves the UI. Calls `/api/...` on its own origin.
+- **BFF**: runs on `/api/...` of same origin. Manages tokens. Proxies to backend APIs.
+- **Olympus**: issues tokens. Validates them on each request (via BFF).
+
+## Endpoints
+
+### `/api/whoami`
+
+```ts
+import { Hono } from "hono";
+const app = new Hono();
+
+app.get("/api/whoami", async (c) => {
+  const session = c.req.header("cookie") 
+    ? await getKratosSession(c.req.header("cookie"))
+    : null;
+  if (!session) return c.json({ authenticated: false }, 401);
+  
+  return c.json({
+    authenticated: true,
+    user: {
+      id: session.identity.id,
+      email: session.identity.traits.email,
+      name: session.identity.traits.first_name,
+    },
+  });
+});
+```
+
+SPA calls on mount:
+
+```ts
+const { authenticated, user } = await fetch("/api/whoami").then(r => r.json());
+if (!authenticated) window.location.href = "/login";
+```
+
+### `/api/login` (initiate)
+
+```ts
+app.get("/api/login", async (c) => {
+  // Generate state for CSRF
+  const state = crypto.randomBytes(16).toString("hex");
+  await c.cookies.set("auth_state", state, { httpOnly: true, secure: true, sameSite: "lax" });
+  
+  // Redirect to Olympus OAuth2
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: process.env.OAUTH2_CLIENT_ID,
+    redirect_uri: `${process.env.BASE_URL}/api/callback`,
+    scope: "openid offline_access profile email",
+    state,
+    code_challenge: pkce.codeChallenge,
+    code_challenge_method: "S256",
+  });
+  await c.cookies.set("pkce_verifier", pkce.codeVerifier, { httpOnly: true });
+  return c.redirect(`${process.env.HYDRA_URL}/oauth2/auth?${params}`);
+});
+```
+
+### `/api/callback`
+
+```ts
+app.get("/api/callback", async (c) => {
+  const { code, state } = c.req.query();
+  const stateCookie = await c.cookies.get("auth_state");
+  if (state !== stateCookie) return c.text("Invalid state", 400);
+  
+  const verifier = await c.cookies.get("pkce_verifier");
+  const tokens = await fetch(`${HYDRA_URL}/oauth2/token`, {
+    method: "POST",
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: `${process.env.BASE_URL}/api/callback`,
+      client_id: process.env.OAUTH2_CLIENT_ID,
+      code_verifier: verifier,
+    }),
+  }).then(r => r.json());
+  
+  // Store tokens in BFF-managed session
+  const session = await sessions.create({
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    id_token: tokens.id_token,
+    expires_at: Date.now() + tokens.expires_in * 1000,
+  });
+  await c.cookies.set("session_id", session.id, { 
+    httpOnly: true, secure: true, sameSite: "lax", maxAge: 86400 * 30 
+  });
+  return c.redirect("/");
+});
+```
+
+Tokens never reach the browser. Session cookie is HttpOnly.
+
+### `/api/proxy/:path*`
+
+Proxy to upstream APIs with the access token:
+
+```ts
+app.all("/api/proxy/*", async (c) => {
+  const session = await getSession(c.req.header("cookie"));
+  if (!session) return c.text("Unauthorized", 401);
+  
+  // Auto-refresh if expired
+  if (Date.now() > session.expires_at) {
+    const refreshed = await refreshTokens(session.refresh_token);
+    await sessions.update(session.id, refreshed);
+    session.access_token = refreshed.access_token;
+  }
+  
+  const target = c.req.path.replace("/api/proxy/", "");
+  const upstream = `${UPSTREAM_API}/${target}`;
+  return fetch(upstream, {
+    headers: {
+      ...c.req.headers,
+      "authorization": `Bearer ${session.access_token}`,
+    },
+    method: c.req.method,
+    body: c.req.body,
+  });
+});
+```
+
+### `/api/logout`
+
+```ts
+app.post("/api/logout", async (c) => {
+  const session = await getSession(c.req.header("cookie"));
+  if (session) {
+    await sessions.destroy(session.id);
+  }
+  await c.cookies.delete("session_id");
+  return c.redirect("/");
+});
+```
+
+## Storage
+
+BFF needs a session store. Options:
+- **In-memory** (single instance, lost on restart): fine for dev.
+- **Redis** (multi-instance, persistent): production.
+- **Encrypted cookie** (no server state, but cookie size limit ~4KB): if you can fit tokens.
+
+For Olympus deployment alongside, use Redis.
+
+## Why not store tokens in the SPA?
+
+- XSS = token theft. With BFF, XSS only steals session cookie (HttpOnly).
+- Refresh tokens in SPA = long-lived secret in untrusted environment.
+- BFF can introspect / validate every request server-side.
+
+## Why not just use Kratos sessions?
+
+You could! If your SPA and BFF are same-origin to Kratos's domain, the Kratos session cookie works directly. But:
+- Cross-origin (SPA on `app.your-domain` but Olympus on `ciam.your-domain`): cookie boundary.
+- You want OAuth2 scopes (Kratos session doesn't have scopes; OAuth2 access tokens do).
+- You want to issue tokens to multiple services.
+
+If neither applies, skip BFF and use Kratos session directly.
+
+## Library: simple BFF
+
+There are libraries:
+- [oauth4webapi](https://github.com/panva/oauth4webapi) — OAuth2 helper.
+- [hono-oidc-bff](https://github.com/example/hono-oidc-bff) (community).
+
+Or roll your own — ~300 lines of Hono.
+
+## Related
+
+- [Integrate — SPA integration](/docs/integrate/spa-integration)
+- [Integrate — OAuth2 authorization code](/docs/integrate/oauth2-authorization-code)
+- [Cookbook — Validate access token (Node)](/docs/cookbook/validate-token-node)
+- [Security — Session cookies](/docs/security/session-cookies)

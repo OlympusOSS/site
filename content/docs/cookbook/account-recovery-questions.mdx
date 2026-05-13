@@ -1,0 +1,169 @@
+---
+title: Security questions (and why not to use them)
+description: Account recovery with knowledge-based authentication
+---
+
+"What's your mother's maiden name?" Security questions are a classic recovery mechanism. Almost always bad. Here's why, and what to do if you must.
+
+## Why they're bad
+
+### Easily guessed
+
+- Mother's maiden name: in many public records.
+- First pet's name: in social media.
+- Birth city: usually known by close acquaintances.
+- High school: on LinkedIn.
+
+The questions ask for stuff anyone investigating the user can find.
+
+### Reused across services
+
+Users give the same answers everywhere. One service's leaked questions → access to all services.
+
+### Sensitive to remember
+
+If user actually picks hard answers, they forget. Then locked out.
+
+### Weak entropy
+
+"What's your favorite color?" → 7-10 plausible answers. Easily guessed by anyone who knows the user a bit.
+
+## Better alternatives
+
+### Backup codes
+
+10 one-time codes, downloaded at MFA enrollment. Print or save in password manager.
+
+Recovery: type a code, get back in.
+
+Pros: high entropy, one-time use, no PII exposure.
+Cons: user might lose them. Need re-issue mechanism.
+
+### Recovery email
+
+A secondary email different from primary.
+
+Pros: if primary email is compromised, recovery still works.
+Cons: now you have two emails to keep secure.
+
+### Recovery phone
+
+SMS to a phone number on file.
+
+Pros: most users have one phone.
+Cons: SIM swap. Not for high-assurance use.
+
+### Trusted devices
+
+If user has TOTP on multiple devices, losing one still leaves others. Encourage multi-device enrollment.
+
+### Hardware key + spare
+
+YubiKey + backup YubiKey. Lose one, use the other. Both must be lost to get locked out.
+
+### Identity verification
+
+For real attestation: ID document verification.
+
+Pros: high assurance.
+Cons: cost, friction.
+
+For most B2C: backup codes + recovery email is enough.
+
+## If you must implement security questions
+
+Sometimes a regulation or customer demands them. Mitigate as much as possible:
+
+### Hash the answer
+
+```ts
+const hashed = await argon2.hash(answer.toLowerCase().trim(), { /* params */ });
+```
+
+Don't store plaintext. The question itself can be in DB cleartext (it's not the secret).
+
+### Many questions, user picks 3
+
+Reduce guessability by letting user pick uncommon questions:
+
+```
+- The name of my first stuffed animal
+- The street I lived on when I was 10
+- My grandmother's favorite recipe ingredient
+```
+
+User picks 3. Must answer all 3 correctly.
+
+### Rate limit
+
+After 3 wrong answers, lock the recovery flow. Avoids guessing.
+
+### Don't use as sole factor
+
+Pair with another (email link to phone + answer questions).
+
+## What Olympus offers
+
+Olympus does NOT ship security questions out of the box. Intentional — they're an anti-pattern.
+
+If you must, build via a custom registration extension:
+1. Add `recovery_questions` to identity schema.
+2. Custom UI in Hera to ask them.
+3. Hash answers via Argon2 before storing.
+4. Custom recovery flow that prompts the questions.
+
+But strongly consider not doing this. Stick with backup codes + email.
+
+## User communication
+
+Explain to users why you DON'T use questions:
+
+```
+Why don't we ask security questions?
+
+Security questions are easy to guess from social media or public records.
+Instead, we ask you to:
+- Enable two-factor authentication (recommended).
+- Save your backup codes somewhere safe.
+- Keep your recovery email updated.
+
+These methods are more secure and easier to use.
+```
+
+Users actually appreciate this — it's reassuring that you've thought about it.
+
+## Legacy migration
+
+If you're migrating from a system with security questions:
+
+1. Don't import the questions. Treat the legacy account as if it has no recovery.
+2. On first login post-migration, force user through "Set up recovery."
+3. Offer backup codes + recovery email.
+
+If a user's only recovery is the legacy question, that user is at risk. Communicate the migration clearly.
+
+## Lawsuits
+
+Some companies have been sued after security-question-based breaches:
+- Target customers' "mother's maiden name" was leaked alongside emails, enabling further attacks.
+- Yahoo's bulk breach exposed questions/answers.
+
+Storing questions/answers is now a liability. Don't.
+
+## What you actually want
+
+"Account recovery" is shorthand for "can the legitimate user get back in?" The right question is: "How do we identify the legitimate user when they've lost their primary credential?"
+
+Answers:
+- They have a backup factor (code, second device, recovery email).
+- They can verify with documents (ID upload).
+- They contact support, who applies escalation procedure (call back to known phone, video verification).
+
+NOT: they remember their mother's maiden name.
+
+## Related
+
+- [Cookbook — Multi-factor recovery](/docs/cookbook/multi-factor-recovery)
+- [Cookbook — Notification templates](/docs/cookbook/notification-templates)
+- [Identity — Recovery flow](/docs/identity/recovery-flow)
+- [Operate — Locked account unlock](/docs/operate/locked-account-unlock)

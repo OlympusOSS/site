@@ -1,0 +1,220 @@
+---
+title: API gateway pattern
+description: Centralize auth at the edge with Caddy
+---
+
+If you have many backend microservices, you don't want each to validate tokens independently. A gateway (Caddy in front of Olympus's case) does token validation once and forwards a clean request to backends.
+
+## Architecture
+
+```
+Client ──Bearer X──► Caddy gateway ──cleaned headers──► Backend microservice
+                       │
+                       └──introspect──► Hydra
+```
+
+Caddy:
+1. Receives request with Bearer token.
+2. Introspects (or validates JWT).
+3. If valid, strips `Authorization` and adds `X-User-Id`, `X-User-Email`, etc.
+4. Forwards to backend.
+
+Backend trusts the headers (because Caddy is its only ingress).
+
+## Caddy config
+
+```caddy
+api.your-domain.com {
+  @auth header Authorization Bearer*
+  
+  reverse_proxy {
+    to backend:8080
+    
+    # Introspect via subrequest
+    transport http {
+      tls
+    }
+  }
+
+  # Custom directive (requires custom Caddy module)
+  oauth2_introspect {
+    introspect_url http://ciam-hydra:4445/oauth2/introspect
+    client_id      gateway
+    client_secret  GATEWAY_SECRET
+    cache_ttl      60s
+    
+    inject_headers {
+      X-User-Id    sub
+      X-User-Email username
+      X-User-Scope scope
+    }
+    
+    reject_on_inactive
+  }
+}
+```
+
+A custom Caddy module like `caddy-oauth2-introspect` provides this directive. If not using a custom build, do introspection in a small middleware service (Hono, Express) between Caddy and your backends.
+
+## Without a custom Caddy module
+
+```caddy
+api.your-domain.com {
+  reverse_proxy auth-gateway:3000
+}
+```
+
+Where `auth-gateway` is a Hono service:
+
+```ts
+const app = new Hono();
+
+app.use("*", async (c, next) => {
+  const token = c.req.header("authorization")?.slice(7);
+  if (!token) return c.text("Unauthorized", 401);
+  
+  const intro = await introspect(token);
+  if (!intro.active) return c.text("Unauthorized", 401);
+  
+  c.req.headers.set("x-user-id", intro.sub);
+  c.req.headers.set("x-user-scope", intro.scope);
+  c.req.headers.delete("authorization");  // strip
+  
+  await next();
+});
+
+app.all("/*", (c) => {
+  return fetch(`http://backend:8080${c.req.path}`, {
+    method: c.req.method,
+    headers: c.req.headers,
+    body: c.req.body,
+  });
+});
+```
+
+Run alongside backends in Compose.
+
+## Caching
+
+Introspection per-request is expensive. Cache:
+
+```ts
+const cache = new Map<string, { result: any; expires: number }>();
+
+async function introspect(token: string) {
+  const cached = cache.get(token);
+  if (cached && cached.expires > Date.now()) return cached.result;
+  
+  const result = await actualIntrospect(token);
+  cache.set(token, { result, expires: Date.now() + 60_000 });
+  return result;
+}
+```
+
+60s TTL: reasonable.
+
+Cleanup: prune expired entries periodically.
+
+For multi-instance gateway: shared cache (Redis).
+
+## Backend trust
+
+Backends now trust `X-User-Id`. CRITICAL: backends must NOT be reachable from outside Caddy. Network-level enforcement:
+
+```yaml
+# docker-compose.yml
+backend:
+  image: my-backend
+  # No "ports:" exposing externally
+  networks: [internal]
+```
+
+If anyone can reach `backend:8080` directly, they can inject `X-User-Id` headers and impersonate any user.
+
+## Scopes
+
+Pass scopes too:
+
+```
+X-User-Scope: orders:read orders:write
+```
+
+Backend checks:
+```ts
+const scopes = req.headers["x-user-scope"].split(" ");
+if (!scopes.includes("orders:read")) return res.status(403);
+```
+
+OR enforce at gateway via Caddy match:
+
+```caddy
+@orders_read header X-User-Scope *orders:read*
+
+handle /orders/* @orders_read {
+  reverse_proxy orders-backend:8080
+}
+respond /orders/* 403
+```
+
+Better at gateway than backend — backends become simpler.
+
+## Per-endpoint config
+
+Some endpoints need authentication, others don't:
+
+```caddy
+api.your-domain.com {
+  # Public health
+  handle /health {
+    respond 200
+  }
+  
+  # Public docs
+  handle /docs* {
+    reverse_proxy docs:8080
+  }
+  
+  # All else: auth required
+  handle {
+    oauth2_introspect ...
+    reverse_proxy backend:8080
+  }
+}
+```
+
+## Rate limiting at gateway
+
+```caddy
+rate_limit {
+  zone api-zone
+  events 1000
+  window 1m
+  key {http.request.header.x-user-id}
+}
+```
+
+Per-user rate limit at the gateway. Backends don't need their own.
+
+## What this pattern doesn't help
+
+- **Service-to-service auth**: gateway is for external. For internal service calls, use a mesh (mTLS, SPIFFE) or shared secret.
+- **Webhooks from external services**: gateway can't easily validate signed webhooks. Handle in backend.
+
+## Migration
+
+If your services currently each validate tokens, migrate to gateway:
+
+1. Stand up gateway.
+2. Route through it for one service.
+3. Verify it works.
+4. Switch others.
+5. Remove per-service validation code.
+
+Each service simplifies — single source of trust at the edge.
+
+## Related
+
+- [Reference — Diagrams — Token introspection](/docs/reference/diagrams/seq-token-introspection)
+- [Cookbook — API rate limit by token](/docs/cookbook/api-rate-limit-by-token)
+- [Cookbook — Validate access token (Node)](/docs/cookbook/validate-token-node)
+- [Reference — Caddy directives](/docs/reference/caddy/security-headers)
