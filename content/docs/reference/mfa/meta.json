@@ -1,0 +1,11 @@
+{
+  "title": "MFA methods",
+  "pages": [
+    "overview",
+    "totp",
+    "webauthn",
+    "lookup-secret",
+    "code",
+    "step-up"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "title": "Glossary terms",
+  "pages": [
+    "overview",
+    "aal",
+    "ciam",
+    "iam",
+    "kratos",
+    "hydra",
+    "athena",
+    "hera",
+    "trait",
+    "identifier",
+    "flow",
+    "credential",
+    "scope",
+    "session",
+    "pkce",
+    "consent",
+    "ofcl",
+    "ory",
+    "mcp",
+    "sdk",
+    "canvas",
+    "daedalus",
+    "octl",
+    "platform",
+    "verify-full",
+    "podman"
+  ]
+}

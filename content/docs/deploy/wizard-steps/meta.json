@@ -1,0 +1,19 @@
+{
+  "title": "Wizard steps",
+  "pages": [
+    "overview",
+    "repository",
+    "domain",
+    "provider",
+    "email",
+    "database",
+    "compute",
+    "secrets",
+    "oauth",
+    "deploy",
+    "health",
+    "accounts",
+    "applications",
+    "destroy"
+  ]
+}

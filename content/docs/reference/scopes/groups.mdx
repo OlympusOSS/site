@@ -1,0 +1,43 @@
+---
+title: "groups"
+description: "Custom claim with array of group memberships. Used by ArgoCD, Grafana, etc. for role mapping."
+---
+
+# OAuth2 scope: `groups`
+
+**Source:** Olympus convention
+
+## Description
+
+Custom claim with array of group memberships. Used by ArgoCD, Grafana, etc. for role mapping.
+
+## Requesting this scope
+
+In the authorization URL:
+
+```
+GET /oauth2/auth?
+  &scope=groups
+  ...
+```
+
+Multiple scopes are space-separated.
+
+## Granting access
+
+A client only receives this scope if it's on the client's allowed scope list. Configure in Athena → OAuth2 Clients → your client → Allowed Scopes.
+
+## Checking in your backend
+
+The access token's `scope` claim contains the granted scopes:
+
+```ts
+const granted = info.scope?.split(" ") ?? [];
+if (!granted.includes("groups")) return 403;
+```
+
+## Related
+
+- [Cookbook — Add OAuth2 scope](/docs/cookbook/add-oauth2-scope)
+- [Cookbook — Map roles to scopes](/docs/cookbook/map-roles-to-scopes)
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)

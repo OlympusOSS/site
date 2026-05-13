@@ -1,0 +1,43 @@
+---
+title: "address"
+description: "Postal address claims. Olympus doesn't ship this by default; available if you add a trait."
+---
+
+# OAuth2 scope: `address`
+
+**Source:** OIDC spec
+
+## Description
+
+Postal address claims. Olympus doesn't ship this by default; available if you add a trait.
+
+## Requesting this scope
+
+In the authorization URL:
+
+```
+GET /oauth2/auth?
+  &scope=address
+  ...
+```
+
+Multiple scopes are space-separated.
+
+## Granting access
+
+A client only receives this scope if it's on the client's allowed scope list. Configure in Athena → OAuth2 Clients → your client → Allowed Scopes.
+
+## Checking in your backend
+
+The access token's `scope` claim contains the granted scopes:
+
+```ts
+const granted = info.scope?.split(" ") ?? [];
+if (!granted.includes("address")) return 403;
+```
+
+## Related
+
+- [Cookbook — Add OAuth2 scope](/docs/cookbook/add-oauth2-scope)
+- [Cookbook — Map roles to scopes](/docs/cookbook/map-roles-to-scopes)
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)

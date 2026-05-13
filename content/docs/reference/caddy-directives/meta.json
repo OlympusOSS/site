@@ -1,0 +1,16 @@
+{
+  "title": "Caddy directives",
+  "pages": [
+    "overview",
+    "reverse-proxy",
+    "rate-limit",
+    "tls",
+    "header",
+    "respond",
+    "redir",
+    "encode",
+    "log",
+    "handle",
+    "matcher"
+  ]
+}

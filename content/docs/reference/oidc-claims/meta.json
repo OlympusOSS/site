@@ -1,0 +1,26 @@
+{
+  "title": "OIDC claims",
+  "pages": [
+    "overview",
+    "sub",
+    "iss",
+    "aud",
+    "iat",
+    "exp",
+    "nbf",
+    "jti",
+    "auth-time",
+    "acr",
+    "amr",
+    "azp",
+    "nonce",
+    "email",
+    "email-verified",
+    "name",
+    "given-name",
+    "family-name",
+    "preferred-username",
+    "locale",
+    "ext"
+  ]
+}

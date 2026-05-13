@@ -1,0 +1,17 @@
+{
+  "title": "Scopes",
+  "pages": [
+    "overview",
+    "openid",
+    "profile",
+    "email",
+    "offline-access",
+    "address",
+    "phone",
+    "groups",
+    "role",
+    "api-read",
+    "api-write",
+    "admin"
+  ]
+}

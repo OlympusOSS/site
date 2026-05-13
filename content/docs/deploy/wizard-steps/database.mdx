@@ -1,0 +1,29 @@
+---
+title: "5. Database"
+description: "Provision Postgres."
+---
+
+# Wizard step 5: Database
+
+**Purpose:** Provision Postgres.
+
+## Inputs
+
+- Managed (Neon API key) or self-hosted toggle
+
+## Outputs
+
+- 5 DATABASE_URLs generated for the Olympus databases
+
+## What it does internally
+
+Daedalus reads its current context from `daedalus.json`, performs the action, then updates the context with the results. If the action fails (network error, API rejection), the operator stays on this step and can retry.
+
+For agent-driven flows, Claude can call `navigate({path: "/database"})`, then `form_input` / `click` to drive this step.
+
+## Related
+
+- [Deploy — With Daedalus wizard](/docs/deploy/with-daedalus-wizard) — full overview.
+- [Internals — Daedalus wizard state machine](/docs/internals/daedalus-wizard-state-machine)
+- [← Step 4](./email)
+- [Step 6 →](./compute)

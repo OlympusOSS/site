@@ -1,0 +1,26 @@
+---
+title: "jti"
+description: "JWT ID. Unique per token; used for revocation."
+---
+
+# OIDC claim: `jti`
+
+**Type:** `string`
+
+**Source:** Hydra
+
+## Description
+
+JWT ID. Unique per token; used for revocation.
+
+## Where it appears
+
+- ID tokens (always for standard claims).
+- Userinfo endpoint response (with appropriate scope).
+- Introspection response (for opaque tokens).
+
+## Related
+
+- [Integrate — OIDC userinfo](/docs/integrate/oidc-userinfo)
+- [Integrate — OIDC discovery](/docs/integrate/oidc-discovery)
+- [Cookbook — Add custom claim to ID token](/docs/cookbook/add-custom-claim-id-token)

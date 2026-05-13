@@ -1,0 +1,29 @@
+---
+title: OAuth2 scopes
+description: "Standard OIDC scopes and Olympus-specific conventions"
+---
+
+OAuth2 scopes describe what a token can do. Standard OIDC scopes are universal; custom scopes are per-app.
+
+## Standard OIDC scopes
+
+| Scope | Description |
+|-------|-------------|
+| [`openid`](./openid) | Required to receive an ID token. Without it, the OAuth2 flow returns only an acc |
+| [`profile`](./profile) | Profile-related claims: `name`, `given_name`, `family_name`, `preferred_username |
+| [`email`](./email) | `email` and `email_verified` claims. |
+| [`offline_access`](./offline-access) | Request a refresh token. Required for long-lived sessions. |
+| [`address`](./address) | Postal address claims. Olympus doesn't ship this by default; available if you ad |
+| [`phone`](./phone) | `phone_number`, `phone_number_verified`. Add to schema if you collect phone. |
+
+## Olympus conventions
+
+| Scope | Description |
+|-------|-------------|
+| [`groups`](./groups) | Custom claim with array of group memberships. Used by ArgoCD, Grafana, etc. for  |
+| [`role`](./role) | Custom single-string role claim. `admin`, `user`, etc. |
+| [`api:read`](./api-read) | Example custom scope — read access to your API. |
+| [`api:write`](./api-write) | Example custom scope — write access. |
+| [`admin`](./admin) | Example custom scope — admin operations. |
+
+See [Cookbook — Add OAuth2 scope](/docs/cookbook/add-oauth2-scope) to define your own.

@@ -1,0 +1,39 @@
+---
+title: "WebAuthn"
+description: "Cryptographic challenge-response with hardware (YubiKey, Touch ID) or passkeys."
+---
+
+# Web Authentication API
+
+**Spec:** W3C WebAuthn
+
+**Provides AAL:** AAL2 (AAL3 with attestation)
+
+## Summary
+
+Cryptographic challenge-response with hardware (YubiKey, Touch ID) or passkeys.
+
+## Strengths
+
+- Phishing-resistant (origin binding)
+- User-friendly (biometric / touch)
+- Strong cryptography
+
+## Weaknesses
+
+- Requires browser/OS support (now ubiquitous)
+- Per-domain — passkeys don't migrate when you rename your domain
+
+## Enrollment
+
+Browser prompts user to use Touch ID / hardware key / save a passkey.
+
+## Recovery
+
+Multiple authenticators enrolled is the right pattern. Otherwise password reset.
+
+## Related
+
+- [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
+- [Identity — MFA policy](/docs/identity/mfa-policy)
+- [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)

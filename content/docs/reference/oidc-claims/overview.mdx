@@ -1,0 +1,31 @@
+---
+title: OIDC claims
+description: "Standard and Olympus-specific OIDC claims"
+---
+
+The ID token and userinfo response can include these claims. Per-page detail follows.
+
+| Claim | Type | Source |
+|-------|------|--------|
+| [`sub`](./sub) | string | Hydra/Kratos |
+| [`iss`](./iss) | string | Hydra |
+| [`aud`](./aud) | string or array | Hydra |
+| [`iat`](./iat) | integer | Hydra |
+| [`exp`](./exp) | integer | Hydra |
+| [`nbf`](./nbf) | integer | Hydra |
+| [`jti`](./jti) | string | Hydra |
+| [`auth_time`](./auth-time) | integer | Kratos via Hydra |
+| [`acr`](./acr) | string | Kratos via Hydra |
+| [`amr`](./amr) | array of strings | Kratos via Hydra |
+| [`azp`](./azp) | string | Hydra |
+| [`nonce`](./nonce) | string | Client → Hydra |
+| [`email`](./email) | string | Kratos identity traits |
+| [`email_verified`](./email-verified) | boolean | Kratos identity verifiable_addresses |
+| [`name`](./name) | string | Kratos identity traits |
+| [`given_name`](./given-name) | string | Kratos identity traits |
+| [`family_name`](./family-name) | string | Kratos identity traits |
+| [`preferred_username`](./preferred-username) | string | Kratos identity traits |
+| [`locale`](./locale) | string | Kratos identity traits |
+| [`ext`](./ext) | object | Olympus custom claims |
+
+Custom claims live in `ext.*` or as identity traits. See [Cookbook — Add custom claim](/docs/cookbook/add-custom-claim-id-token).

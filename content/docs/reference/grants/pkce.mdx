@@ -1,0 +1,27 @@
+---
+title: "Authorization Code + PKCE"
+description: "Same as Authorization Code, but with a per-flow `code_verifier` ↔ `code_challenge` pair to prevent code interception."
+---
+
+# Authorization Code + PKCE
+
+**Spec:** RFC 7636
+
+**Supported in Olympus:** **Yes**
+
+## When to use
+
+Public clients (SPAs, mobile, CLIs). Mandatory in Olympus.
+
+## How it works
+
+Same as Authorization Code, but with a per-flow `code_verifier` ↔ `code_challenge` pair to prevent code interception.
+
+## Integration guide
+
+See [/docs/integrate/oauth2-pkce](/docs/integrate/oauth2-pkce) for full setup.
+
+## Related
+
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)
+- [Security — PKCE enforcement](/docs/security/pkce-enforcement)

@@ -1,0 +1,43 @@
+---
+title: "offline_access"
+description: "Request a refresh token. Required for long-lived sessions."
+---
+
+# OAuth2 scope: `offline_access`
+
+**Source:** OIDC spec
+
+## Description
+
+Request a refresh token. Required for long-lived sessions.
+
+## Requesting this scope
+
+In the authorization URL:
+
+```
+GET /oauth2/auth?
+  &scope=offline_access
+  ...
+```
+
+Multiple scopes are space-separated.
+
+## Granting access
+
+A client only receives this scope if it's on the client's allowed scope list. Configure in Athena → OAuth2 Clients → your client → Allowed Scopes.
+
+## Checking in your backend
+
+The access token's `scope` claim contains the granted scopes:
+
+```ts
+const granted = info.scope?.split(" ") ?? [];
+if (!granted.includes("offline_access")) return 403;
+```
+
+## Related
+
+- [Cookbook — Add OAuth2 scope](/docs/cookbook/add-oauth2-scope)
+- [Cookbook — Map roles to scopes](/docs/cookbook/map-roles-to-scopes)
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)

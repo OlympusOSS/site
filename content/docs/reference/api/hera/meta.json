@@ -1,0 +1,16 @@
+{
+  "title": "Hera",
+  "pages": [
+    "overview",
+    "settings-security",
+    "settings",
+    "registration",
+    "recovery",
+    "logout",
+    "verification",
+    "consent",
+    "reset-password",
+    "login",
+    "link-conflict"
+  ]
+}

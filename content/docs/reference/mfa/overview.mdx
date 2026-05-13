@@ -1,0 +1,16 @@
+---
+title: MFA methods
+description: "Multi-factor authentication methods supported by Olympus"
+---
+
+Olympus supports four primary MFA methods plus a step-up mechanism.
+
+| Method | AAL | Phishing-resistant |
+|--------|-----|--------------------|
+| [TOTP](./totp) | AAL2 | no |
+| [WebAuthn](./webauthn) | AAL2 (AAL3 with attestation) | **Yes** |
+| [Backup codes](./lookup-secret) | AAL2 | no |
+| [Email/SMS code](./code) | Variable — often considered weaker than AAL2 | no |
+| [Step-up auth](./step-up) | AAL1 → AAL2 mid-session | — |
+
+**Recommendation:** WebAuthn for primary MFA, lookup-secret as fallback. See [Identity — MFA policy](/docs/identity/mfa-policy).

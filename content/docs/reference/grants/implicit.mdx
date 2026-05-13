@@ -1,0 +1,27 @@
+---
+title: "Implicit"
+description: "Returned tokens directly in the authorization URL fragment. Insecure (token in URL, browser history, referrer)."
+---
+
+# Implicit
+
+**Spec:** RFC 6749 §4.2 (deprecated)
+
+**Supported in Olympus:** **No** (deprecated; do not use)
+
+## When to use
+
+Never. Removed in OAuth 2.1. Use PKCE instead.
+
+## How it works
+
+Returned tokens directly in the authorization URL fragment. Insecure (token in URL, browser history, referrer).
+
+## Why not
+
+This grant is deprecated and removed in OAuth 2.1. Olympus rejects it. The replacement is **Authorization Code + PKCE**.
+
+## Related
+
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)
+- [Security — PKCE enforcement](/docs/security/pkce-enforcement)

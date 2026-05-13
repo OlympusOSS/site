@@ -1,0 +1,24 @@
+---
+title: OAuth2 grant types
+description: "Every OAuth2 grant type, supported and unsupported"
+---
+
+Olympus supports four OAuth2 grant types and explicitly rejects two deprecated ones.
+
+## Supported
+
+| Grant | RFC | When to use |
+|-------|-----|-------------|
+| [Authorization Code](./authorization-code) | RFC 6749 §4.1 | Server-side web apps that can keep a secret. |
+| [Authorization Code + PKCE](./pkce) | RFC 7636 | Public clients (SPAs, mobile, CLIs). Mandatory in Olympus. |
+| [Client Credentials](./client-credentials) | RFC 6749 §4.4 | Backend-to-backend (M2M). No user involved. |
+| [Refresh Token](./refresh-token) | RFC 6749 §6 | Renewing access tokens without re-authenticating the user. |
+
+## Not supported (deprecated)
+
+| Grant | RFC | Why |
+|-------|-----|-----|
+| [Implicit](./implicit) | RFC 6749 §4.2 (deprecated) | Never. Removed in OAuth 2.1. Use PKCE instead. |
+| [Resource Owner Password Credentials](./password) | RFC 6749 §4.3 (deprecated) | Never. Removed in OAuth 2.1. Use Authorization Code instead. |
+
+See [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview) for picking the right grant.

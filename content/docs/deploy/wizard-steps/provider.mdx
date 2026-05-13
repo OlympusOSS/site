@@ -1,0 +1,30 @@
+---
+title: "3. Provider"
+description: "Choose VPS provider."
+---
+
+# Wizard step 3: Provider
+
+**Purpose:** Choose VPS provider.
+
+## Inputs
+
+- Provider (DigitalOcean / Hostinger / Direct SSH)
+- Provider API token
+
+## Outputs
+
+- Recorded provider config
+
+## What it does internally
+
+Daedalus reads its current context from `daedalus.json`, performs the action, then updates the context with the results. If the action fails (network error, API rejection), the operator stays on this step and can retry.
+
+For agent-driven flows, Claude can call `navigate({path: "/provider"})`, then `form_input` / `click` to drive this step.
+
+## Related
+
+- [Deploy — With Daedalus wizard](/docs/deploy/with-daedalus-wizard) — full overview.
+- [Internals — Daedalus wizard state machine](/docs/internals/daedalus-wizard-state-machine)
+- [← Step 2](./domain)
+- [Step 4 →](./email)

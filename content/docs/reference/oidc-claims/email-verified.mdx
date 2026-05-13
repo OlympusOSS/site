@@ -1,0 +1,26 @@
+---
+title: "email_verified"
+description: "Whether the email has been verified by Kratos. **Olympus does NOT trust this claim from upstream IdPs**."
+---
+
+# OIDC claim: `email_verified`
+
+**Type:** `boolean`
+
+**Source:** Kratos identity verifiable_addresses
+
+## Description
+
+Whether the email has been verified by Kratos. **Olympus does NOT trust this claim from upstream IdPs**.
+
+## Where it appears
+
+- ID tokens (always for standard claims).
+- Userinfo endpoint response (with appropriate scope).
+- Introspection response (for opaque tokens).
+
+## Related
+
+- [Integrate — OIDC userinfo](/docs/integrate/oidc-userinfo)
+- [Integrate — OIDC discovery](/docs/integrate/oidc-discovery)
+- [Cookbook — Add custom claim to ID token](/docs/cookbook/add-custom-claim-id-token)

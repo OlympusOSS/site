@@ -1,0 +1,34 @@
+---
+title: Glossary terms
+description: "Detail pages for the most-referenced terms"
+---
+
+For every-term short definitions, see the [full glossary](/docs/glossary). This sub-section has dedicated pages for the most-linked terms.
+
+| Term | Definition |
+|------|------------|
+| [AAL](./aal) | Authenticator Assurance Level. NIST 800-63B concept for the strength of authenti... |
+| [CIAM](./ciam) | Customer Identity and Access Management. The customer-facing half of an Olympus ... |
+| [IAM](./iam) | Identity and Access Management. The employee-facing half. Ports 4xxx.... |
+| [Kratos](./kratos) | Ory Kratos. The identity service. Handles registration, login, recovery, verific... |
+| [Hydra](./hydra) | Ory Hydra. The OAuth2/OIDC server. Issues tokens.... |
+| [Athena](./athena) | The Olympus admin dashboard. One instance per domain.... |
+| [Hera](./hera) | The Olympus login/consent UI. Renders Kratos flows + handles Hydra challenges.... |
+| [Trait](./trait) | A field on a Kratos identity, defined by the JSON-Schema identity schema. Email,... |
+| [Identifier](./identifier) | A trait declared in the schema as a login key. Typically email.... |
+| [Flow](./flow) | A Kratos self-service flow: login, registration, recovery, verification, setting... |
+| [Credential](./credential) | An authentication factor on a Kratos identity: password, OIDC, TOTP, WebAuthn, l... |
+| [Scope](./scope) | An OAuth2 permission a token holds.... |
+| [Session](./session) | A logged-in browser session. Stored in Kratos's sessions table. Has an AAL.... |
+| [PKCE](./pkce) | Proof Key for Code Exchange. RFC 7636. Required for all public OAuth2 clients in... |
+| [Consent](./consent) | The OAuth2 step where the user authorizes a client to receive specific scopes.... |
+| [OFCL](./ofcl) | Olympus Free Container License. Source-available license — operate freely; can't... |
+| [Ory](./ory) | The company behind Kratos and Hydra. Olympus stands on Ory's shoulders.... |
+| [MCP](./mcp) | Model Context Protocol. Anthropic's protocol for exposing tools to LLMs. Daedalu... |
+| [SDK](./sdk) | The @olympusoss/sdk npm package. Shared settings, encryption, brute-force protec... |
+| [Canvas](./canvas) | The @olympusoss/canvas design system. React components for Athena, Hera, Site.... |
+| [Daedalus](./daedalus) | The production deployment wizard. Tauri desktop app with embedded MCP.... |
+| [Octl](./octl) | The local-development CLI. `octl deploy` brings up the dev stack.... |
+| [Platform](./platform) | The infrastructure repo. Compose, configs, schemas, CI/CD.... |
+| [verify-full](./verify-full) | PostgreSQL TLS mode that verifies certificate chain AND hostname. Required in Ol... |
+| [Podman](./podman) | Daemonless OCI container engine. Olympus's runtime.... |

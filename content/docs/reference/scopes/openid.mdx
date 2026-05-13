@@ -1,0 +1,43 @@
+---
+title: "openid"
+description: "Required to receive an ID token. Without it, the OAuth2 flow returns only an access token (no OIDC features)."
+---
+
+# OAuth2 scope: `openid`
+
+**Source:** OIDC spec
+
+## Description
+
+Required to receive an ID token. Without it, the OAuth2 flow returns only an access token (no OIDC features).
+
+## Requesting this scope
+
+In the authorization URL:
+
+```
+GET /oauth2/auth?
+  &scope=openid
+  ...
+```
+
+Multiple scopes are space-separated.
+
+## Granting access
+
+A client only receives this scope if it's on the client's allowed scope list. Configure in Athena → OAuth2 Clients → your client → Allowed Scopes.
+
+## Checking in your backend
+
+The access token's `scope` claim contains the granted scopes:
+
+```ts
+const granted = info.scope?.split(" ") ?? [];
+if (!granted.includes("openid")) return 403;
+```
+
+## Related
+
+- [Cookbook — Add OAuth2 scope](/docs/cookbook/add-oauth2-scope)
+- [Cookbook — Map roles to scopes](/docs/cookbook/map-roles-to-scopes)
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)

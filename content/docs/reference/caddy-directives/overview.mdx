@@ -1,0 +1,21 @@
+---
+title: Caddy directives
+description: "Caddy directives used in the Olympus Caddyfile"
+---
+
+Olympus's Caddyfile uses these directives. Each has its own page with the Olympus-specific usage.
+
+| Directive | Purpose |
+|-----------|---------|
+| [`reverse_proxy`](./reverse-proxy) | Proxy requests to upstream services. |
+| [`rate_limit`](./rate-limit) | Per-IP request throttling. Requires the caddy-ratelimit module. |
+| [`tls`](./tls) | TLS termination with automatic Let's Encrypt or DNS-01 ACME. |
+| [`header`](./header) | Set or remove HTTP headers on requests / responses. |
+| [`respond`](./respond) | Return a static response without proxying. |
+| [`redir`](./redir) | HTTP redirect. |
+| [`encode`](./encode) | Response compression (gzip, zstd, br). |
+| [`log`](./log) | Access logging. |
+| [`handle`](./handle) | Route requests based on matcher; mutually exclusive in a host block. |
+| [`@matcher`](./matcher) | Named request matcher referenced by handlers. |
+
+See the [full Caddy directives reference](https://caddyserver.com/docs/caddyfile/directives) for everything Caddy can do.

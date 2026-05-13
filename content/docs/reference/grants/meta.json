@@ -1,0 +1,12 @@
+{
+  "title": "Grants",
+  "pages": [
+    "overview",
+    "authorization-code",
+    "pkce",
+    "client-credentials",
+    "refresh-token",
+    "implicit",
+    "password"
+  ]
+}

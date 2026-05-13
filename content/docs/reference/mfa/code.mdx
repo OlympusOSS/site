@@ -1,0 +1,43 @@
+---
+title: "Email/SMS code"
+description: "Code sent to a verified channel (email or phone) and entered."
+---
+
+# One-time code via email or SMS
+
+**Spec:** —
+
+**Provides AAL:** Variable — often considered weaker than AAL2
+
+## Summary
+
+Code sent to a verified channel (email or phone) and entered.
+
+## Strengths
+
+- No app required
+- Familiar UX
+
+## Weaknesses
+
+- SIM swap (SMS)
+- Email compromise gives access
+- Latency
+
+## Enrollment
+
+Implicit — the verified email/phone IS the channel.
+
+## Recovery
+
+User regains channel access via separate channel.
+
+## Olympus specifics
+
+Olympus's default doesn't include SMS (no SMS provider configured). Email-code is available via the recovery flow but typically not for ongoing MFA.
+
+## Related
+
+- [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
+- [Identity — MFA policy](/docs/identity/mfa-policy)
+- [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)

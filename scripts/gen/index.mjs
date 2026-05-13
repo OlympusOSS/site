@@ -21,6 +21,21 @@ const GENERATORS = [
 	{ name: "Hydra config", cmd: ["bun", "run", "scripts/gen/hydra-config.mjs"] },
 	{ name: "Caddyfile", cmd: ["bun", "run", "scripts/gen/caddyfile.mjs"] },
 	{ name: "Database schemas", cmd: ["bun", "run", "scripts/gen/database-schemas.mjs"] },
+	{ name: "Env vars per-var", cmd: ["bun", "run", "scripts/gen/env-vars-per-var.mjs"] },
+	{ name: "CI workflows", cmd: ["bun", "run", "scripts/gen/ci-workflows.mjs"] },
+	{ name: "Identity traits", cmd: ["bun", "run", "scripts/gen/identity-traits.mjs"] },
+	{ name: "Athena features", cmd: ["bun", "run", "scripts/gen/athena-features.mjs"] },
+	{ name: "Per-port detail", cmd: ["bun", "run", "scripts/gen/ports.mjs"] },
+	{ name: "Error catalog", cmd: ["bun", "run", "scripts/gen/error-catalog.mjs"] },
+	{ name: "Hera pages", cmd: ["bun", "run", "scripts/gen/hera-pages.mjs"] },
+	{ name: "OAuth2 grants", cmd: ["bun", "run", "scripts/gen/oauth2-grants.mjs"] },
+	{ name: "MFA methods", cmd: ["bun", "run", "scripts/gen/mfa-methods.mjs"] },
+	{ name: "Caddy directives", cmd: ["bun", "run", "scripts/gen/caddy-directives.mjs"] },
+	{ name: "Daedalus steps", cmd: ["bun", "run", "scripts/gen/daedalus-steps.mjs"] },
+	{ name: "Secrets catalog", cmd: ["bun", "run", "scripts/gen/secrets-catalog.mjs"] },
+	{ name: "OIDC claims", cmd: ["bun", "run", "scripts/gen/oidc-claims.mjs"] },
+	{ name: "OAuth2 scopes", cmd: ["bun", "run", "scripts/gen/oauth2-scopes.mjs"] },
+	{ name: "Glossary pages", cmd: ["bun", "run", "scripts/gen/glossary-pages.mjs"] },
 ];
 
 let failed = 0;

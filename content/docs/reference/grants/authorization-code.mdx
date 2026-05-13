@@ -1,0 +1,27 @@
+---
+title: "Authorization Code"
+description: "User redirects to Hydra → authenticates via Hera/Kratos → returns to app with one-time code → app exchanges code for tokens."
+---
+
+# Authorization Code
+
+**Spec:** RFC 6749 §4.1
+
+**Supported in Olympus:** **Yes**
+
+## When to use
+
+Server-side web apps that can keep a secret.
+
+## How it works
+
+User redirects to Hydra → authenticates via Hera/Kratos → returns to app with one-time code → app exchanges code for tokens.
+
+## Integration guide
+
+See [/docs/integrate/oauth2-authorization-code](/docs/integrate/oauth2-authorization-code) for full setup.
+
+## Related
+
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)
+- [Security — PKCE enforcement](/docs/security/pkce-enforcement)
