@@ -1,0 +1,225 @@
+---
+title: Track auth-related usage events
+description: Product analytics for your auth funnel
+---
+
+Product analytics (PostHog, Mixpanel, Amplitude) help understand what users do. For auth flows, valuable events to track:
+
+## Funnel events
+
+```
+Visited /login
+   ↓
+Clicked sign-in method (password / Google / passkey)
+   ↓
+Submitted credentials
+   ↓
+Auth succeeded
+   ↓
+Redirected to app
+```
+
+Or:
+
+```
+Visited /register
+   ↓
+Filled email field
+   ↓
+Submitted form
+   ↓
+Verified email
+   ↓
+First login
+```
+
+Each step is a track event.
+
+## Implementation
+
+In Hera:
+
+```tsx
+"use client";
+import { usePostHog } from "posthog-js/react";
+
+export function LoginPage() {
+  const posthog = usePostHog();
+  
+  useEffect(() => {
+    posthog?.capture("login_page_viewed");
+  }, []);
+  
+  const onSubmit = async (data) => {
+    posthog?.capture("login_attempted", { method: data.method });
+    const result = await login(data);
+    posthog?.capture(
+      result.ok ? "login_succeeded" : "login_failed",
+      { method: data.method, reason: result.error }
+    );
+  };
+  
+  return ...;
+}
+```
+
+## Identify users post-login
+
+After login, identify the user:
+
+```ts
+posthog.identify(session.identity.id, {
+  email: session.identity.traits.email,
+  created_at: session.identity.created_at,
+});
+```
+
+PostHog can now connect anonymous pre-login behavior with the named user post-login.
+
+For privacy: don't send PII to analytics if it's not needed. Use UUID + minimal attributes.
+
+## Funnel analysis
+
+PostHog's funnel UI:
+
+```
+login_page_viewed → login_attempted → login_succeeded
+```
+
+Each step's conversion rate. Drop-off identifies UX bugs.
+
+For registration:
+
+```
+register_page_viewed → register_attempted → register_succeeded → email_verified → first_login
+```
+
+## Method preference
+
+Track which auth method users prefer:
+
+```sql
+SELECT method, COUNT(*) FROM events
+WHERE event = 'login_succeeded'
+GROUP BY method;
+```
+
+```
+google         60%
+password       30%
+passkey        9%
+github         1%
+```
+
+If passkey is 1%, your UI isn't promoting it. Adjust.
+
+## Cohort analysis
+
+```sql
+-- Activated users (registered + verified + first login)
+WITH activations AS (
+  SELECT identity_id, MIN(CASE WHEN event = 'first_login' THEN created_at END) AS activated_at
+  FROM events
+  GROUP BY 1
+)
+SELECT 
+  DATE_TRUNC('week', i.created_at) AS signup_week,
+  COUNT(DISTINCT i.id) AS signups,
+  COUNT(DISTINCT a.identity_id) AS activated,
+  COUNT(DISTINCT a.identity_id) * 100.0 / COUNT(DISTINCT i.id) AS activation_rate
+FROM identities i
+LEFT JOIN activations a ON a.identity_id = i.id
+WHERE i.created_at > NOW() - INTERVAL '12 weeks'
+GROUP BY 1
+ORDER BY 1;
+```
+
+Weekly: % of signups who reach activation. Should be > 60% for B2C.
+
+## Drop-off reasons
+
+For each step that drops:
+
+```sql
+SELECT failure_reason, COUNT(*) FROM events
+WHERE event = 'login_failed'
+GROUP BY failure_reason
+ORDER BY 2 DESC;
+```
+
+```
+wrong_password         70%
+account_not_found      15%
+mfa_failed             10%
+captcha_failed         5%
+```
+
+Top reason: wrong password. Fix: clearer error message, better password reset prompt.
+
+## Time-to-event
+
+```sql
+SELECT 
+  AVG(EXTRACT(epoch FROM (verified_at - created_at))) AS avg_seconds
+FROM (
+  SELECT i.id, i.created_at, 
+         MIN(CASE WHEN e.event = 'email_verified' THEN e.created_at END) AS verified_at
+  FROM identities i
+  LEFT JOIN events e ON e.identity_id = i.id
+  GROUP BY 1
+);
+```
+
+Average: 2 hours. Median: 5 min. Spread suggests some verify immediately, others take a day.
+
+## What NOT to log
+
+Don't send to analytics:
+- Password values.
+- MFA codes.
+- Session tokens.
+- Sensitive traits.
+
+Send IDs, event names, anonymous metadata.
+
+## Don't ship analytics in transactional emails
+
+```html
+<img src="https://analytics.com/track?email=alice@example.com" />
+```
+
+Bad — leaks user email to analytics, plus tracking pixels often blocked.
+
+For email engagement metrics, use your ESP's built-in tracking (UTM links, open beacons).
+
+## Cohort: paying vs free
+
+If you have a paid plan:
+
+```ts
+posthog.people.set({ plan: user.plan });
+```
+
+PostHog tracks separately. See if paying users behave differently.
+
+## Activation insights
+
+```
+For 100 signups:
+- 80 verified email (80% of signups)
+- 60 made first action (60% of signups, 75% of verified)
+- 40 invited a teammate (40%)
+- 20 made first purchase (20%)
+```
+
+The funnel reveals where to invest:
+- If verified is low: improve email deliverability + UX.
+- If first action low: better onboarding.
+- If invite low: feature promotion.
+
+## Related
+
+- [Cookbook — Registration funnel optimization](/docs/cookbook/registration-funnel-optimization)
+- [Cookbook — Onboarding checklist](/docs/cookbook/onboarding-checklist)
+- [Cookbook — Analytics destination](/docs/cookbook/analytics-destination)
+- [Cookbook — User onboarding checklist page](/docs/cookbook/user-onboarding-checklist-page)

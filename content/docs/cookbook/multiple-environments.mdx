@@ -1,0 +1,238 @@
+---
+title: Multiple environment setup
+description: Dev, staging, prod — how to manage configs
+---
+
+For non-trivial deployments: separate dev, staging, and prod environments, each with their own Olympus stack.
+
+## What's different per env
+
+- Domain.
+- Database (don't share!).
+- Secrets (different in each).
+- Resource sizing.
+- Email provider mode (sandbox vs prod).
+- Monitoring.
+
+## What's the same
+
+- Software versions.
+- Configuration structure.
+- Deployment pipeline.
+
+## Directory layout
+
+```
+infra/
+├── envs/
+│   ├── dev/
+│   │   ├── .env
+│   │   ├── docker-compose.yml -> ../../base/docker-compose.yml
+│   │   └── Caddyfile
+│   ├── staging/
+│   │   └── ...
+│   └── prod/
+│       └── ...
+├── base/
+│   ├── docker-compose.yml      ← shared definitions
+│   └── Caddyfile.template
+└── scripts/
+    └── deploy.sh
+```
+
+Each env has its own .env; same compose.
+
+## Per-env .env
+
+```bash
+# envs/dev/.env
+DOMAIN=dev.your-domain.com
+KRATOS_TAG=v1.4.0
+HYDRA_TAG=v2.2.0
+POSTGRES_PASSWORD=dev-password
+KRATOS_COOKIE_SECRET=dev-secret
+HYDRA_SECRET=dev-secret
+OLYMPUS_ENCRYPTION_KEY=dev-key
+
+# envs/staging/.env
+DOMAIN=staging.your-domain.com
+KRATOS_TAG=v1.4.0
+HYDRA_TAG=v2.2.0
+POSTGRES_PASSWORD=staging-password
+KRATOS_COOKIE_SECRET=staging-secret
+...
+
+# envs/prod/.env
+DOMAIN=your-domain.com
+KRATOS_TAG=v1.3.0   ← prod often lags slightly
+HYDRA_TAG=v2.1.0
+POSTGRES_PASSWORD=prod-password-secret
+...
+```
+
+Same shape; different values.
+
+## Deploy script
+
+```bash
+#!/bin/bash
+# scripts/deploy.sh <env>
+set -e
+ENV=$1
+cd infra/envs/$ENV
+podman-compose --env-file .env up -d
+./smoke-test.sh
+```
+
+```bash
+./scripts/deploy.sh dev
+./scripts/deploy.sh staging
+./scripts/deploy.sh prod
+```
+
+## Secret management
+
+Each env needs:
+- Postgres passwords.
+- Kratos / Hydra secrets.
+- Encryption keys.
+- OAuth client secrets.
+- TLS certs (auto-managed by Caddy).
+- Email provider keys.
+
+Store in your secrets vault per env:
+
+```
+secret/olympus/dev/...
+secret/olympus/staging/...
+secret/olympus/prod/...
+```
+
+Operators can access dev/staging freely. Prod requires extra approval (2-person).
+
+## Identity data flow
+
+Production data:
+- NEVER copy to dev or staging.
+- Synthetic data only.
+
+Dev / staging data:
+- Acceptable to wipe and reseed.
+- Sample users created via seed script.
+
+For testing prod-specific scenarios (without real users), use staging with synthetic data resembling prod's distribution.
+
+## OAuth client per env
+
+Each env has its own set of OAuth clients:
+
+```
+prod:    client_id_X, client_secret_Y
+staging: client_id_A, client_secret_B
+dev:     client_id_C, client_secret_D
+```
+
+App config is env-specific. Don't share clients across envs (production secrets shouldn't be in dev configs).
+
+## Hostnames
+
+For local dev, hostnames vary:
+- `localhost:3000` (no domain).
+- `ciam.dev.your-domain.com` (cloud dev).
+- `ciam.staging.your-domain.com`.
+- `ciam.your-domain.com`.
+
+Each has its own TLS cert (Caddy auto).
+
+## Promotion flow
+
+Code goes: dev → staging → prod.
+
+```yaml
+# .github/workflows/promote.yml
+on:
+  push:
+    branches: [main]
+jobs:
+  promote_to_dev:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ssh dev "cd /opt/olympus && git pull && ./deploy.sh"
+  
+  promote_to_staging:
+    needs: promote_to_dev
+    runs-on: ubuntu-latest
+    steps:
+      - run: ssh staging "cd /opt/olympus && git pull && ./deploy.sh"
+  
+  promote_to_prod:
+    needs: promote_to_staging
+    runs-on: ubuntu-latest
+    environment: prod   # GitHub manual approval gate
+    steps:
+      - run: ssh prod "cd /opt/olympus && git pull && ./deploy.sh"
+```
+
+GitHub Environments require manual approval for prod.
+
+## Configuration drift
+
+Risk: dev and prod gradually diverge. Bugs in prod aren't reproducible in dev.
+
+Mitigate:
+- All env-specific values via .env (not config files).
+- All env-shared values in shared config files.
+- Periodically audit dev vs prod configs:
+  ```bash
+  diff <(redact envs/dev/.env) <(redact envs/prod/.env)
+  ```
+  Only DOMAIN, secrets should differ.
+
+## OAuth provider configs
+
+Social providers may differ per env:
+
+- Google OAuth: register dev callback (`https://ciam.dev.X/callback`) AND prod callback as different OAuth clients.
+- Apple: similar.
+
+OR: same provider with multiple redirect URIs (works in some, not all providers).
+
+## Email isolation
+
+Prod uses real Postmark (or whatever). Dev uses sandbox or Mailpit.
+
+Otherwise, dev tests can spam your transactional sender list.
+
+## What about CI?
+
+CI runs tests against an ephemeral stack:
+
+```yaml
+- run: docker-compose -f docker-compose.test.yml up -d
+- run: bun test
+- run: docker-compose down -v
+```
+
+A 4th environment, transient. Synthetic data per test.
+
+## Cost
+
+Three full stacks at ~$50/mo each = $150/mo. Reasonable for a team.
+
+Dev can be smaller (1GB RAM). Prod biggest. Staging in between.
+
+## When you don't need 3
+
+- Single developer.
+- Hobby project.
+- Low traffic.
+
+Two (local-dev + prod) is fine. Three (dev + staging + prod) becomes valuable as team grows.
+
+## Related
+
+- [Cookbook — Staging environment](/docs/cookbook/staging-environment)
+- [Cookbook — Onboarding checklist](/docs/cookbook/onboarding-checklist)
+- [Cookbook — Terraform provisioning](/docs/cookbook/terraform-provisioning)
+- [Cookbook — GitOps deploy](/docs/cookbook/gitops-deploy)
+- [Cookbook — Secrets rotation](/docs/cookbook/secrets-rotation)
