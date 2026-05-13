@@ -1,0 +1,226 @@
+---
+title: Grace period before account deletion
+description: Soft-delete with restore window
+---
+
+User clicks "Delete my account." Hard-delete is risky — they might change their mind. Grace period: 30 days inactive, then permanent.
+
+## Two states
+
+```sql
+ALTER TABLE identities ADD COLUMN deletion_requested_at TIMESTAMPTZ;
+```
+
+State flow:
+- `state = 'active'`, `deletion_requested_at IS NULL`: normal.
+- `state = 'inactive'`, `deletion_requested_at IS NOT NULL`: pending deletion.
+- (After grace period): physically deleted.
+
+## Soft-delete flow
+
+User clicks "Delete":
+
+```ts
+async function requestDeletion(identityId: string) {
+  await kratos.adminPatch(identityId, [
+    { op: "replace", path: "/state", value: "inactive" },
+    { op: "add", path: "/metadata_admin/deletion_requested_at", value: new Date().toISOString() },
+  ]);
+  await revokeAllSessions(identityId);
+  await sendEmail(identity.email, "Your account is scheduled for deletion in 30 days", ...);
+}
+```
+
+User immediately can't log in. After 30 days: physically deleted.
+
+## Restore flow
+
+Within grace period, user can restore:
+
+```ts
+async function restoreAccount(identityId: string) {
+  const identity = await kratos.adminGetIdentity(identityId);
+  const requested = identity.metadata_admin?.deletion_requested_at;
+  if (!requested) return error("not_deleted");
+  const expired = new Date(requested).getTime() < Date.now() - 30 * 86400 * 1000;
+  if (expired) return error("grace_period_ended");
+  
+  await kratos.adminPatch(identityId, [
+    { op: "replace", path: "/state", value: "active" },
+    { op: "remove", path: "/metadata_admin/deletion_requested_at" },
+  ]);
+  return { ok: true };
+}
+```
+
+Allow:
+- A specific URL in the deletion-email ("Restore now").
+- A support request ("I changed my mind").
+
+## Don't allow self-login during grace
+
+If user tries to log in:
+```
+"Your account is scheduled for deletion. Restore it?"
+[Restore] [Cancel]
+```
+
+Login with grace-period account → forced restore flow.
+
+## Hard-delete cron
+
+```bash
+# /etc/cron.daily/account-deletion
+psql -d olympus -c "
+  SELECT id FROM identities
+  WHERE state = 'inactive'
+    AND metadata_admin->>'deletion_requested_at' IS NOT NULL
+    AND (metadata_admin->>'deletion_requested_at')::timestamptz < NOW() - INTERVAL '30 days'
+" | while read id; do
+  curl -X DELETE $KRATOS_ADMIN/admin/identities/$id
+done
+```
+
+Permanently deletes after 30 days.
+
+## What about their data
+
+Beyond the identity itself, their app data:
+- During grace: kept (for restoration).
+- After grace: deleted, except:
+  - Audit logs (might retain for legal — see [Anonymization](/docs/cookbook/audit-anonymization)).
+  - Aggregated stats (anonymous).
+
+Cascade properly:
+
+```sql
+-- On hard-delete
+DELETE FROM identities WHERE id = $X;
+-- Cascades or explicit:
+DELETE FROM resources WHERE owner_id = $X;
+DELETE FROM memberships WHERE identity_id = $X;
+-- Audit log: anonymize instead
+UPDATE security_audit SET identity_id = NULL WHERE identity_id = $X;
+```
+
+## Communication
+
+At deletion request:
+
+```
+Subject: Account deletion scheduled
+
+We've received your request to delete your account.
+
+Your account is now disabled. You won't receive emails from us.
+
+If you change your mind, you can restore your account within 30 days:
+  https://your-app.com/restore?token=...
+
+After 30 days, your account and data are permanently removed.
+```
+
+Reminders at:
+- Day 7 (light reminder).
+- Day 25 (last chance).
+
+```
+Subject: Last chance to restore your account
+
+Your account will be permanently deleted in 5 days.
+
+Restore: https://your-app.com/restore?token=...
+```
+
+After permanent deletion:
+
+```
+Subject: Your account has been deleted
+
+Your account and associated data have been permanently removed.
+
+We're sorry to see you go. If you ever want to come back, you'll need
+to create a new account.
+```
+
+## GDPR right-to-be-forgotten
+
+GDPR Article 17 — "right to erasure." Users have the right to delete.
+
+Grace period is OK with GDPR if:
+- User is informed and can override grace (immediate hard delete).
+- Default isn't suspiciously long (30 days reasonable; 1 year not).
+
+```tsx
+<Modal>
+  <p>Delete your account?</p>
+  <p>Default: 30-day grace period before permanent deletion.</p>
+  <Button onClick={() => requestDeletion(30)}>Schedule for 30 days</Button>
+  <Button variant="danger" onClick={() => requestDeletion(0)}>Delete immediately</Button>
+</Modal>
+```
+
+User chooses.
+
+## Audit retention conflict
+
+You're legally required to keep audit logs (some industries) but user is requesting deletion. Conflict.
+
+Resolution:
+- Anonymize audit (replace identifier with random), keep events.
+- Or: keep audit, note that this user requested deletion.
+
+Document in your privacy policy.
+
+## Athena view
+
+Admin can see pending deletions:
+
+```sql
+SELECT id, traits->>'email' AS email, metadata_admin->>'deletion_requested_at' AS requested
+FROM identities
+WHERE state = 'inactive' 
+  AND metadata_admin->>'deletion_requested_at' IS NOT NULL
+ORDER BY requested;
+```
+
+UI: list, with options to admin-force-delete or admin-cancel-deletion.
+
+## Edge cases
+
+### Deleted then re-signed up
+
+User deletes account. Within grace, signs up again with same email. Conflict?
+
+Options:
+- Email is unique → blocks new signup. Force them through restore.
+- Allow new — old data is orphan, eventually purged.
+
+Most consistent: same-email signup during grace fails. Tell them to restore.
+
+### Subscription billing
+
+User has active subscription. Cancellation should also cancel Stripe subscription.
+
+```ts
+async function requestDeletion(userId) {
+  // ... existing
+  const stripeId = identity.metadata_admin?.stripe_customer_id;
+  if (stripeId) {
+    const subs = await stripe.subscriptions.list({ customer: stripeId });
+    for (const sub of subs.data) {
+      await stripe.subscriptions.cancel(sub.id);
+    }
+  }
+}
+```
+
+Otherwise user is charged after account is gone — refund headache.
+
+## Related
+
+- [Cookbook — Self-service account deletion](/docs/cookbook/self-service-account-deletion)
+- [Cookbook — Audit anonymization](/docs/cookbook/audit-anonymization)
+- [Security — Compliance — GDPR](/docs/security/compliance-gdpr)
+- [Cookbook — Customer support tooling](/docs/cookbook/customer-support-tooling)
+- [Cookbook — GDPR DSR export](/docs/cookbook/gdpr-dsr-export)

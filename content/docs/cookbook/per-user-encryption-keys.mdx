@@ -1,0 +1,171 @@
+---
+title: Per-user encryption keys
+description: Encrypt user data so even DB compromise doesn't leak content
+---
+
+By default, Olympus encrypts identity traits with a single master key. If DB and that key both leak, all traits leak. Higher assurance: derive per-user keys so a single key leak doesn't reveal everyone.
+
+## Pattern
+
+```
+Master Key (in secrets vault, never in DB)
+   │
+   ▼
+KDF (HKDF-SHA256)
+   │
+   ▼
+Per-User Key = HKDF(MasterKey, salt=user_id, info="user-data-encryption")
+   │
+   ▼
+Encrypt user data with this key.
+```
+
+Result:
+- DB stores ciphertext + salt (user_id).
+- User key is derived on demand.
+- Single user key compromise = that user.
+- Master key compromise = all users.
+
+Not perfect — master key remains the linchpin. But removes correlation: one cracked record doesn't immediately reveal others.
+
+## Implementation
+
+```ts
+import { hkdfSync, createCipheriv, createDecipheriv } from "crypto";
+
+const masterKey = Buffer.from(process.env.MASTER_KEY!, "base64");  // 32 bytes
+
+function deriveUserKey(userId: string): Buffer {
+  return Buffer.from(hkdfSync("sha256", masterKey, Buffer.from(userId), "user-data-encryption", 32));
+}
+
+function encryptUserData(userId: string, plaintext: string): string {
+  const key = deriveUserKey(userId);
+  const iv = crypto.randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf-8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, ciphertext, tag]).toString("base64");
+}
+
+function decryptUserData(userId: string, encrypted: string): string {
+  const data = Buffer.from(encrypted, "base64");
+  const iv = data.slice(0, 12);
+  const tag = data.slice(-16);
+  const ciphertext = data.slice(12, -16);
+  
+  const key = deriveUserKey(userId);
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf-8");
+}
+```
+
+## What to encrypt
+
+NOT email or basic profile (you need to query by them).
+
+DO encrypt:
+- Free-text fields (bio, notes).
+- Phone numbers (semi-sensitive).
+- Address details.
+- Medical / financial info.
+
+```sql
+CREATE TABLE user_profiles (
+  identity_id UUID PRIMARY KEY,
+  bio_encrypted TEXT,      -- base64 of (iv || ciphertext || tag)
+  address_encrypted TEXT,
+  phone_encrypted TEXT
+);
+```
+
+App reads:
+
+```ts
+const profile = await db`SELECT * FROM user_profiles WHERE identity_id = ${userId}`.first();
+return {
+  bio: profile.bio_encrypted ? decryptUserData(userId, profile.bio_encrypted) : null,
+  address: profile.address_encrypted ? decryptUserData(userId, profile.address_encrypted) : null,
+};
+```
+
+## Searching encrypted fields
+
+Encrypted fields can't be searched / indexed by content.
+
+Options:
+- Don't search them.
+- Hash for equality: `phone_hash = sha256(phone)`. Search by hash.
+- Field-level deterministic encryption (less secure but indexable): use AES-SIV.
+
+Most encrypted fields shouldn't need search. If they do, reconsider what to encrypt.
+
+## Key rotation
+
+Master key rotation: see [Encryption key rotation](/docs/operate/encryption-key-rotation). For per-user, similar pattern:
+
+```
+master_v1 → per-user keys → encrypted data
+master_v2 → per-user keys → encrypted data (new)
+```
+
+During rotation, re-encrypt user data with v2-derived keys.
+
+For long deployments, lazy re-encryption: re-encrypt on user's next interaction. Avoids bulk processing.
+
+## What this doesn't protect
+
+- Master key compromise (catastrophic).
+- Memory dumps of running services (keys in RAM).
+- Side-channel attacks.
+- Bugs that leak plaintext.
+
+It DOES protect:
+- Cold DB exfiltration without app server access.
+- Mid-tier compromise (DB read access, no key access).
+
+## Compared to TDE
+
+Postgres has Transparent Data Encryption (TDE) via filesystem encryption. Protects against disk theft. Doesn't protect against DB-level access (running queries).
+
+Per-user app-level encryption protects against DB access too (you'd need both DB access AND key).
+
+Use TDE for at-rest disk encryption. Use per-user app-level on top, for sensitive fields.
+
+## Olympus's approach
+
+Olympus's encryption:
+- Hashed passwords (Argon2id).
+- AES-256-GCM for traits.
+- HKDF-SHA256 for key derivation.
+- Master key from `OLYMPUS_ENCRYPTION_KEY_PRIMARY`.
+
+Default: single key (not per-user). For per-user, build on top in your app's tables, not in Kratos's identities table.
+
+For per-tenant (your B2B customers each have their own key), see [ADR 0006](/docs/adrs/0006-encryption-strategy).
+
+## Performance
+
+Key derivation: ~10 µs.
+Encrypt/decrypt: ~1 µs / 100 bytes.
+
+Negligible cost per request. No measurable impact.
+
+## Audit
+
+Track encryption events:
+
+```ts
+audit({ event: "user_data_decrypted", target_id: userId, by: actor_id });
+```
+
+If someone is fetching/decrypting many users' data, that's suspicious.
+
+## Related
+
+- [Security — Encryption at rest](/docs/security/encryption-at-rest)
+- [ADR 0006 — Encryption strategy](/docs/adrs/0006-encryption-strategy)
+- [Operate — Encryption key rotation](/docs/operate/encryption-key-rotation)
+- [Cookbook — Rotate encryption key](/docs/cookbook/rotate-encryption-key)
+- [Cookbook — Recover lost encryption key](/docs/cookbook/recover-lost-encryption-key)
