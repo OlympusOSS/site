@@ -38,7 +38,7 @@ podman exec iam-hydra cat /etc/config/hydra/pgadmin-claims-mapper.jsonnet
 
 The mapper transforms Kratos identity claims into what pgAdmin expects:
 
-```jsonnet
+```text
 local kratos = std.extVar('claims').identity.traits;
 {
   username: kratos.email,

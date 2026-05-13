@@ -17,7 +17,7 @@ Operators need to inspect/edit the production databases. The bad pattern is a sh
 
 The mapping is in [`platform/dev/iam-hydra/pgadmin-claims-mapper.jsonnet`](https://github.com/OlympusOSS/platform/blob/main/dev/iam-hydra/pgadmin-claims-mapper.jsonnet):
 
-```jsonnet
+```text
 local kratos = std.extVar('claims').identity.traits;
 {
   username: kratos.email,

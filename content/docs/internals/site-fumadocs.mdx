@@ -53,7 +53,7 @@ export const source = loader(s, { baseUrl: "/docs" });
 
 `site/src/app/docs/[[...slug]]/page.tsx`:
 
-```tsx
+```text
 import { source } from "../../../../source";
 import { DocsPage, DocsBody, ... } from "fumadocs-ui/page";
 
@@ -102,7 +102,7 @@ export default defineConfig({
 });
 ```
 
-`remarkMermaid` transforms ```mermaid` code blocks into `<Mermaid chart=...>` JSX, which the registered component renders client-side.
+`remarkMermaid` transforms ```mermaid` code blocks into the Mermaid component, which the registered component renders client-side.
 
 ## Generators write into content/docs/
 
@@ -116,7 +116,7 @@ export default defineConfig({
 
 ## Adding a new page
 
-1. Create `content/docs/<section>/<slug>.mdx` with frontmatter:
+1. Create `content/docs/SECTION/SLUG.mdx` with frontmatter:
    ```mdx
    ---
    title: My new page

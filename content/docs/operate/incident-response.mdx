@@ -12,7 +12,7 @@ This playbook is the on-call response for an Olympus production incident — som
 | **Sev 1** | Production identity is completely down. No new logins, all sessions invalid, or active data corruption. | 15 minutes |
 | **Sev 2** | Significant degradation. Some logins failing, latency >5× baseline, or a security alert without confirmed breach. | 30 minutes |
 | **Sev 3** | Limited impact. One IdP broken (others working), email delivery delayed, single account locked accidentally. | 2 hours |
-| **Sev 4** | Cosmetic or pre-incident. Cert expires in <30 days, low disk warning, etc. | next business day |
+| **Sev 4** | Cosmetic or pre-incident. Cert expires in under 30 days, low disk warning, etc. | next business day |
 
 A **confirmed compromise** (credentials leaked, unauthorized admin access) is always Sev 1 regardless of immediate user impact.
 

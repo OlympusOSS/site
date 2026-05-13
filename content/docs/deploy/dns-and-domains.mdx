@@ -40,7 +40,7 @@ For **DNS-01** (required behind Cloudflare's proxy):
 
 ## Three-zone propagation timing
 
-When you update DNS records, allow up to **48 hours** for full propagation (most updates are <1 hour but some resolvers cache for the TTL of the previous record). For a quick test:
+When you update DNS records, allow up to **48 hours** for full propagation (most updates are under 1 hour but some resolvers cache for the TTL of the previous record). For a quick test:
 
 ```bash
 dig ciam.example.com

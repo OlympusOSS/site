@@ -36,7 +36,7 @@ Apply branding, change wording, add support contact.
 
 Example body template:
 
-```gotmpl
+```html
 <!DOCTYPE html>
 <html>
 <body style="font-family: sans-serif">
@@ -82,7 +82,7 @@ If you need multiple languages:
 1. Detect language from the identity (`identity.traits.locale: "fr-FR"`).
 2. Use Go template conditional:
 
-```gotmpl
+```html
 {{ if eq .Identity.Traits.locale "fr-FR" }}
   Bonjour, votre code: {{ .RecoveryCode }}
 {{ else }}

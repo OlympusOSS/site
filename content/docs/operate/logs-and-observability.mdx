@@ -61,7 +61,7 @@ Olympus log lines try to avoid PII, but be aware:
 - Hydra similar — but the introspection endpoint reveals scopes; log responses carefully.
 - Caddy's access log includes URLs, which may contain query strings with `code`, `state`, `id_token_hint`. Configure Caddy to strip these:
 
-```caddy
+```text
 log {
   output stdout
   format json {
