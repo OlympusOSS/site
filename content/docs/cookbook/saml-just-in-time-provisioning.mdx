@@ -1,0 +1,146 @@
+---
+title: SAML just-in-time provisioning
+description: Auto-create accounts for enterprise SSO users
+---
+
+When an enterprise customer connects their SAML IdP (Okta, Entra ID, OneLogin), you typically want users to be auto-provisioned on first login — no manual invite step.
+
+## Prerequisites
+
+You have the [SAML-OIDC bridge](/docs/cookbook/saml-oidc-bridge) running, or your SAML provider configured as an OIDC provider to Kratos.
+
+## Pattern
+
+```
+SAML IdP                Olympus                Your App
+   │                       │                      │
+   ├── user signs in ─────►│                      │
+   │                       │ User exists?         │
+   │                       │   No → create        │
+   │                       │   Yes → update       │
+   │                       │                      │
+   ├── assertion ─────────►│                      │
+   │                       ├──── session ────────►│
+   │                       │                      │
+```
+
+## Kratos OIDC Jsonnet mapper
+
+For each SAML IdP, configure an OIDC mapper that creates/updates the identity:
+
+```jsonnet
+local claims = std.extVar('claims');
+{
+  identity: {
+    traits: {
+      email: claims.email,
+      tenant_id: claims['https://your-app.com/tenant_id'],
+      first_name: claims.given_name,
+      last_name: claims.family_name,
+      role: if std.objectHas(claims, 'https://your-app.com/role') 
+            then claims['https://your-app.com/role']
+            else 'user',
+    },
+  },
+}
+```
+
+Kratos applies this to:
+- Create on first login (if no identity matches the OIDC subject).
+- Update on subsequent login (refreshes traits from IdP).
+
+## Tenant assignment
+
+The SAML response should include a tenant identifier. Configure your IdP to add it:
+
+**Okta**: Profile mappings → custom attribute → `tenant_id = "tenant-X"`.
+
+**Entra ID**: Token configuration → optional claim → custom.
+
+Then in your mapper:
+
+```jsonnet
+tenant_id: claims['https://your-app.com/tenant_id'],
+```
+
+## Role assignment
+
+If you want to map SAML group membership to your app's roles:
+
+```jsonnet
+local claims = std.extVar('claims');
+local groups = if std.objectHas(claims, 'groups') then claims.groups else [];
+local role = 
+  if std.member(groups, 'Acme-Admins') then 'admin'
+  else if std.member(groups, 'Acme-Users') then 'user'
+  else 'guest';
+
+{
+  identity: {
+    traits: {
+      email: claims.email,
+      role: role,
+    },
+  },
+}
+```
+
+## On role changes
+
+Each login refreshes traits from the IdP. If an admin's role changes from "admin" to "user," next login updates Kratos. They're demoted.
+
+This is the right behavior for enterprise SSO — IdP is source of truth.
+
+## On user removal
+
+If the IdP removes a user, what happens?
+
+The SAML session in Olympus continues until Kratos's session expires. The user can still access for the remaining session lifetime.
+
+For tighter coupling: implement SAML's Single Logout (SLO) so IdP-side logout cascades to Olympus. Or shorten Kratos session to 1 hour for SAML users.
+
+To proactively de-provision when the IdP confirms removal, your app would need to poll SCIM:
+
+```ts
+// Hourly SCIM check
+async function syncWithIdp() {
+  const allUsers = await scim.list();
+  const allEmails = new Set(allUsers.map(u => u.email));
+  const olympusUsers = await kratos.list({ scheme: "default" });
+  for (const u of olympusUsers) {
+    if (!allEmails.has(u.traits.email)) {
+      await kratos.adminDelete(u.id); // or deactivate
+    }
+  }
+}
+```
+
+## SCIM is the more rigorous pattern
+
+For deeper IdP integration, implement SCIM (System for Cross-domain Identity Management). SCIM is push-based: IdP creates/updates/deletes in your system in real-time.
+
+JIT is "lazy" SCIM. For most B2B SaaS, JIT is sufficient. SCIM matters when:
+- Customers expect deprovisioning within minutes of removing in IdP.
+- Customers want to manage attributes (like project membership) in IdP and have it reflected in your app.
+
+SCIM endpoint in Athena: see [Cookbook — SCIM endpoint](/docs/cookbook/scim-endpoint).
+
+## Test plan
+
+For each customer IdP type:
+1. Create a test user in IdP.
+2. Assign to tenant + role groups.
+3. SP-initiated login.
+4. Verify identity created in Kratos with correct traits.
+5. Change role in IdP.
+6. Login again.
+7. Verify role updated.
+8. Remove user from IdP.
+9. Verify session expires (or trigger SLO).
+
+## Related
+
+- [Cookbook — SAML-OIDC bridge](/docs/cookbook/saml-oidc-bridge)
+- [Cookbook — JIT user provisioning](/docs/cookbook/jit-user-provisioning)
+- [Cookbook — SCIM endpoint](/docs/cookbook/scim-endpoint)
+- [Identity — Social login](/docs/identity/social-login)

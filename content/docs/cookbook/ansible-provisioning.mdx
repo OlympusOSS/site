@@ -1,0 +1,145 @@
+---
+title: Provision Olympus with Ansible
+description: Configuration management for an Olympus host
+---
+
+A minimal Ansible playbook to provision a fresh VPS into an Olympus host.
+
+## Inventory
+
+```ini
+# inventory/prod
+[olympus]
+ciam.your-domain.com ansible_user=deploy
+
+[olympus:vars]
+ansible_ssh_private_key_file=~/.ssh/olympus
+```
+
+## Playbook
+
+```yaml
+# site.yml
+- hosts: olympus
+  become: true
+  vars:
+    olympus_repo: https://github.com/OlympusOSS/platform.git
+    olympus_dir: /home/deploy/olympus
+    domain: your-domain.com
+
+  tasks:
+    - name: Update apt cache
+      apt: update_cache=yes cache_valid_time=3600
+
+    - name: Install dependencies
+      apt:
+        name:
+          - podman
+          - podman-compose
+          - git
+          - ufw
+          - fail2ban
+        state: present
+
+    - name: Configure UFW
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+      loop: [22, 80, 443]
+
+    - name: Enable UFW
+      ufw: state=enabled
+
+    - name: Create deploy user
+      user:
+        name: deploy
+        shell: /bin/bash
+        groups: sudo
+        append: true
+
+    - name: Allow deploy passwordless sudo
+      copy:
+        dest: /etc/sudoers.d/deploy
+        content: "deploy ALL=(ALL) NOPASSWD:ALL\n"
+        mode: "0440"
+
+    - name: Clone Olympus
+      become_user: deploy
+      git:
+        repo: "{{ olympus_repo }}"
+        dest: "{{ olympus_dir }}"
+        version: main
+
+    - name: Render .env
+      become_user: deploy
+      template:
+        src: env.j2
+        dest: "{{ olympus_dir }}/.env"
+        mode: "0600"
+
+    - name: Pull container images
+      become_user: deploy
+      command: podman-compose pull
+      args:
+        chdir: "{{ olympus_dir }}"
+
+    - name: Start Olympus
+      become_user: deploy
+      command: podman-compose up -d
+      args:
+        chdir: "{{ olympus_dir }}"
+```
+
+## env.j2 template
+
+```jinja
+DOMAIN={{ domain }}
+HERA_PUBLIC_URL=https://ciam.{{ domain }}
+ATHENA_PUBLIC_URL=https://iam.{{ domain }}
+
+POSTGRES_PASSWORD={{ lookup('hashi_vault', 'secret=olympus/postgres password') }}
+KRATOS_SECRETS_COOKIE={{ lookup('hashi_vault', 'secret=olympus/kratos cookie') }}
+KRATOS_SECRETS_CIPHER={{ lookup('hashi_vault', 'secret=olympus/kratos cipher') }}
+HYDRA_SECRETS_SYSTEM={{ lookup('hashi_vault', 'secret=olympus/hydra system') }}
+
+OLYMPUS_ENCRYPTION_KEY_PRIMARY={{ lookup('hashi_vault', 'secret=olympus/encryption primary') }}
+OLYMPUS_ENCRYPTION_KEY_ID=2026-01
+```
+
+## Run
+
+```bash
+ansible-playbook -i inventory/prod site.yml --check  # dry-run
+ansible-playbook -i inventory/prod site.yml
+```
+
+## Idempotency
+
+Re-running should be safe:
+- `apt install` → no-op if already installed.
+- `git clone` → pulls latest if exists.
+- `.env` render → unchanged if no var changes.
+- `podman-compose up -d` → no-op if no changes.
+
+## Restarts on config change
+
+Add `notify` handlers:
+
+```yaml
+    - name: Render .env
+      template:
+        ...
+      notify: restart olympus
+
+  handlers:
+    - name: restart olympus
+      command: podman-compose restart
+      args:
+        chdir: "{{ olympus_dir }}"
+```
+
+## Related
+
+- [Cookbook — Terraform provisioning](/docs/cookbook/terraform-provisioning)
+- [Cookbook — Single-VPS deployment](/docs/cookbook/single-vps-deployment)
+- [Cookbook — GitOps deploy](/docs/cookbook/gitops-deploy)

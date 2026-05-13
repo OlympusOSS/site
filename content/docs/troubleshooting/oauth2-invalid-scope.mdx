@@ -1,0 +1,85 @@
+---
+title: "OAuth2: invalid_scope"
+description: Hydra rejected the requested scope
+---
+
+```json
+{
+  "error": "invalid_scope",
+  "error_description": "The requested scope is invalid, unknown, malformed, or exceeds the scope granted by the resource owner."
+}
+```
+
+## Cause 1: Scope not in client's allowed list
+
+Each Hydra client has a list of scopes it can request. If you ask for one that isn't there, rejected.
+
+```bash
+hydra get client <id> | jq .scope
+# e.g. "openid offline_access api:read"
+```
+
+If your app asks for `api:write` but it's not listed → invalid_scope.
+
+Fix:
+
+```bash
+hydra update client <id> --scope "openid offline_access api:read api:write"
+```
+
+Note: changing scopes affects what users can grant via consent screen. Existing tokens are unaffected (their scopes are baked in).
+
+## Cause 2: Scope mistyped
+
+Common typos:
+- `open_id` instead of `openid`.
+- `offline access` (space) instead of `offline_access`.
+- `email profile` vs `email,profile` (must be space-delimited in URL).
+
+The OAuth2 spec uses space-delimited:
+
+```
+&scope=openid%20profile%20email
+```
+
+## Cause 3: Scope contains invalid characters
+
+Scope names are limited to printable ASCII excluding space, double-quote, backslash. Don't use Unicode or special chars.
+
+Olympus convention: `domain:action` style (e.g., `api:read`, `orders:write`).
+
+## Cause 4: Scope policy explicitly denied
+
+For policies via Cedar / OPA, your authz might deny a scope per the user / client combination. Check authz logs.
+
+## How to list valid scopes for a client
+
+```bash
+hydra get client <id> --format json | jq .scope | tr ' ' '\n'
+```
+
+## Universal scopes
+
+These should be on most clients:
+- `openid` — required for OIDC (returns id_token).
+- `offline_access` — required for refresh token.
+- `profile` — basic claims.
+- `email` — email claim.
+
+Custom scopes for your API: `[domain]:[action]` e.g. `billing:read`, `users:write`.
+
+## Reduced scope on response
+
+Hydra (and OAuth2 spec) allows the authorization server to grant *less* than requested. If client asks `openid email api:admin` and the user only consents to `openid email`, the token returns:
+
+```json
+{ "access_token": "...", "scope": "openid email" }
+```
+
+No error, but your app should check the returned scope, not assume what you asked for.
+
+## Related
+
+- [Reference — OAuth2 scopes](/docs/reference/oauth2/scopes-overview)
+- [Troubleshooting — OAuth2 invalid client](/docs/troubleshooting/oauth2-invalid-client)
+- [Integrate — OAuth2 authorization code](/docs/integrate/oauth2-authorization-code)

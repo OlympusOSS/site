@@ -1,0 +1,179 @@
+---
+title: Admin impersonates a user (support flow)
+description: Login as a customer to debug their issue
+---
+
+Support workflows often need: "I want to see what the customer sees." Done safely, this is an admin tool. Done wrong, it's a giant security hole.
+
+## Threat model
+
+Risks:
+- Admin abuses the feature.
+- An XSS or compromised admin account gains user access broadly.
+- Audit trail is unclear who did what (was it actually the user or the admin?).
+
+Mitigations:
+- Only specific admin role can impersonate.
+- Time-limited impersonation sessions.
+- Every impersonation logged.
+- User notified after the fact (optional).
+- Impersonated tokens are clearly tagged (so app shows a banner, audit logs distinguish).
+
+## Implementation in Olympus
+
+Olympus doesn't have a built-in impersonate button. Two patterns:
+
+### Pattern A: Admin-issued session
+
+Use Kratos admin API to create a session for the user's identity, then redirect to your app with that session cookie.
+
+```ts
+async function impersonate(identityId: string, adminId: string) {
+  // Audit
+  await db`
+    INSERT INTO impersonation_log (admin_id, target_id, started_at, reason)
+    VALUES (${adminId}, ${identityId}, NOW(), ${reason})
+  `;
+  
+  // Create session via admin API
+  const session = await fetch(`${KRATOS_ADMIN}/admin/identities/${identityId}/sessions`, {
+    method: "POST",
+    body: JSON.stringify({
+      expires_in: "10m",
+      authenticator_assurance_level: "aal1",
+    }),
+  }).then(r => r.json());
+  
+  // Return a short-lived cookie / token
+  return session.session_token;
+}
+```
+
+Limitations:
+- Kratos admin API doesn't directly issue impersonation sessions in a session-cookie-friendly format.
+- You'd build a bridge endpoint.
+
+### Pattern B: Token exchange with impersonation claim
+
+Mint an OAuth2 token with an `act` (actor) claim per RFC 8693:
+
+```json
+{
+  "iss": "https://ciam.your-domain",
+  "sub": "user-uuid",     // who we're acting as
+  "act": {
+    "sub": "admin-uuid"   // who's actually doing it
+  },
+  "scope": "...",
+  "exp": ...
+}
+```
+
+Hydra supports token exchange grant. Configure an OAuth2 client for "impersonation":
+
+```bash
+hydra create client \
+  --name "Internal Impersonation" \
+  --grant-types urn:ietf:params:oauth:grant-type:token-exchange \
+  --scope "impersonate:user" \
+  --token-endpoint-auth-method client_secret_basic
+```
+
+Admin app calls:
+
+```bash
+curl -X POST $HYDRA/oauth2/token \
+  -u $CLIENT_ID:$CLIENT_SECRET \
+  -d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
+  -d "subject_token=$ADMIN_TOKEN" \
+  -d "subject_token_type=urn:ietf:params:oauth:token-type:access_token" \
+  -d "audience=https://your-api" \
+  -d "requested_subject=user-uuid"
+```
+
+Gets back an access token where `sub` = user, `act.sub` = admin.
+
+Your API decodes `act` claim and treats it as "impersonation in progress."
+
+## Banner in the app
+
+When `act` claim is present, show a banner:
+
+```tsx
+{user.act && (
+  <div className="bg-yellow-200 p-2 text-center">
+    Acting as <strong>{user.email}</strong> on behalf of admin <strong>{user.act.email}</strong>
+    <button onClick={endImpersonation}>End session</button>
+  </div>
+)}
+```
+
+Helps the admin remember they're in impersonation. Also visible if there's a screen-sharing session etc.
+
+## Audit log
+
+Every impersonation must be logged:
+
+```sql
+CREATE TABLE impersonation_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id UUID NOT NULL,
+  target_id UUID NOT NULL,
+  reason TEXT,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  ip TEXT,
+  user_agent TEXT
+);
+```
+
+Track every action under impersonation as the admin in audit logs, not as the user. E.g.:
+
+```
+event_type: "data.deleted"
+actor: <admin-id>  (NOT <user-id>)
+target: <user-id>
+acted_as: <user-id>
+```
+
+This way, when looking at the user's history, you see "admin John deleted X while impersonating you."
+
+## Time limits
+
+Impersonation sessions should expire fast:
+- 10 minutes default.
+- User must re-issue if needed longer.
+
+Implementation: short `exp` claim, or session_token with short lifespan.
+
+## User notification
+
+Some companies notify the user after each impersonation session:
+
+```
+Subject: Support session
+
+Hi, a member of our support team accessed your account on May 5 at 3:21 PM
+to investigate ticket #12345. The session lasted 4 minutes.
+
+If you didn't expect this contact, please reply or contact security@.
+```
+
+Trade-off: builds trust, but adds email noise. Consent during signup.
+
+## What admin can and cannot do
+
+Restrict what impersonation can change:
+- ✅ Read user's data (the point).
+- ❌ Change password.
+- ❌ Add MFA factors.
+- ❌ Make payments.
+- ❌ Delete account.
+
+Either gate these in your app (`if user.act exists, deny`) or in Kratos (set a flag, hooks check it).
+
+## Related
+
+- [Operate — Admin tools](/docs/operate/admin-tools)
+- [Security — Threat model](/docs/security/threat-model)
+- [Reference — OAuth2 grants — token exchange](/docs/reference/oauth2/grant-token-exchange)

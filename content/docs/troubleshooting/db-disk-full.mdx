@@ -1,0 +1,158 @@
+---
+title: Postgres disk full
+description: Reclaiming space, root causes, prevention
+---
+
+`No space left on device` from Postgres. Service is down or write-failing.
+
+## Immediate triage
+
+```bash
+df -h
+```
+
+Find which volume is at 100%. Usually `/var/lib/postgresql` or `/var/lib/containers`.
+
+### Free a quick win
+
+```bash
+# Truncate Postgres logs older than 1 day
+find /var/lib/postgresql/data/log -mtime +1 -delete
+```
+
+### Truncate WAL if archiving is disabled
+
+Risky — only if you don't have point-in-time recovery enabled:
+
+```bash
+# Check WAL usage
+ls -la /var/lib/postgresql/data/pg_wal/
+
+# If recovery is not configured, archived WALs can be removed:
+podman exec ciam-postgres pg_archivecleanup /var/lib/postgresql/data/pg_wal $(podman exec ciam-postgres pg_controldata /var/lib/postgresql/data | grep "Latest checkpoint's REDO WAL file" | awk '{print $NF}')
+```
+
+DON'T just `rm` files in `pg_wal` — corrupts the database.
+
+## Identify what's consuming space
+
+```sql
+SELECT 
+  schemaname, 
+  tablename,
+  pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE schemaname IN ('public', 'kratos', 'hydra', 'athena')
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
+LIMIT 20;
+```
+
+Common culprits:
+- `security_audit` table — audit logs accumulate.
+- `hydra_oauth2_access` — issued access tokens (Hydra cleans these but not always).
+- `kratos_session` — sessions, if you don't expire old ones.
+- Old Kratos flows — registration/login/recovery flow records, often not GC'd.
+
+## Cleanups by table
+
+### Kratos: old flows
+
+```sql
+DELETE FROM identity_recovery_codes WHERE expires_at < NOW() - INTERVAL '7 days';
+DELETE FROM identity_verification_codes WHERE expires_at < NOW() - INTERVAL '7 days';
+DELETE FROM selfservice_login_flows WHERE expires_at < NOW() - INTERVAL '7 days';
+DELETE FROM selfservice_registration_flows WHERE expires_at < NOW() - INTERVAL '7 days';
+-- etc. for recovery, verification, settings
+```
+
+Or use Kratos's CLI:
+
+```bash
+podman exec ciam-kratos kratos janitor --config /etc/config/kratos.yml --keep-last 168h
+```
+
+### Hydra: expired tokens
+
+```bash
+podman exec ciam-hydra hydra janitor \
+  --tokens \
+  --access-token-lifespan 8760h \
+  --refresh-token-lifespan 8760h \
+  --consent-request-lifespan 720h \
+  postgres://...
+```
+
+### Audit log retention
+
+```sql
+DELETE FROM security_audit
+WHERE event_type = 'login' 
+  AND created_at < NOW() - INTERVAL '90 days';
+
+DELETE FROM security_audit
+WHERE event_type NOT IN ('login') 
+  AND created_at < NOW() - INTERVAL '2 years';
+```
+
+After delete, VACUUM:
+
+```sql
+VACUUM (ANALYZE, VERBOSE) security_audit;
+```
+
+## VACUUM FULL (extreme)
+
+```sql
+VACUUM FULL security_audit;
+```
+
+This reclaims disk space by rewriting the table. Requires exclusive lock — table unavailable during. Plan during maintenance window.
+
+## Add storage
+
+Cheapest fix if you can't shrink fast enough:
+
+```bash
+# Hetzner: resize volume in web console, then on host:
+sudo resize2fs /dev/disk/by-id/scsi-0HC_Volume_XXX
+```
+
+## Prevention
+
+### Daily janitor cron
+
+```bash
+# /etc/cron.daily/olympus-janitor
+podman exec ciam-kratos kratos janitor --keep-last 168h
+podman exec ciam-hydra hydra janitor --tokens postgres://...
+```
+
+### Audit log retention enforcer
+
+```bash
+# /etc/cron.daily/audit-retention
+podman exec ciam-postgres psql -U olympus -c "
+  DELETE FROM security_audit WHERE event_type='login' AND created_at < NOW() - INTERVAL '90 days';
+  DELETE FROM security_audit WHERE created_at < NOW() - INTERVAL '2 years';
+"
+```
+
+### Disk monitoring
+
+Alert on disk > 80%:
+
+```promql
+node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.2
+```
+
+You should be alerted weeks before disk is full. If you got the alert at 100%, your alerts are misconfigured.
+
+## When you need a bigger DB
+
+If you genuinely need more space than your VPS allows, time to migrate to managed Postgres (Neon, RDS, Cloud SQL). See [Cookbook — Managed Postgres (Neon)](/docs/cookbook/managed-postgres-neon).
+
+## Related
+
+- [Operate — Postgres tuning](/docs/operate/postgres-tuning)
+- [Operate — Audit log query](/docs/operate/audit-log-query)
+- [Cookbook — Managed Postgres (Neon)](/docs/cookbook/managed-postgres-neon)

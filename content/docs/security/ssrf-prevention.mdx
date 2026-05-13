@@ -1,0 +1,119 @@
+---
+title: SSRF prevention
+description: Server-side request forgery — how Olympus blocks it
+---
+
+SSRF: an attacker tricks your server into making outbound HTTP requests to internal targets (cloud metadata, internal services, DBs). Often used to escalate from initial RCE/XSS to cloud takeover.
+
+## Where SSRF lives in Olympus
+
+### OIDC provider URLs
+
+If your Kratos config allows arbitrary OIDC issuer URLs (e.g., user-configurable IdPs), an attacker who can configure could point Kratos at internal endpoints.
+
+Olympus's mitigation: OIDC provider configs are admin-only (via `kratos.yml` or the Athena identity-providers UI which requires `iam:admin`).
+
+### Webhook URLs
+
+Pre/post-registration webhooks point to URLs. If the URL is admin-configurable only, that's fine. If you build a feature where users supply webhook URLs (e.g., "notify me at this URL"), you have an SSRF surface.
+
+### Avatar / file URL imports
+
+Some apps fetch URLs supplied by users (avatar imports, "fetch URL preview", etc.). Each is an SSRF surface.
+
+## Defensive patterns
+
+### Block private IPs
+
+```ts
+import { isIP } from "net";
+import dns from "dns/promises";
+
+async function isPublicHttp(url: string): Promise<boolean> {
+  const u = new URL(url);
+  if (!["http:", "https:"].includes(u.protocol)) return false;
+  // Resolve via DNS to catch DNS-rebinding
+  const addrs = await dns.resolve4(u.hostname);
+  for (const ip of addrs) {
+    if (isPrivate(ip)) return false;
+  }
+  return true;
+}
+
+function isPrivate(ip: string): boolean {
+  return (
+    ip.startsWith("10.") ||
+    ip.startsWith("127.") ||
+    ip.startsWith("169.254.") || // cloud metadata
+    ip.startsWith("172.16.") || ip.startsWith("172.17.") /* ...up to 172.31. */ ||
+    ip.startsWith("192.168.") ||
+    ip === "::1" ||
+    ip.startsWith("fc00:") || ip.startsWith("fd00:")
+  );
+}
+```
+
+### TOCTOU on DNS
+
+The check above resolves DNS, then later the HTTP library resolves again. Attacker DNS server returns public IP first time, private IP second time. Mitigations:
+
+- Use a HTTP library that lets you pin the resolved IP (override DNS resolution).
+- Use a separate egress proxy that does the public-only check.
+
+### Egress proxy
+
+Run all outbound HTTP from sensitive services through an egress proxy that blocks private destinations:
+
+```caddy
+forward_proxy {
+  acl {
+    deny 10.0.0.0/8
+    deny 172.16.0.0/12
+    deny 192.168.0.0/16
+    deny 169.254.0.0/16
+    allow all
+  }
+}
+```
+
+Containers point `HTTP_PROXY=egress-proxy:8888`. Even if the app has a bug, the proxy enforces.
+
+### Block cloud metadata
+
+AWS, GCP, Azure all expose metadata at `169.254.169.254`. Cloud-credential theft via SSRF is a classic. Always block this IP. AWS IMDSv2 requires a token from a PUT request — most SSRF helpers can't issue that. Enforce IMDSv2-only on EC2 instances.
+
+### URL parsing pitfalls
+
+```ts
+new URL("http://evil.com#@internal/").hostname
+// Returns "evil.com"
+new URL("http://evil.com@internal/").hostname
+// Returns "internal" — the @ is interpreted as userinfo
+```
+
+`http://[::1]:8080/`, `http://0/`, `http://2130706433/` (decimal IP) all resolve to localhost. Hostname strings need careful parsing.
+
+### Limit redirects
+
+A blocked initial URL can redirect to an internal target. Disable redirects or re-validate after each:
+
+```ts
+fetch(url, { redirect: "manual" });
+```
+
+## Image fetching specifically
+
+If users supply image URLs (e.g., profile picture import):
+
+1. Validate URL is public.
+2. Resolve once, pin IP.
+3. Stream with size cap (decompression bombs).
+4. Verify content-type matches expected (image/*).
+5. Re-encode through a known-good image library (don't pass original bytes verbatim).
+6. Strip EXIF (GPS data leakage).
+
+## Related
+
+- [Security — Threat model](/docs/security/threat-model)
+- [Identity — Social login](/docs/identity/social-login)
+- [Reference — Caddy directives](/docs/reference/caddy/forward-proxy)

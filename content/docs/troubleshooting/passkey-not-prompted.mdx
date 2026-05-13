@@ -1,0 +1,119 @@
+---
+title: Passkey isn't being prompted
+description: User has a passkey but browser doesn't offer it
+---
+
+User registered a passkey. Next login, browser doesn't show the "use passkey" prompt. Several causes.
+
+## Diagnose
+
+Open browser devtools → Console. Try the login flow. Look for:
+
+```
+SecurityError: The relying party ID 'app.example.com' is not a registrable domain suffix of, nor equal to 'login.example.com'
+```
+
+That's the most common: RP ID mismatch.
+
+## RP ID mismatch
+
+WebAuthn binds passkeys to a Relying Party ID (a domain). If the user enrolled at `login.example.com` (RP ID `example.com`), they can use the passkey from any `*.example.com` subdomain — but ONLY if the page's origin is a registrable subdomain.
+
+Configured in Kratos:
+
+```yaml
+# kratos.yml
+selfservice:
+  methods:
+    webauthn:
+      config:
+        rp:
+          id: example.com  # base domain, not subdomain
+          display_name: Example App
+          origins:
+            - https://login.example.com
+            - https://app.example.com
+```
+
+If you set `id: login.example.com`, the passkey is bound to that subdomain only — won't work from app.example.com.
+
+**Fix**: Set `id` to the base domain. All subdomains can then use the passkey.
+
+## Origin not in allowlist
+
+```yaml
+rp:
+  id: example.com
+  origins:
+    - https://login.example.com  # missing app.example.com
+```
+
+User on app.example.com calls passkey → rejected.
+
+**Fix**: list all valid origins.
+
+## Browser support
+
+`navigator.credentials.get` requires:
+- HTTPS (or localhost for dev).
+- Recent browser (Chrome 67+, Safari 14+, Firefox 60+ for basic; passkeys / hybrid need newer).
+- Not in third-party iframe (origin restrictions).
+
+## Conditional UI
+
+For passkeys to appear in the autofill, you need conditional mediation:
+
+```js
+navigator.credentials.get({
+  publicKey: { ... },
+  mediation: "conditional",  // ← THIS
+});
+```
+
+Without `conditional`, the browser only shows passkey if explicitly invoked.
+
+Kratos's stock JS uses conditional mediation. If you've customized the UI, check.
+
+## User has no platform authenticator
+
+If the user enrolled a phone-based passkey but is now on a desktop without Touch ID / Windows Hello, the platform doesn't show a passkey.
+
+Solution: enable cross-device / hybrid (QR scan with phone). See [Passkey cross-device](/docs/cookbook/passkey-cross-device).
+
+## Wrong user_handle
+
+When the user enrolled, Kratos stored a `user_handle` (the identity's UUID). On login, Kratos asks the authenticator to use that user_handle.
+
+If you renamed / re-created the identity, the passkey's stored handle no longer matches. The authenticator returns nothing.
+
+**Fix**: re-enroll the passkey.
+
+## Passkey was deleted from device
+
+The user "removed passkey" on their phone, but Kratos still has the credential record. Kratos asks for it; the device says "no such credential."
+
+**Fix**: have user re-enroll. Future: detect and prompt to clean up the orphan.
+
+## iCloud / Google Password Manager sync
+
+For passkeys synced via iCloud Keychain / Google Password Manager, the passkey should appear on all the user's devices. If it doesn't:
+- iCloud sync may be off. User: Settings → Apple ID → iCloud → Passwords & Keychain → on.
+- Google: ensure same account is signed in.
+
+## Test in incognito
+
+Sometimes browser caches break flow. Try Incognito (no extensions, no cached state).
+
+## Logs
+
+```bash
+podman logs ciam-kratos | grep webauthn
+```
+
+Look for `failed to find webauthn credential` or `invalid webauthn assertion`.
+
+## Related
+
+- [Cookbook — Add WebAuthn / passkeys](/docs/cookbook/add-webauthn)
+- [Cookbook — Passkey cross-device](/docs/cookbook/passkey-cross-device)
+- [Identity — MFA — WebAuthn](/docs/identity/mfa-webauthn)

@@ -1,0 +1,195 @@
+---
+title: Expose a SCIM endpoint
+description: Let enterprise IdPs provision users via SCIM 2.0
+---
+
+SCIM (System for Cross-domain Identity Management) is the standard for "the IdP sends you user data, you create/update/delete." Enterprise customers expect this.
+
+Olympus doesn't ship a SCIM endpoint by default — Kratos isn't a SCIM server. You build one as a thin proxy in front of Kratos's admin API.
+
+## Endpoint shape
+
+SCIM 2.0 defines:
+
+```
+GET    /scim/v2/Users        # list
+GET    /scim/v2/Users/{id}   # read
+POST   /scim/v2/Users        # create
+PUT    /scim/v2/Users/{id}   # replace
+PATCH  /scim/v2/Users/{id}   # update
+DELETE /scim/v2/Users/{id}   # remove
+```
+
+Plus `/Groups` for group management (optional).
+
+## Auth: Bearer token per tenant
+
+Each enterprise customer gets a unique SCIM token they configure in their IdP.
+
+```sql
+CREATE TABLE scim_tokens (
+  token_hash TEXT PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ
+);
+```
+
+Issue tokens to customers via Athena's admin UI.
+
+## Implementation (Node / Hono)
+
+```ts
+import { Hono } from "hono";
+import { kratos } from "./kratos-client";
+
+const scim = new Hono();
+
+scim.use("*", async (c, next) => {
+  const token = c.req.header("authorization")?.slice(7);
+  if (!token) return c.json({ status: 401, detail: "missing_token" }, 401);
+  const hash = sha256(token);
+  const row = await db`SELECT tenant_id FROM scim_tokens WHERE token_hash = ${hash}`.first();
+  if (!row) return c.json({ status: 401, detail: "invalid_token" }, 401);
+  c.set("tenantId", row.tenant_id);
+  await next();
+});
+
+// LIST
+scim.get("/Users", async (c) => {
+  const tenantId = c.get("tenantId");
+  const identities = await kratos.adminList({
+    filter: `traits.tenant_id eq "${tenantId}"`,
+    per_page: c.req.query("count") ?? "100",
+  });
+  return c.json({
+    schemas: ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+    totalResults: identities.length,
+    Resources: identities.map(toScimUser),
+  });
+});
+
+// CREATE
+scim.post("/Users", async (c) => {
+  const tenantId = c.get("tenantId");
+  const body = await c.req.json();
+  const identity = await kratos.adminCreate({
+    schema_id: "default",
+    traits: {
+      tenant_id: tenantId,
+      email: body.emails[0].value,
+      first_name: body.name?.givenName,
+      last_name: body.name?.familyName,
+      external_id: body.externalId,
+    },
+    state: body.active === false ? "inactive" : "active",
+  });
+  return c.json(toScimUser(identity), 201);
+});
+
+// PATCH (partial update)
+scim.patch("/Users/:id", async (c) => {
+  const tenantId = c.get("tenantId");
+  const id = c.req.param("id");
+  const { Operations } = await c.req.json();
+  // Verify tenant ownership
+  const identity = await kratos.adminGet(id);
+  if (identity.traits.tenant_id !== tenantId) return c.json({ status: 404 }, 404);
+  
+  const patches = [];
+  for (const op of Operations) {
+    if (op.path === "active") {
+      patches.push({ op: "replace", path: "/state", value: op.value ? "active" : "inactive" });
+    }
+    // etc. for other attributes
+  }
+  
+  const updated = await kratos.adminPatch(id, patches);
+  return c.json(toScimUser(updated));
+});
+
+// DELETE
+scim.delete("/Users/:id", async (c) => {
+  const tenantId = c.get("tenantId");
+  const id = c.req.param("id");
+  const identity = await kratos.adminGet(id);
+  if (identity.traits.tenant_id !== tenantId) return c.json({ status: 404 }, 404);
+  await kratos.adminDelete(id);
+  return c.body(null, 204);
+});
+
+function toScimUser(identity) {
+  return {
+    schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    id: identity.id,
+    externalId: identity.traits.external_id,
+    userName: identity.traits.email,
+    name: {
+      givenName: identity.traits.first_name,
+      familyName: identity.traits.last_name,
+    },
+    emails: [{ value: identity.traits.email, primary: true }],
+    active: identity.state === "active",
+    meta: {
+      resourceType: "User",
+      created: identity.created_at,
+      lastModified: identity.updated_at,
+    },
+  };
+}
+```
+
+## Service Provider Configuration
+
+```ts
+scim.get("/ServiceProviderConfig", (c) => c.json({
+  schemas: ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
+  documentationUri: "https://your-domain.com/docs/scim",
+  patch: { supported: true },
+  bulk: { supported: false },
+  filter: { supported: true, maxResults: 200 },
+  changePassword: { supported: false },
+  sort: { supported: false },
+  etag: { supported: false },
+  authenticationSchemes: [{
+    type: "oauthbearertoken",
+    name: "OAuth Bearer Token",
+    description: "Bearer token issued by [Your App]",
+  }],
+}));
+```
+
+## Testing with Okta
+
+1. Customer adds your SCIM endpoint URL: `https://your-app.com/scim/v2`.
+2. Bearer token: from Athena's "SCIM tokens" page.
+3. Run "Test API Credentials" — should succeed.
+4. Assign Okta users → they appear in Kratos.
+5. Unassign → state goes inactive.
+
+## Group support
+
+For role assignments via groups, implement `/Groups` similarly. Maps SCIM group name to a role trait.
+
+## Rate limiting
+
+SCIM endpoints will see bursty traffic when customers onboard 1000+ users. Rate-limit:
+- 100 req/min per token.
+- 10 concurrent at a time.
+
+## Audit log
+
+Every SCIM operation should be logged:
+
+```sql
+INSERT INTO security_audit (event_type, actor, target, metadata)
+VALUES ('scim_user_create', $token_hash, $identity_id, {...});
+```
+
+So customers can see "Okta created/deleted these users on these dates."
+
+## Related
+
+- [Cookbook — SAML JIT provisioning](/docs/cookbook/saml-just-in-time-provisioning)
+- [Cookbook — JIT user provisioning](/docs/cookbook/jit-user-provisioning)
+- [Cookbook — Multi-tenant soft isolation](/docs/cookbook/multi-tenant-soft-isolation)

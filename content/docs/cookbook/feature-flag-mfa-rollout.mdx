@@ -1,0 +1,173 @@
+---
+title: Roll out MFA gradually with feature flags
+description: Stage MFA enforcement without locking everyone out
+---
+
+You want to enforce MFA, but flipping it on for all users at once is risky:
+- Lots of users won't have MFA enrolled yet → mass lockouts.
+- Edge cases will surface in confusing ways.
+- Support volume spikes.
+
+Gradual rollout: enable for cohorts, observe, expand.
+
+## Cohort definitions
+
+| Cohort | When |
+|---|---|
+| Admins | Day 1 |
+| Beta opt-ins | Day 7 |
+| New signups | Day 14 |
+| 10% of existing users | Day 21 |
+| 50% of existing users | Day 35 |
+| 100% (mandatory) | Day 60 |
+
+Adjust to your scale and risk tolerance.
+
+## Implementation
+
+### Settings vault flag
+
+```
+olympus.mfa.required_for_role = ["admin"]
+olympus.mfa.required_for_signup_after = "2026-05-15T00:00:00Z"
+olympus.mfa.required_for_user_percentage = 10
+olympus.mfa.required_universally = false
+```
+
+Edit via Athena's settings UI as you advance. No code redeploy.
+
+### Hook: enforce after login
+
+Post-login hook checks if user needs to enroll:
+
+```ts
+export async function POST(req: Request) {
+  const { identity } = await req.json();
+  const settings = await getSettingsVault();
+  
+  const isAdmin = identity.traits.role === "admin";
+  const signedUpAfter = identity.created_at > settings.required_for_signup_after;
+  const inPercentage = hashToPercent(identity.id) < settings.required_for_user_percentage;
+  const universal = settings.required_universally;
+  
+  const required = universal || isAdmin || signedUpAfter || inPercentage;
+  const hasMfa = await hasMfaEnrolled(identity.id);
+  
+  if (required && !hasMfa) {
+    // Redirect to forced enrollment
+    return Response.json({
+      redirect_to: "/self-service/settings?required=mfa",
+    });
+  }
+  
+  return Response.json({ ok: true });
+}
+```
+
+### Grace period
+
+Users targeted but not yet enrolled get a banner / email for 7 days before hard enforcement:
+
+```sql
+-- New table
+CREATE TABLE mfa_enforcement_grace (
+  identity_id UUID PRIMARY KEY,
+  notified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  grace_ends_at TIMESTAMPTZ NOT NULL
+);
+```
+
+On first login after they enter the cohort:
+- Insert row with `grace_ends_at = NOW() + 7 days`.
+- Send email.
+- Banner in app.
+
+After grace period, hook redirects to forced enrollment.
+
+## Tracking
+
+Watch:
+- Enrollment rate by cohort (target: 80% within grace period).
+- Support tickets containing "MFA," "code," "lock."
+- Login success rate (should not drop materially).
+
+Dashboards:
+
+```promql
+# MFA enrolled %
+sum(rate(kratos_mfa_enrolled[5m]))
+  / sum(rate(kratos_identity_count[5m]))
+```
+
+## Communication
+
+For each cohort, ahead of activation:
+1. Email 7 days before.
+2. Email 2 days before.
+3. In-app banner from D-7.
+
+Email content:
+
+```
+Subject: Action required: enable 2-factor authentication
+
+Hi,
+
+To keep your account secure, we're requiring 2-factor authentication
+(2FA) on all admin accounts starting May 18.
+
+You have until then to enroll. After that date, you'll be prompted
+on next sign-in.
+
+Setup takes 2 minutes:
+1. Sign in to [Your App].
+2. Go to Settings → Security.
+3. Tap "Set up 2FA."
+4. Scan the QR code with your authenticator app.
+
+→ Set up 2FA now: {{ link }}
+
+Questions? Reply to this email.
+```
+
+## Rollback
+
+If problems arise, set the flag back. New signups stop being affected immediately. Existing enrollment requirements stay (don't take MFA away from users who have it).
+
+```
+olympus.mfa.required_for_role = []
+olympus.mfa.required_for_signup_after = "9999-01-01T00:00:00Z"
+olympus.mfa.required_for_user_percentage = 0
+```
+
+## What MFA methods to offer
+
+For best UX:
+- WebAuthn / passkeys (phishing-resistant; recommended).
+- TOTP (authenticator app; works offline).
+- SMS (fallback only; less secure).
+
+Offer multiple, let user pick.
+
+## Recovery codes mandatory
+
+When user enrolls MFA, force them to download 10 backup codes. Without these, lost device = locked out.
+
+```yaml
+# kratos.yml
+selfservice:
+  methods:
+    lookup_secret:
+      enabled: true
+```
+
+## After 100% enforcement
+
+Maintenance task: track MFA churn (users disabling MFA). Should be rare. If common, your UI may be making MFA easy to disable accidentally.
+
+## Related
+
+- [Security — Account lockout](/docs/security/account-lockout)
+- [Cookbook — Force MFA by role](/docs/cookbook/force-mfa-by-role)
+- [Cookbook — Multi-factor recovery](/docs/cookbook/multi-factor-recovery)
+- [Identity — MFA — TOTP](/docs/identity/mfa-totp)

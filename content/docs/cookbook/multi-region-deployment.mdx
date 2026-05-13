@@ -1,0 +1,123 @@
+---
+title: Multi-region deployment
+description: Run Olympus in two or more regions for HA and latency
+---
+
+By default, Olympus is single-host. For higher availability or lower latency for global users, you can run multiple regional deployments.
+
+## Architecture
+
+```
+              ┌─ DNS (GeoDNS / Cloudflare Load Balancer) ─┐
+              │                                            │
+   ┌──────────▼──────────┐                  ┌──────────────▼──────────┐
+   │   US-EAST region    │                  │   EU-WEST region        │
+   │                     │                  │                         │
+   │   Caddy → Hera      │                  │   Caddy → Hera          │
+   │           Hydra     │                  │           Hydra         │
+   │           Athena    │                  │           Athena        │
+   │   Kratos ─┐         │                  │   Kratos ─┐             │
+   │           ▼         │                  │           ▼             │
+   │   Postgres (primary)│ ──── streaming ─▶│   Postgres (replica)    │
+   └─────────────────────┘   replication    └─────────────────────────┘
+```
+
+## Database topology options
+
+### Option A: Single-primary, regional read replicas
+
+- One writer (e.g., us-east).
+- Replicas in other regions.
+- Reads (login flow can use replica) hit local.
+- Writes (registration, password change, session creation) cross region.
+
+**Pros**: simple. Consistent writes.
+**Cons**: writes are slow for far regions. RPO > 0 if primary fails.
+
+Hydra and Kratos can use a write URL and read URL separately. Check the [Operate — Read replicas](/docs/operate/read-replicas) page for routing.
+
+### Option B: Per-region active
+
+Each region has its own database, its own identities. Users belong to a region.
+
+**Pros**: zero cross-region writes.
+**Cons**: users can't roam. Complex IdP federation.
+
+Only sensible if you have hard data-residency requirements (EU users in EU, etc.).
+
+### Option C: Multi-master (PostgreSQL with BDR / external solution)
+
+Active-active replication. Conflicts can happen.
+
+**Pros**: writes are always local.
+**Cons**: schema/operational complexity, conflict resolution. Olympus does NOT support this out-of-the-box.
+
+## DNS-level routing
+
+### GeoDNS
+
+```
+ciam.your-domain.com:
+  - 10.1.0.5 (US-EAST)   for North America
+  - 10.2.0.5 (EU-WEST)   for Europe
+```
+
+User in NYC hits us-east. User in Berlin hits eu-west.
+
+### Health checks
+
+Cloudflare Load Balancer, Route53, AWS Global Accelerator, GCP Cloud Load Balancing — all support active health checks and failover.
+
+Health check endpoint: `/healthz` returns `200 OK` from Caddy.
+
+## Session affinity
+
+Sessions are stored in the database. Any region can read them (with replica access). However:
+
+- If a user's session was just created in us-east, the eu-west replica might not have it yet (replication lag).
+- Solution: route the user's *initial login* via primary's region for a short window (cookie attribute), or read-from-primary fallback if replica returns no session.
+
+## Cache invalidation
+
+OAuth2 token introspection results — if you cache them — must be invalidated across regions when a token is revoked. Options:
+
+- Short TTL (1 min) — bounded staleness, no cross-region invalidation needed.
+- Pub/sub on revocation events (Redis, NATS).
+
+## Static assets
+
+CDN them (Cloudflare, Bunny, Fastly). The CDN edge serves Hera's HTML/JS/CSS regardless of region. Only API calls hit your origin.
+
+## Operational notes
+
+### Migrations
+
+Schema migrations need careful coordination:
+1. Pause writes (or accept brief inconsistency).
+2. Run migration on primary.
+3. Replicas catch up.
+4. Resume writes.
+
+For zero-downtime: always make migrations backward-compatible (add column nullable, deploy new code, populate, deploy code that requires non-null, then ALTER NOT NULL).
+
+### Encryption keys
+
+The Olympus master encryption key must be present in every region. Sync via your secrets manager. Different keys per region is NOT supported — encrypted data is one keyset.
+
+### Monitoring
+
+Separate dashboards per region. Aggregate at the global view.
+
+## Single-region first
+
+90% of Olympus deployments are single-region and that's fine. Multi-region adds significant operational cost — only do it if:
+- You have global users with measurable latency complaints.
+- You need 99.99%+ availability.
+- You have a team able to operate it.
+
+## Related
+
+- [Operate — Read replicas](/docs/operate/read-replicas)
+- [Operate — Disaster recovery](/docs/operate/disaster-recovery)
+- [Cookbook — Cloudflare in front of Caddy](/docs/cookbook/cloudflare-in-front)
+- [Operate — Backup and restore](/docs/operate/backup-restore)

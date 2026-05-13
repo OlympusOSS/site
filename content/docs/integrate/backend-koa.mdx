@@ -1,0 +1,84 @@
+---
+title: Koa.js integration
+description: Olympus auth in a Koa app
+---
+
+Koa middleware for validating Olympus tokens.
+
+## Install
+
+```bash
+npm i koa koa-router jose jwks-rsa
+```
+
+## Middleware
+
+```ts
+import { createRemoteJWKSet, jwtVerify } from "jose";
+
+const jwks = createRemoteJWKSet(new URL(`${process.env.HYDRA_PUBLIC_URL}/.well-known/jwks.json`));
+
+export async function olympusAuth(ctx: any, next: any) {
+  const auth = ctx.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    ctx.status = 401;
+    ctx.body = { error: "no_token" };
+    return;
+  }
+  const token = auth.slice(7);
+  try {
+    const { payload } = await jwtVerify(token, jwks, {
+      issuer: process.env.HYDRA_PUBLIC_URL,
+    });
+    ctx.state.user = payload;
+    await next();
+  } catch (err) {
+    ctx.status = 401;
+    ctx.body = { error: "invalid_token" };
+  }
+}
+```
+
+## Apply
+
+```ts
+import Koa from "koa";
+import Router from "koa-router";
+
+const app = new Koa();
+const router = new Router();
+
+router.use("/api", olympusAuth);
+router.get("/api/me", (ctx) => {
+  ctx.body = { sub: ctx.state.user.sub };
+});
+
+app.use(router.routes());
+app.listen(3000);
+```
+
+## Scope guard
+
+```ts
+export function requireScope(scope: string) {
+  return async (ctx: any, next: any) => {
+    const scopes = (ctx.state.user.scp ?? []) as string[];
+    if (!scopes.includes(scope)) {
+      ctx.status = 403;
+      ctx.body = { error: "insufficient_scope", required: scope };
+      return;
+    }
+    await next();
+  };
+}
+
+router.delete("/api/orders/:id", requireScope("orders:write"), async (ctx) => {
+  // ...
+});
+```
+
+## Related
+
+- [Develop — Backend protect (Express)](/docs/develop/backend-protect-express)
+- [Integrate — Backend Hono](/docs/integrate/backend-hono)
+- [Integrate — Backend Fastify](/docs/integrate/backend-fastify)

@@ -1,0 +1,119 @@
+---
+title: EU data residency
+description: Keep identity data physically in the EU
+---
+
+GDPR doesn't strictly require data stay in the EU, but transfers out require legal mechanisms (Standard Contractual Clauses, adequacy decisions). Many EU customers prefer "data never leaves EU" as a simpler story.
+
+## What data is in scope
+
+Identity data — name, email, password hash, IP at login — is "personal data" under GDPR.
+
+Other Olympus data that might count:
+- Audit logs (contain IPs, geographic info).
+- Session metadata.
+- OAuth2 consent records.
+
+## Deployment placement
+
+Host all containers in an EU region:
+
+- Hetzner: `nbg1` (Nuremberg), `fsn1` (Falkenstein), `hel1` (Helsinki).
+- AWS: `eu-central-1` (Frankfurt), `eu-west-1` (Ireland), `eu-west-3` (Paris).
+- GCP: `europe-west1` (Belgium), `europe-west3` (Frankfurt).
+- Azure: `westeurope` (Netherlands), `germanywestcentral`.
+
+For sub-processor independence: Hetzner, Scaleway, OVH are EU-headquartered. AWS/GCP/Azure are US-headquartered but have data-localization commitments.
+
+## CDN choice
+
+Cloudflare's free tier doesn't guarantee EU caching. Options:
+- **Cloudflare Enterprise**: EU-only data localization add-on.
+- **Bunny.net**: EU-based, default-EU.
+- **Fastly**: pop-level control.
+- **No CDN**: Caddy serves directly. Higher latency, but no third-party in data path.
+
+Static asset CDN (JS/CSS) is less sensitive than auth-flow caching.
+
+## Third-party integrations
+
+The biggest risk to "EU-only" claims is when you connect Olympus to non-EU services:
+
+- **Email provider**: Postmark (US), SendGrid (US). Use [Mailjet](https://www.mailjet.com) (FR), [Brevo](https://brevo.com) (FR), Postmark EU region, or SES Frankfurt.
+- **SMS provider**: Twilio (US). Use Vonage's EU presence, Sinch, or messagebird (NL).
+- **Analytics**: Plausible Analytics (EU-hosted) instead of Google Analytics.
+- **Error tracking**: Sentry EU instance (Frankfurt) or self-host.
+- **CAPTCHA**: Turnstile (Cloudflare) — see Cloudflare note above. Alternative: hCaptcha.
+
+## Backups
+
+Backups must also stay in EU.
+
+If using AWS S3:
+```bash
+aws s3 cp backup.dump s3://your-backups-eu-central/ --region eu-central-1
+```
+
+If using Wasabi (S3-compat): use `eu-central-1` or `eu-west-1`.
+
+Cross-region replication: only to other EU regions.
+
+## Logs
+
+Centralized logs (Loki, Elasticsearch, etc.) should be EU-hosted. Self-host or use EU SaaS:
+- Grafana Cloud's EU region.
+- Logtail's EU instance.
+
+## Sub-processor list
+
+Maintain a public sub-processor list. GDPR Article 28(2): you must inform data subjects.
+
+```markdown
+# Sub-processors
+
+Last updated: 2026-05
+
+| Sub-processor | Purpose | Location | Legal basis |
+|---|---|---|---|
+| Hetzner | Hosting | DE | SCCs (EU controller) |
+| Postmark EU | Transactional email | EU | SCCs |
+| Cloudflare | DDoS / CDN | EU edges only | SCCs |
+| Sentry EU | Error tracking | DE | SCCs |
+```
+
+Publish at `your-domain.com/sub-processors`. Update with 30-day notice before changes.
+
+## DPA template
+
+Have a Data Processing Agreement ready for EU customers. Most major CIAM providers publish a template. Yours should commit to:
+
+- Sub-processor list with notice.
+- Sub-processor location restriction.
+- Breach notification timing (72 hours).
+- Cooperation with DSR requests.
+- Audit rights (annual, reasonable scope).
+- Return/deletion on termination.
+
+## Identifying "EU users"
+
+You can't always know upfront. Options:
+- Default: assume all users are EU. Apply highest standard.
+- Per-tenant data residency: each tenant chooses (US or EU). Run separate stacks.
+
+The latter is operationally heavier. Most start with the former.
+
+## Audit log retention
+
+GDPR Article 5(1)(e): data minimization, including time. Audit logs should expire:
+- 90 days for routine login events.
+- 2 years for security-relevant events (failed logins, password changes, MFA changes).
+- 7 years for fraud / disputes if your industry requires.
+
+Document the retention policy in your privacy policy.
+
+## Related
+
+- [Security — Compliance — GDPR](/docs/security/compliance-gdpr)
+- [Cookbook — GDPR data subject request export](/docs/cookbook/gdpr-dsr-export)
+- [Operate — Backup and restore](/docs/operate/backup-restore)
+- [Cookbook — Compliance audit export](/docs/cookbook/compliance-audit-export)

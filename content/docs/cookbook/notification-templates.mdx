@@ -1,0 +1,219 @@
+---
+title: Notification template library
+description: Templates for common security & lifecycle emails
+---
+
+A set of pre-baked, low-jargon email templates for the most common identity events. Copy into Kratos's `courier.templates` directory and customize.
+
+## Welcome email
+
+```html
+Subject: Welcome to [Your App]
+
+Hi {{ .RecipientFirstName }},
+
+Thanks for signing up. You're all set to get started.
+
+[Open [Your App]] → {{ .DashboardURL }}
+
+If you didn't create this account, please ignore this email. The account
+will remain inactive until verified.
+
+— The [Your App] team
+```
+
+## Email verification
+
+```html
+Subject: Confirm your email
+
+Hi,
+
+Click the link below to confirm your email address ({{ .To }}):
+
+  {{ .VerificationURL }}
+
+This link expires in 1 hour. If you didn't sign up for [Your App],
+you can ignore this email.
+```
+
+## Password reset (recovery)
+
+```html
+Subject: Reset your password
+
+Hi,
+
+Someone (hopefully you) requested a password reset for your account.
+
+Click here to set a new password: {{ .RecoveryURL }}
+
+This link expires in 1 hour. If you didn't request this, you can
+safely ignore this email — your password won't change.
+
+If you're seeing repeated password reset emails you didn't request,
+your email account might be compromised. Contact us at security@your-domain.com.
+```
+
+## New-device login notification
+
+```html
+Subject: New sign-in to your account
+
+Hi,
+
+We noticed a new sign-in:
+
+  Date: {{ .Time }}
+  IP: {{ .IP }}
+  Approximate location: {{ .Geo }}
+  Browser: {{ .UserAgent }}
+
+If this was you, no action needed.
+
+If it wasn't, please:
+  1. Reset your password: {{ .RecoveryURL }}
+  2. Review your account activity: {{ .AccountActivityURL }}
+```
+
+## MFA enrollment success
+
+```html
+Subject: 2-factor authentication enabled
+
+Hi,
+
+You've successfully enabled 2-factor authentication on your account.
+Your account is now significantly more secure.
+
+You'll be asked for your second factor on each new sign-in.
+
+Save your recovery codes somewhere safe — they're the only way to
+get back into your account if you lose your authenticator device:
+
+  {{ .RecoveryCodes }}
+
+Keep them private. Each code can only be used once.
+```
+
+## Account locked
+
+```html
+Subject: Your account has been locked
+
+Hi,
+
+Too many failed sign-in attempts have temporarily locked your
+account.
+
+Try again in 30 minutes, or reset your password now:
+
+  {{ .RecoveryURL }}
+
+If you didn't try to sign in, please reset your password — someone
+may be attempting to access your account.
+```
+
+## Suspicious activity
+
+```html
+Subject: We blocked a sign-in attempt
+
+Hi,
+
+We blocked a sign-in attempt to your account that didn't match
+your normal patterns:
+
+  Date: {{ .Time }}
+  IP: {{ .IP }} (approximate location: {{ .Geo }})
+  Reason: {{ .Reason }}
+
+If you weren't trying to sign in, no action needed — we already
+blocked it.
+
+To be safe, you may want to:
+  1. Change your password: {{ .ResetURL }}
+  2. Enable 2-factor authentication if you haven't already.
+```
+
+## Email change confirmation
+
+```html
+Subject: Confirm your new email address
+
+Hi,
+
+You requested to change your email to {{ .NewEmail }}.
+
+Click here to confirm: {{ .ConfirmURL }}
+
+Until you click, the change is pending. Your current email
+({{ .OldEmail }}) remains active.
+
+If you didn't request this, please ignore this email.
+```
+
+## Account deletion confirmation
+
+```html
+Subject: Your account has been deleted
+
+Hi,
+
+Your [Your App] account has been deleted.
+
+If you change your mind within 30 days, you can recover it
+by replying to this email — after that, all data is permanently
+removed.
+
+We're sorry to see you go. If you have a moment, we'd love to
+hear what we could have done better: feedback@your-domain.com.
+```
+
+## Subscription renewal failed
+
+```html
+Subject: Action needed — payment failed
+
+Hi,
+
+We weren't able to charge your card on file for your [Your App]
+subscription.
+
+  Amount: {{ .Amount }}
+  Date attempted: {{ .Date }}
+  Reason: {{ .DeclineReason }}
+
+Please update your payment method to avoid losing access:
+  {{ .BillingURL }}
+
+We'll try again in 3 days.
+```
+
+## Tone guidelines
+
+- Plain language. Avoid "verify your identity" — say "click to confirm it's you."
+- Subject lines under 60 chars; first 30 visible on mobile.
+- Lead with the action; explain rationale below.
+- One CTA per email. Never two competing buttons.
+- Sign as the team / brand, not the platform ("Olympus").
+
+## Locale support
+
+For multilingual deployments, store templates per language in directories:
+
+```
+courier/templates/
+├── recovery_code/valid/email.body.en.gotmpl
+├── recovery_code/valid/email.body.fr.gotmpl
+├── recovery_code/valid/email.body.es.gotmpl
+└── ...
+```
+
+Kratos picks based on the identity's `traits.locale`.
+
+## Related
+
+- [Cookbook — Custom email templates](/docs/cookbook/custom-email-templates)
+- [Cookbook — Notify on new device](/docs/cookbook/notify-new-device)
+- [Cookbook — Localize Hera UI](/docs/cookbook/localize-hera-ui)

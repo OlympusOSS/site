@@ -1,0 +1,118 @@
+---
+title: "OAuth2: invalid_redirect_uri"
+description: Why Hydra rejects redirect_uri values
+---
+
+```json
+{
+  "error": "invalid_request",
+  "error_description": "The 'redirect_uri' parameter does not match any of the OAuth 2.0 Client's pre-registered redirect urls."
+}
+```
+
+Hydra requires `redirect_uri` to *exactly* match (string-for-string) one of the URIs registered for the client. No fuzzy matching.
+
+## Diagnose
+
+```bash
+hydra get client <client-id>
+```
+
+Look at `redirect_uris`. Compare to what your app actually sends.
+
+## Common mismatches
+
+### Trailing slash
+
+Registered: `https://my-app.com/callback`
+Sent: `https://my-app.com/callback/`
+
+Hydra rejects. Decide on a canonical form and use everywhere.
+
+### Path case
+
+Registered: `https://my-app.com/Callback`
+Sent: `https://my-app.com/callback`
+
+Path is case-sensitive. Fix.
+
+### Scheme
+
+Registered: `http://localhost:3000/callback`
+Sent: `https://localhost:3000/callback`
+
+Match the scheme.
+
+### Port
+
+Registered: `http://localhost:3000/callback`
+Sent: `http://localhost:8080/callback`
+
+Match the port.
+
+### `localhost` vs `127.0.0.1`
+
+Different strings, even if they resolve to the same host. Match.
+
+### Wildcards
+
+Hydra does NOT support wildcards in redirect URIs. List each explicitly:
+
+```bash
+hydra update client <id> \
+  --redirect-uri https://app.example.com/callback \
+  --redirect-uri https://staging.example.com/callback \
+  --redirect-uri https://dev.example.com/callback
+```
+
+If you have many subdomains or dynamic preview environments, register each.
+
+## Mobile/desktop app loopback
+
+For native apps using loopback (RFC 8252):
+
+```
+http://127.0.0.1:PORT/callback
+```
+
+Hydra does have *port wildcard* support for `127.0.0.1`. Register:
+
+```
+http://127.0.0.1/callback
+```
+
+Hydra accepts any port at runtime. This is the only exception to exact matching.
+
+## Custom URI schemes
+
+For mobile apps using app links:
+
+```
+com.example.myapp://callback
+```
+
+Register with the custom scheme. Hydra accepts.
+
+## After changing
+
+When you change `redirect_uris` for an existing client, restart anything that caches the client config. Hydra itself queries the DB on each request, no restart needed there.
+
+## Why exact match?
+
+OAuth2 spec rationale: a flexible match (wildcards, "starts-with") is a security weakness — attacker registers a similar redirect and intercepts the code.
+
+Best practice (RFC 9700, OAuth2 Security BCP): always exact match. Hydra defaults to safe.
+
+## Logs
+
+```bash
+podman logs ciam-hydra | grep "invalid_request"
+```
+
+The error includes both the registered URIs and the sent value, so you can diff them character-by-character.
+
+## Related
+
+- [Troubleshooting — Redirect URI localhost in prod](/docs/troubleshooting/redirect-uri-localhost-in-prod)
+- [Integrate — OAuth2 authorization code](/docs/integrate/oauth2-authorization-code)
+- [Reference — OAuth2 error codes](/docs/integrate/oauth2-error-codes)
