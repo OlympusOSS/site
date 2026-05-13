@@ -1,0 +1,239 @@
+---
+title: In-app feedback and help button
+description: Let users report problems quickly
+---
+
+When something breaks for a user, they need a way to tell you. A floating feedback button captures this.
+
+## Pattern
+
+```tsx
+<FloatingButton>
+  <HelpIcon /> Help
+</FloatingButton>
+```
+
+Bottom-right corner. Always visible. Click → menu of options.
+
+## Options
+
+```tsx
+<Menu>
+  <MenuItem onClick={() => openDocs()}>📖 Help docs</MenuItem>
+  <MenuItem onClick={() => openChat()}>💬 Live chat</MenuItem>
+  <MenuItem onClick={() => openFeedback()}>📝 Send feedback</MenuItem>
+  <MenuItem onClick={() => reportBug()}>🐛 Report a bug</MenuItem>
+</Menu>
+```
+
+Choose what fits your support model.
+
+## Feedback form
+
+```tsx
+<form onSubmit={submitFeedback}>
+  <Select name="type">
+    <option>Question</option>
+    <option>Bug</option>
+    <option>Feature request</option>
+    <option>Other</option>
+  </Select>
+  <textarea name="message" required />
+  <Checkbox name="include_session_info">
+    Include diagnostic info (your account, page URL)
+  </Checkbox>
+  <Button type="submit">Send</Button>
+</form>
+```
+
+Diagnostic info helps support. User consents to share.
+
+## Server-side
+
+```ts
+app.post("/api/feedback", async (req, res) => {
+  const session = await getSession(req);
+  const { type, message, include_session_info } = req.body;
+  
+  await db.insert(feedback).values({
+    user_id: include_session_info ? session?.identity.id : null,
+    user_email: include_session_info ? session?.identity.traits.email : null,
+    type,
+    message,
+    page_url: req.headers.referer,
+    user_agent: req.headers["user-agent"],
+    submitted_at: new Date(),
+  });
+  
+  // Notify
+  await slack.send({
+    channel: "#feedback",
+    text: `New ${type}: ${message.slice(0, 200)}...`,
+    user: session?.identity.traits.email,
+  });
+  
+  res.json({ ok: true });
+});
+```
+
+Notifies team. Allows quick triage.
+
+## Confirmation
+
+```tsx
+<Toast>
+  Thanks! We'll get back to you within 24 hours.
+</Toast>
+```
+
+User feels heard.
+
+## Triage workflow
+
+Feedback queue:
+
+```tsx
+// Admin tool
+<FeedbackInbox>
+  {feedback.map(f => (
+    <FeedbackItem>
+      <Header>
+        {f.user_email} - {f.type} - {timeAgo(f.submitted_at)}
+      </Header>
+      <Body>{f.message}</Body>
+      <Footer>
+        <Button onClick={() => respond(f.id)}>Respond</Button>
+        <Button onClick={() => convertToTicket(f.id)}>Open ticket</Button>
+        <Button onClick={() => archive(f.id)}>Archive</Button>
+      </Footer>
+    </FeedbackItem>
+  ))}
+</FeedbackInbox>
+```
+
+Daily review. Respond within agreed SLA.
+
+## Categorization
+
+Auto-categorize by keywords:
+
+```ts
+function categorize(message: string) {
+  if (/(bug|broken|error|crash)/i.test(message)) return "bug";
+  if (/(feature|request|wish|wish list)/i.test(message)) return "feature_request";
+  if (/(slow|performance)/i.test(message)) return "performance";
+  return "other";
+}
+```
+
+Helps prioritize.
+
+## Sentiment
+
+Optional: sentiment analysis.
+
+```ts
+const sentiment = await openai.completions.create({
+  prompt: `Analyze sentiment of this feedback: "${message}". Return: positive, neutral, or negative.`,
+});
+```
+
+Helps identify upset users for proactive outreach.
+
+## Screenshots
+
+For UI bugs, screenshot upload:
+
+```tsx
+<input type="file" accept="image/*" name="screenshot" />
+```
+
+Or, advanced:
+```tsx
+<Button onClick={captureScreen}>📷 Attach screenshot</Button>
+```
+
+`html2canvas` or `dom-to-image` captures current page.
+
+## Session replay
+
+Tools like LogRocket, Hotjar record sessions. When user submits feedback:
+- Link to their replay.
+- Support sees what user saw + did.
+
+Massively helpful for debugging weird UI bugs.
+
+## Privacy
+
+Feedback might contain PII (user pastes screenshot of their data).
+
+- Don't auto-share to third-party logs.
+- Redact in logs.
+- Treat as sensitive data.
+
+## Don't intercept
+
+Some apps interrupt user with "Are you sure you want to leave?" Don't. Feedback button: passive.
+
+## Help docs link
+
+Most apps need a help center. Link prominently:
+
+```tsx
+<MenuItem href="https://your-domain.com/docs">📖 Help center</MenuItem>
+```
+
+Or contextual:
+```tsx
+<HelpIcon onClick={() => router.push("/docs/feature-x")} />
+```
+
+Per-page docs.
+
+## Search
+
+```tsx
+<input 
+  type="search"
+  placeholder="Search help..."
+  onSubmit={(e) => router.push(`/docs/search?q=${e.target.value}`)}
+/>
+```
+
+Direct to docs from in-app.
+
+## Chat
+
+If you have support chat (Intercom, Crisp, Drift):
+
+```tsx
+<MenuItem onClick={() => window.Intercom?.("show")}>💬 Live chat</MenuItem>
+```
+
+Pre-load user context:
+
+```ts
+window.Intercom("update", {
+  user_id: session.identity.id,
+  email: session.identity.traits.email,
+  plan: session.identity.metadata_public.plan,
+});
+```
+
+Support agent sees who they're talking to.
+
+## Don't overdo
+
+Some apps spam: "rate us!" pop-ups, "take a survey," etc. Restraint:
+
+- Feedback button visible always.
+- Active prompts: rarely (after milestones).
+- Surveys: weeks apart, with cap.
+
+Annoyance defeats the purpose.
+
+## Related
+
+- [Cookbook — Customer support tooling](/docs/cookbook/customer-support-tooling)
+- [Cookbook — User onboarding checklist page](/docs/cookbook/user-onboarding-checklist-page)
+- [Cookbook — Feature tour and product tours](/docs/cookbook/feature-tour-and-product-tours)
