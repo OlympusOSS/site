@@ -1,0 +1,240 @@
+---
+title: Customer data export endpoint
+description: Let customers download their Olympus-managed data
+---
+
+For B2B customers, "give me all my organization's data" is a frequent request. They want it for backup, compliance, or migration. Build an export endpoint.
+
+## What to export
+
+Per organization (tenant):
+- All identities (users) with traits.
+- All sessions (active and recent).
+- All OAuth2 grants.
+- Their audit log.
+
+NOT:
+- Other tenants' data (obviously).
+- Password hashes (these are theirs, but they can't use them anywhere).
+- MFA secrets.
+- System secrets.
+
+## Endpoint design
+
+```
+GET /admin/tenants/{tenant_id}/export
+Authorization: Bearer {tenant_admin_token}
+
+Response: application/zip
+- identities.csv
+- sessions.csv
+- oauth_grants.csv
+- audit_log.csv
+- README.txt
+```
+
+## Implementation
+
+```ts
+import archiver from "archiver";
+
+export async function GET(req: Request, { params }) {
+  const tenantId = params.tenant_id;
+  await verifyTenantAdmin(req, tenantId);
+  
+  const archive = archiver("zip");
+  const response = new ReadableStream({
+    start(controller) {
+      archive.on("data", chunk => controller.enqueue(chunk));
+      archive.on("end", () => controller.close());
+    },
+  });
+  
+  // Identities
+  const identities = await db`
+    SELECT id, traits, state, created_at, updated_at
+    FROM identities
+    WHERE traits->>'tenant_id' = ${tenantId}
+  `;
+  archive.append(toCsv(identities), { name: "identities.csv" });
+  
+  // Sessions
+  const sessions = await db`
+    SELECT id, identity_id, expires_at, created_at, ip, user_agent
+    FROM kratos.sessions s
+    WHERE s.identity_id IN (
+      SELECT id FROM identities WHERE traits->>'tenant_id' = ${tenantId}
+    )
+  `;
+  archive.append(toCsv(sessions), { name: "sessions.csv" });
+  
+  // OAuth grants
+  const grants = await db`
+    SELECT * FROM hydra_oauth2_consent_request
+    WHERE subject IN (
+      SELECT id::text FROM identities WHERE traits->>'tenant_id' = ${tenantId}
+    )
+  `;
+  archive.append(toCsv(grants), { name: "oauth_grants.csv" });
+  
+  // Audit
+  const audit = await db`
+    SELECT * FROM security_audit
+    WHERE identity_id IN (
+      SELECT id FROM identities WHERE traits->>'tenant_id' = ${tenantId}
+    )
+    AND created_at > NOW() - INTERVAL '90 days'
+  `;
+  archive.append(toCsv(audit), { name: "audit_log.csv" });
+  
+  // README
+  archive.append(`
+    Export generated: ${new Date().toISOString()}
+    Tenant: ${tenantId}
+    
+    Files:
+    - identities.csv: all users
+    - sessions.csv: active and recent sessions
+    - oauth_grants.csv: OAuth2 consent records
+    - audit_log.csv: 90-day audit history
+  `, { name: "README.txt" });
+  
+  archive.finalize();
+  
+  return new Response(response, {
+    headers: {
+      "content-type": "application/zip",
+      "content-disposition": `attachment; filename="tenant-${tenantId}-export.zip"`,
+    },
+  });
+}
+```
+
+## Streaming
+
+For large tenants (50k+ users), the export shouldn't fit in memory:
+
+```ts
+// stream from DB cursor instead of buffering
+const cursor = db.cursor`SELECT * FROM identities WHERE ...`;
+for await (const row of cursor) {
+  archive.append(toCsvRow(row));
+}
+```
+
+## Long-running exports
+
+If export takes > 30s, async pattern:
+
+1. POST `/exports` → returns `export_id`, queues job.
+2. Job runs in background, writes ZIP to S3.
+3. GET `/exports/{id}` → returns status or signed URL when done.
+
+```ts
+// POST /exports
+const exportId = crypto.randomUUID();
+queue.enqueue({ tenantId, exportId });
+return Response.json({ export_id: exportId, status: "queued" });
+
+// Worker
+async function processExport(job) {
+  const data = await collectAllData(job.tenantId);
+  const zip = await buildZip(data);
+  const url = await uploadToS3(zip, `exports/${job.exportId}.zip`, "7d");  // 7-day expiry
+  await db.update(exports).set({ status: "ready", url }).where(/* ... */);
+}
+
+// GET /exports/{id}
+const exp = await db.exports.findById(id);
+return Response.json({ status: exp.status, url: exp.url });
+```
+
+## Rate limiting
+
+Exports are expensive. Limit:
+
+```caddy
+@export path /admin/tenants/*/export
+rate_limit @export {
+  zone export
+  events 1
+  window 1h
+}
+```
+
+One export per hour per tenant. Adjust based on tenant size.
+
+## Auth
+
+The endpoint must verify:
+1. Caller is a tenant admin (their role).
+2. Caller belongs to the requested tenant (not a different tenant's admin probing).
+
+```ts
+async function verifyTenantAdmin(req, tenantId) {
+  const session = await olympus.toSession(req.headers.get("cookie"));
+  if (session.identity.traits.tenant_id !== tenantId) {
+    throw new ForbiddenError("wrong_tenant");
+  }
+  if (session.identity.traits.role !== "tenant_admin") {
+    throw new ForbiddenError("not_admin");
+  }
+}
+```
+
+## Audit
+
+Log every export:
+
+```sql
+INSERT INTO security_audit (event_type, actor_id, metadata)
+VALUES ('tenant_data_exported', $admin_id, '{"tenant_id": "$id", "size_bytes": $bytes}');
+```
+
+So you can answer "did someone download our data?" later.
+
+## Data masking
+
+For privacy, optionally redact sensitive fields:
+
+```ts
+const masked = identities.map(i => ({
+  ...i,
+  traits: {
+    ...i.traits,
+    // Redact phone numbers
+    phone: i.traits.phone?.replace(/(.{3})(.+)(.{2})/, "$1***$3"),
+  },
+}));
+```
+
+For admin's own data, no need to redact. For "data subject rights" exports (user requesting their own data), include everything.
+
+## DSR vs tenant export
+
+Different audience:
+
+| Tenant export | DSR (user) export |
+|---|---|
+| All users in tenant | Just the requesting user |
+| Triggered by tenant admin | Triggered by user themselves |
+| Includes audit log | Includes audit log + linked metadata |
+| Bulk format (CSV) | Single-user format (JSON) |
+
+For DSR: see [GDPR DSR export](/docs/cookbook/gdpr-dsr-export).
+
+## When NOT to export
+
+If a tenant is terminating service ("we want our data and we're leaving"), give them the export AND:
+- Tell them when their data will be deleted.
+- Offer a final "are you sure" before deletion.
+- Keep backup for legal retention period.
+
+Don't just delete on contract termination.
+
+## Related
+
+- [Cookbook — GDPR DSR export](/docs/cookbook/gdpr-dsr-export)
+- [Cookbook — Compliance audit export](/docs/cookbook/compliance-audit-export)
+- [Cookbook — Self-service account deletion](/docs/cookbook/self-service-account-deletion)
+- [Operate — Backup and restore](/docs/operate/backup-restore)

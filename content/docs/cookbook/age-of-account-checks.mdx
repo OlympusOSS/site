@@ -1,0 +1,150 @@
+---
+title: Age-of-account gating
+description: Restrict actions for very new accounts
+---
+
+Bots and abuse-attempt accounts are often brand new. A simple defense: gate sensitive actions (transfers, posts, recommendations) by account age.
+
+## Why
+
+Real users typically:
+- Take time to fully set up.
+- Don't immediately do high-risk actions.
+- Have some history before being trusted.
+
+Bots / abuse accounts:
+- Sign up and immediately try the abused action.
+- Bulk operations within minutes of signup.
+
+## Implementation
+
+### Add age check to actions
+
+```ts
+async function canRecommend(req) {
+  const session = await getSession(req);
+  const ageHours = (Date.now() - session.identity.created_at) / 3_600_000;
+  if (ageHours < 48) {
+    return { allowed: false, reason: "account_too_new" };
+  }
+  return { allowed: true };
+}
+```
+
+Show message:
+```
+Your account is new. You'll be able to do this after 48 hours.
+```
+
+### Different thresholds per action
+
+```ts
+const minAge = {
+  "post": 1,           // 1 hour
+  "comment": 0.5,      // 30 min
+  "transfer_money": 168, // 1 week
+  "delete_account": 0.25, // 15 min (anti-impulsive-deletion)
+  "join_premium": 0,    // no gating
+};
+```
+
+### Combine with reputation
+
+Age alone is a blunt signal. Combine with:
+- Email verified.
+- MFA enrolled.
+- Profile completed.
+- N successful previous actions.
+
+```ts
+function trustScore(user) {
+  let score = 0;
+  if (user.age > 24) score += 20;
+  if (user.age > 168) score += 30;
+  if (user.email_verified) score += 20;
+  if (user.has_mfa) score += 20;
+  if (user.profile_complete) score += 10;
+  if (user.successful_purchases > 0) score += 30;
+  return score;
+}
+
+if (trustScore(user) < 50) blockAction();
+```
+
+100 = trusted; 0 = brand new and uninvested.
+
+## Communication
+
+When blocking, explain:
+
+```
+"You can do this after [hours] hours, or after enabling 2-factor and verifying email."
+```
+
+Trust progression visible: "Your account becomes fully trusted after 1 week or 2FA enrollment."
+
+Many users will speed-run the verification steps to unlock features.
+
+## Storing the data
+
+`identity.created_at` is automatic.
+
+For more granular tracking:
+```sql
+ALTER TABLE identities ADD COLUMN trust_score INTEGER DEFAULT 0;
+ALTER TABLE identities ADD COLUMN trust_updated_at TIMESTAMPTZ;
+```
+
+Update via cron or on action:
+```sql
+UPDATE identities SET trust_score = compute_score(...) WHERE id = ...;
+```
+
+## Edge cases
+
+### Legitimate user blocked
+
+New user wants to do the action right now. Not happy.
+
+UX: show clear progression. "Verify your email to skip the wait."
+
+Make verification reduce / eliminate wait.
+
+### Old account, sudden behavior change
+
+Account is 2 years old but just started spamming. Age is fine but pattern is bad.
+
+Combine with anomaly detection.
+
+### Migrated accounts
+
+Imported from Auth0 with `created_at = original date`. Trust pre-existing accounts.
+
+## Don't over-rely
+
+Age alone is bypassed by patient adversaries. They register, wait 7 days, then attack.
+
+Pair with:
+- Behavior detection.
+- Action-frequency limits.
+- Manual review for high-stakes.
+
+## In Olympus
+
+Olympus's identity.created_at is reliable (immutable). Your app reads from session.identity.created_at — present in `/sessions/whoami`.
+
+For OAuth2 access tokens, include in claims:
+
+```js
+// Hydra session-customizer
+session.access_token.account_age_seconds = (Date.now() - identity.created_at) / 1000;
+```
+
+Backends read claim.
+
+## Related
+
+- [Cookbook — Bot detection strategies](/docs/cookbook/bot-detection-strategies)
+- [Cookbook — Risk-based auth](/docs/cookbook/risk-based-auth)
+- [Cookbook — Email-domain allowlist](/docs/cookbook/email-domain-allowlist)
+- [Cookbook — Anomaly detection](/docs/cookbook/anomaly-detection)

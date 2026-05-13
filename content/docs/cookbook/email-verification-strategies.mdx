@@ -1,0 +1,201 @@
+---
+title: Email verification strategies
+description: When to require verification, and how to enforce
+---
+
+Email verification — clicking the link in "verify your email" — has trade-offs. Block usage before verification? Allow with restrictions? Just nag?
+
+## Why verify
+
+- Confirm the user can receive emails (recovery works).
+- Prevent registrations with typos (or fake emails).
+- Reduce account creation by bots without email addresses.
+
+## Strategies
+
+### Strategy A: Verify-before-use (strictest)
+
+```
+1. User registers → identity created.
+2. Verification email sent.
+3. User cannot log in until they click the link.
+```
+
+Configure Kratos:
+
+```yaml
+selfservice:
+  flows:
+    registration:
+      after:
+        password:
+          hooks:
+            - hook: show_verification_ui
+```
+
+No session created on registration. User must verify first.
+
+Pros: highest confidence in email validity.
+Cons: high friction. Many users won't verify → lost signups.
+
+Suitable for: high-stakes apps (financial), B2B.
+
+### Strategy B: Auto-login, soft-require (default)
+
+```
+1. User registers → identity + session.
+2. Verification email sent.
+3. User can use the app immediately.
+4. After 7 days unverified: nag banner or restrictions.
+5. After 30 days unverified: require verification to continue.
+```
+
+This is Olympus's default. Best UX/security balance.
+
+Implementation: check `identity.verifiable_addresses[0].verified` in your app.
+
+```tsx
+{!user.email_verified && (
+  <Banner intent="warning">
+    Please verify your email. Some features need this.
+    <Button onClick={resendVerification}>Resend verification email</Button>
+  </Banner>
+)}
+```
+
+### Strategy C: No verification
+
+Skip entirely. Email is just text in the profile.
+
+Use only if:
+- You don't send any email (no notifications, no recovery).
+- Email isn't tied to account recovery.
+
+Most apps need email for recovery. So this is rare.
+
+### Strategy D: OIDC-provided email is verified
+
+If user signs in with Google: email is already verified by Google. Trust it:
+
+```jsonnet
+// oidc mapper
+{
+  identity: {
+    traits: { email: claims.email },
+    verifiable_addresses: [
+      { value: claims.email, verified: claims.email_verified === true, via: "email" }
+    ],
+  },
+}
+```
+
+Saves email round-trip for social signups.
+
+## Restrictions for unverified users
+
+For Strategy B, what can unverified users do?
+
+- ✓ Browse / read.
+- ✓ Free features.
+- ✗ Make payments.
+- ✗ Receive transactional emails (you can't send them).
+- ✗ Recover password (no verified email to send to).
+- ✗ Invite others.
+
+Implementation:
+
+```ts
+function canPay(user) {
+  return user.email_verified === true;
+}
+```
+
+Bake into authz.
+
+## Verification UX
+
+When user clicks link:
+
+```
+"Email verified! You can now [thing they couldn't do before]."
+[Continue]
+```
+
+Make the benefit clear.
+
+If link expires (typical: 1 hour):
+
+```
+"Link expired. Click below to send a new one."
+[Resend]
+```
+
+## Stale verification
+
+User verified 5 years ago, email might be defunct now. For long-active accounts, periodically re-verify:
+
+```ts
+const lastVerified = user.metadata.email_last_verified;
+const monthsAgo = monthsBetween(lastVerified, new Date());
+if (monthsAgo > 24) {
+  // Re-verify
+  triggerVerification(user.id);
+}
+```
+
+Annoying but for financial / high-stakes apps, reasonable.
+
+## What about phone verification
+
+Same patterns apply. For SMS:
+
+- Twilio Verify API.
+- Or build on Kratos's `code` method with SMS courier.
+
+Recommended pairing: email at registration, phone for high-risk step-up.
+
+## Catch all / disposable email handling
+
+Some emails:
+- Disposable: `mailinator.com` — see [Bot detection](/docs/cookbook/bot-detection-strategies).
+- Catch-all: company.com accepts any prefix → `anything@company.com` works. Could be abuse vector.
+
+For Strategy B, verification catches both (disposable typically can receive email; catch-all does too). But you might want to block at registration time.
+
+## Email-only magic-link sign-in
+
+If you don't have passwords, every sign-in is email-link → user must have access to email every time. Verification is implicit (any sign-in proves they can receive email).
+
+Verification still useful at first sign-up to confirm it's not a typo.
+
+## Reminders
+
+Periodic email to remind unverified users:
+
+```
+Day 0: Initial verification email
+Day 3: "Did you get our welcome email?"
+Day 7: "Reminder: verify your email"
+Day 14: "Last reminder"
+Day 30: Account restricted
+```
+
+Watch open rates. Adjust cadence.
+
+## Verification audit
+
+Log:
+
+```sql
+INSERT INTO security_audit (event_type, identity_id, metadata)
+VALUES ('email_verified', $id, '{"method": "click_link"}');
+```
+
+For DSR or auditor: prove when emails were verified.
+
+## Related
+
+- [Identity — Verification flow](/docs/identity/verification-flow)
+- [Cookbook — Notification templates](/docs/cookbook/notification-templates)
+- [Cookbook — Customize registration form](/docs/cookbook/customize-registration-form)
+- [Cookbook — Bot detection strategies](/docs/cookbook/bot-detection-strategies)

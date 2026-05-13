@@ -1,0 +1,180 @@
+---
+title: Discoverable credentials (resident keys)
+description: Sign in without typing a username
+---
+
+A "discoverable credential" (resident key) is a passkey that doesn't require the user to type their username first. Sign in starts with just clicking "Sign in with passkey."
+
+## Why discoverable
+
+User clicks "Sign in." Browser shows available passkeys. User picks. Signed in.
+
+vs. non-discoverable:
+1. Type username.
+2. Server says "use passkey X."
+3. Browser asks for passkey X.
+4. User authenticates.
+
+Discoverable is 1 step. Faster, especially on mobile.
+
+## How it works
+
+At enrollment:
+```ts
+const credential = await navigator.credentials.create({
+  publicKey: {
+    rp: { name: "Your App", id: "your-domain.com" },
+    user: { id: ..., name: "alice@example.com", displayName: "Alice" },
+    challenge: ...,
+    authenticatorSelection: {
+      residentKey: "required",          // ← discoverable
+      userVerification: "required",
+    },
+    pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+  },
+});
+```
+
+The browser stores the credential **locally on the device**, indexed by `user.id`. Authenticator can list its credentials.
+
+At login:
+```ts
+const credential = await navigator.credentials.get({
+  publicKey: {
+    rpId: "your-domain.com",
+    challenge: ...,
+    userVerification: "required",
+    // No `allowCredentials` field — browser shows all credentials for this rpId
+  },
+});
+```
+
+Browser shows account picker. User picks. Server gets `credential.response.userHandle` = the user ID encoded at enrollment.
+
+## In Olympus / Kratos
+
+Kratos's WebAuthn flow supports discoverable. Enable in config:
+
+```yaml
+selfservice:
+  methods:
+    webauthn:
+      enabled: true
+      config:
+        rp:
+          id: your-domain.com
+        passwordless: true
+```
+
+`passwordless: true` lets passkey complete login standalone.
+
+In Hera UI, the login page shows "Sign in with passkey" button. Click → browser picker → done.
+
+## Conditional UI (autofill)
+
+For even smoother UX, passkeys appear in the username field's autofill:
+
+```tsx
+useEffect(() => {
+  if (!PublicKeyCredential.isConditionalMediationAvailable) return;
+  PublicKeyCredential.isConditionalMediationAvailable().then((available) => {
+    if (!available) return;
+    navigator.credentials.get({
+      publicKey: { challenge: getChallenge(), userVerification: "required" },
+      mediation: "conditional",
+    }).then(handleCredential);
+  });
+}, []);
+```
+
+User clicks the email field → autofill shows passkeys → user picks. No "Sign in with passkey" button needed.
+
+## Storage limits
+
+iOS / Android: dozens of passkeys per app.
+USB security keys (YubiKey 5+): ~25 discoverable credentials.
+
+For users with multiple accounts on your service: they can have multiple passkeys, each tied to a different identity.
+
+## What `userHandle` is
+
+The `user.id` is opaque to the authenticator but must be:
+- Unique per user.
+- Stable.
+- Not contain PII.
+
+Olympus uses identity UUID. Encoded as bytes:
+
+```ts
+user: {
+  id: new Uint8Array(uuidParse(identity.id)),
+  name: identity.traits.email,
+  displayName: `${identity.traits.first_name} ${identity.traits.last_name}`,
+}
+```
+
+Server-side, on login:
+
+```ts
+const userHandle = credential.response.userHandle;
+const identityId = uuidStringify(new Uint8Array(userHandle));
+const identity = await kratos.adminGetIdentity(identityId);
+```
+
+Look up directly. No username needed.
+
+## When discoverable isn't supported
+
+- Old browsers.
+- Older OS (iOS < 16, Android < 9).
+- Some security keys without resident-key support.
+
+Fall back to typed username + non-discoverable passkey:
+
+```ts
+const supported = await PublicKeyCredential.isConditionalMediationAvailable?.();
+if (supported) {
+  enableConditionalUI();
+} else {
+  showUsernameField();
+}
+```
+
+## Privacy
+
+Discoverable passkeys are tied to your origin (`rpId`). Other sites can't list your passkeys.
+
+But: a user on a shared computer could see all passkeys (including their friend's). Don't share devices, and `userVerification: "required"` forces biometric — friend can't actually use unless they pass.
+
+## Single-user-id vs multiple per user
+
+Some authenticators store one credential per (rpId, userId). If user re-enrolls, the old one is overwritten. Others store both.
+
+For Olympus: don't rely on multiple passkeys per identity on a single device. If a user wants 2 passkeys, use 2 devices.
+
+## Account switcher UX
+
+For users with multiple accounts (test, personal, etc.) on the same device, the picker shows all. Display names matter:
+
+```ts
+user: {
+  ...
+  displayName: `${identity.traits.email} (${identity.traits.tenant_name})`,
+}
+```
+
+"alice@example.com (Acme)" vs "alice@example.com (Test)" — user picks easily.
+
+## Migration to discoverable
+
+Existing non-discoverable passkeys still work. New ones registered with `residentKey: required` are discoverable.
+
+For full migration: prompt users to re-enroll.
+
+## Related
+
+- [Cookbook — Add WebAuthn / passkeys](/docs/cookbook/add-webauthn)
+- [Cookbook — Passkey-only flow](/docs/cookbook/passkey-only-flow)
+- [Cookbook — Feature detect passkeys](/docs/cookbook/feature-detect-passkeys)
+- [Cookbook — Passkey cross-device](/docs/cookbook/passkey-cross-device)
+- [Identity — MFA — WebAuthn](/docs/identity/mfa-webauthn)

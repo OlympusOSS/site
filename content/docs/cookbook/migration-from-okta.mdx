@@ -1,0 +1,198 @@
+---
+title: Migrate from Okta CIC to Olympus
+description: Move from Okta Customer Identity Cloud to self-hosted
+---
+
+Okta CIC (formerly Auth0; now under Okta umbrella) is enterprise-grade hosted CIAM. Olympus is the self-hosted alternative.
+
+## When this migration makes sense
+
+- Cost: Okta CIC priced per MAU. At scale, six figures/year.
+- Data sovereignty: customers / regulators require on-prem.
+- Customization beyond Okta's flexibility.
+- Vendor independence.
+
+## When to stay on Okta
+
+- Compliance-as-a-service is valuable (Okta has SOC 2, ISO, FedRAMP).
+- Small team can't operate Olympus.
+- You use Okta's enterprise features (advanced workflows, fraud detection, etc.).
+
+## What translates
+
+| Okta CIC | Olympus |
+|---|---|
+| Users | Kratos identities |
+| Applications | Hydra OAuth2 clients |
+| Connections (social, enterprise) | Kratos OIDC providers |
+| Actions / Triggers | Kratos web_hooks |
+| Branded UI | Customize Hera |
+| MFA factors | Kratos credentials (TOTP, WebAuthn) |
+| Organizations | Custom multi-tenant |
+| Roles | Identity traits |
+
+## What's different
+
+### Okta's Universal Login
+
+Okta hosts the login UI with extensive customization. Olympus's Hera is fully open — you can customize anything but you operate it.
+
+### Okta Actions
+
+Okta's Actions (formerly Rules) run in Okta's Node sandbox. Migrate to Kratos webhook handlers.
+
+```js
+// Okta Action
+exports.onExecutePostLogin = async (event, api) => {
+  if (event.user.email.endsWith("@bigcorp.com")) {
+    api.user.setAppMetadata("role", "admin");
+  }
+};
+```
+
+To Kratos webhook:
+```ts
+export async function POST(req: Request) {
+  const { identity } = await req.json();
+  if (identity.traits.email.endsWith("@bigcorp.com")) {
+    await kratos.adminPatch(identity.id, [
+      { op: "replace", path: "/metadata_admin/role", value: "admin" }
+    ]);
+  }
+  return Response.json({ ok: true });
+}
+```
+
+### Workflows (Okta-specific)
+
+Okta has visual workflows for complex multi-step processes. Olympus doesn't. Build equivalents in your app's backend.
+
+## User migration
+
+Okta CIC exports password hashes (different from Workforce Okta):
+
+```bash
+auth0 users export --output-format json --connection username-password > users.json
+```
+
+Each user includes hashed password (bcrypt format).
+
+Convert to Kratos:
+
+```ts
+const okta = require("./users.json");
+const kratos = okta.map(u => ({
+  schema_id: "default",
+  traits: {
+    email: u.email,
+    first_name: u.given_name ?? u.user_metadata?.first_name,
+    last_name: u.family_name ?? u.user_metadata?.last_name,
+  },
+  credentials: {
+    password: {
+      config: {
+        hashed_password: u.password_hash,  // bcrypt
+      },
+    },
+  },
+  state: u.email_verified ? "active" : "active",
+  metadata_admin: {
+    legacy_okta_id: u.user_id,
+  },
+}));
+```
+
+Bulk insert via Kratos admin API.
+
+## Apps
+
+For each Okta application, create a Hydra OAuth2 client:
+
+```bash
+hydra create client \
+  --name "App Name" \
+  --grant-types authorization_code,refresh_token \
+  --response-types code \
+  --token-endpoint-auth-method client_secret_basic \
+  --scope "openid offline_access profile email" \
+  --redirect-uri "https://app.example.com/callback"
+```
+
+Note: Okta's client_secrets are unique; you'll get new ones from Hydra. Update each app.
+
+## SAML / WS-Fed
+
+Okta is strong on SAML. Olympus uses OIDC primarily — for SAML support, run Dex or Keycloak in front of Hydra as a SAML bridge.
+
+```yaml
+# dex-config.yaml
+issuer: https://saml-bridge.your-domain
+connectors:
+  - type: oidc
+    id: olympus
+    name: Olympus
+    config:
+      issuer: https://ciam.your-domain
+      clientID: dex-client
+      clientSecret: ...
+```
+
+Enterprise customers connect via SAML to Dex; Dex translates to OIDC to Olympus.
+
+## Enterprise SSO
+
+Okta has many pre-built connectors (SAML, WS-Fed, etc.). Olympus's OIDC is universal but doesn't have one-click setup for niche enterprise IdPs.
+
+For typical OIDC IdPs (Google Workspace, Entra ID): straightforward.
+For SAML-only IdPs: SAML bridge as above.
+For Active Directory: LDAP sync to Kratos (custom script).
+
+## Costs
+
+Okta CIC list price: ~$0.05-1.50/MAU.
+
+At 100k MAU: $5k-150k/mo.
+
+Olympus self-hosted: ~$200/mo infra + 0.5-1 FTE operator time.
+
+Break-even depends on operator cost in your geo. Roughly: $50k+ Okta bills are worth migrating; smaller might not be.
+
+## Migration risk
+
+Okta is mission-critical for many. Migrating brings risk:
+- User passwords broken? lockouts.
+- OAuth clients misconfigured? app breakage.
+- Hooks lost? business logic missing.
+
+Mitigate:
+- 30-day parallel run.
+- Detailed test plan.
+- Rollback plan.
+- Communication to internal stakeholders.
+
+## Compliance angle
+
+If you have SOC 2 inherited from Okta, that goes away. You need:
+- Your own SOC 2 (audit ~$30-50k).
+- Equivalent controls documented.
+- Penetration test.
+
+Plan for compliance work alongside technical migration.
+
+## Timeline
+
+Typical Okta CIC → Olympus migration: 3-6 months.
+- Month 1: Olympus deployed, configured, hardened.
+- Month 2: User import, app cutover begins.
+- Month 3: Cutover complete, parallel run.
+- Month 4-6: Stabilization, decommission Okta.
+
+Don't rush.
+
+## Related
+
+- [Migration — Auth0](/docs/migration/from-auth0)
+- [Cookbook — Migrate from Auth0](/docs/cookbook/migrate-from-auth0)
+- [Cookbook — SAML JIT provisioning](/docs/cookbook/saml-just-in-time-provisioning)
+- [Cookbook — SAML-OIDC bridge](/docs/cookbook/saml-oidc-bridge)
+- [Cookbook — Onboarding checklist](/docs/cookbook/onboarding-checklist)
