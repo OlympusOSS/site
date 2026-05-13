@@ -1,0 +1,211 @@
+---
+title: Single-region vs multi-region — the decision
+description: When to incur multi-region cost
+---
+
+Multi-region deployment is more complex and expensive. When is it worth it?
+
+## Single-region
+
+```
+All services in one cloud region.
+Users worldwide connect there.
+```
+
+### Pros
+- Cheaper (one set of infra).
+- Simpler to operate.
+- Same-region DB = consistent.
+- No replication lag.
+
+### Cons
+- Latency for distant users.
+- If region fails: total outage.
+
+### When right
+- < 100k MAU.
+- Users mostly in one geography.
+- No regulatory data-residency requirements.
+- Budget conscious.
+
+## Multi-region active-passive
+
+```
+Primary region (writes + reads).
+Secondary region (reads only, ready to promote).
+```
+
+### Pros
+- Failover possible.
+- Read latency reduced for some.
+
+### Cons
+- Most reads still go to primary.
+- Promote-on-failover has data loss window (RPO).
+- ~2x cost.
+
+### When right
+- 99.95%+ availability requirement.
+- Multi-region budget but mostly single-region traffic.
+- DR concerns more than performance.
+
+## Multi-region active-active
+
+```
+Region A: writes + reads for Region A users.
+Region B: writes + reads for Region B users.
+Conflict resolution required.
+```
+
+### Pros
+- Local latency everywhere.
+- Per-region failover.
+
+### Cons
+- Conflict resolution complexity.
+- Multi-region DB (Spanner, Yugabyte) or app-level conflict-free.
+- Operationally complex.
+
+### When right
+- 1M+ MAU globally distributed.
+- Sub-100ms p99 requirements globally.
+- Compliance: data must stay in user's region.
+
+## What Olympus supports
+
+Out of the box:
+- Single-region: yes.
+- Active-passive: doable (Postgres streaming replication, manual promote).
+- Active-active: requires custom work (multi-master Postgres).
+
+For active-active, recommend [Yugabyte](https://www.yugabyte.com) or similar (Postgres-compatible, multi-region).
+
+## Latency tradeoffs
+
+User in Tokyo. Olympus in US-East:
+- Login: ~250ms vs ~50ms (if Olympus in Tokyo).
+- Each API call: same penalty.
+
+For occasional auth (1 per session): tolerable.
+For heavy API: noticeable.
+
+If your APIs are heavy: consider multi-region.
+
+## Cost
+
+| Setup | Monthly cost (rough) |
+|---|---|
+| Single region (50k MAU) | $100 |
+| Active-passive | $200 (2x infra, 1x utilized) |
+| Active-active | $300+ + ops |
+
+For B2B SaaS pricing $100/customer/mo, even active-active is justifiable if customers expect.
+
+## Data residency
+
+GDPR: EU users' data ideally stays in EU.
+
+Approach 1: deploy Olympus per region.
+- EU users sign in to EU stack.
+- US users sign in to US stack.
+
+Approach 2: single-region in EU, accept some US users routing through EU.
+- Higher latency for US users.
+- Simpler operationally.
+
+Most B2C: single region in primary market is fine.
+For B2B with EU enterprise customers: per-region or EU primary.
+
+## Routing
+
+```
+DNS GeoDNS: route user to nearest region.
+Cloudflare LB: similar.
+```
+
+```
+US users → us-east.your-domain → US Olympus stack.
+EU users → eu-west.your-domain → EU Olympus stack.
+```
+
+Cookie domain per-region. Sessions don't roam.
+
+For users who roam (American visiting Europe): logged in at their primary region. Stays consistent.
+
+## Database options
+
+Single-region Postgres: simplest. Streaming replication for read replicas.
+
+Multi-region:
+- Logical replication (Postgres native): one writer, multi-region readers.
+- BDR (multi-master, paid).
+- Yugabyte (Postgres-compatible distributed).
+- CockroachDB (Postgres wire-compatible).
+
+Migration: significant effort. Don't move to distributed DB without justification.
+
+## Latency benchmarks
+
+```
+SSL handshake: 1 RTT.
+HTTP request: 1 RTT.
+DB query: 1 RTT.
+Login flow (4 round-trips to Olympus): ~ 4 * RTT.
+
+RTT US-Tokyo: ~140 ms.
+Total login: ~560 ms.
+
+RTT same-region: ~5 ms.
+Total login: ~20 ms.
+```
+
+Order-of-magnitude. Real numbers depend on app.
+
+## Replication lag
+
+For active-passive: lag between primary and secondary.
+
+```
+Lag = 0s: instant.
+Lag = 1s: usual.
+Lag = 5s: warning.
+Lag = 30s: degraded.
+```
+
+If lag > minutes, multi-region readers serve stale data. Users might see "you signed up but can't sign in" if registration was on primary and they hit replica.
+
+Monitoring critical.
+
+## Failover
+
+Active-passive failover:
+1. Detect primary failure.
+2. Promote replica to primary.
+3. Reconfigure clients.
+4. Resume operations.
+
+Sounds simple. Common pitfalls:
+- Split-brain (old primary thinks it's still primary).
+- Data loss (lag at time of failure).
+- Apps that cache old primary IP.
+
+Practice failovers. Don't wing it during incidents.
+
+## CDN
+
+For static assets: CDN handles regions automatically. No effort.
+
+For dynamic API: CDN can't help. Multi-region origin or accept latency.
+
+## Recommendation
+
+For most: stay single-region. Olympus's standard single-host setup serves 100k+ MAU.
+
+For multi-region need: start with active-passive. Active-active is rarely justified for auth alone.
+
+## Related
+
+- [Cookbook — Multi-region deployment](/docs/cookbook/multi-region-deployment)
+- [Operate — Read replicas](/docs/operate/read-replicas)
+- [Operate — Disaster recovery](/docs/operate/disaster-recovery)
+- [Cookbook — Data residency EU](/docs/cookbook/data-residency-eu)

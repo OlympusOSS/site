@@ -1,0 +1,298 @@
+---
+title: Internationalization strategy
+description: Localize Hera and your app for global users
+---
+
+For global products, English-only is friction. Localize.
+
+## Identify locale
+
+Sources:
+- User's traits.locale (preferred — user explicitly chose).
+- Accept-Language header (browser preference).
+- IP geolocation (last resort).
+
+```ts
+function getUserLocale(req, user) {
+  if (user.traits.locale) return user.traits.locale;
+  const accept = req.headers.get("accept-language");
+  if (accept) {
+    const preferred = accept.split(",")[0].split(";")[0];
+    return preferred;
+  }
+  return "en-US";
+}
+```
+
+## Default + supported
+
+```ts
+const SUPPORTED_LOCALES = ["en", "fr", "de", "es", "ja", "zh-CN", "pt-BR"];
+const DEFAULT_LOCALE = "en";
+
+function pickLocale(requested: string): string {
+  const lang = requested.split("-")[0];
+  if (SUPPORTED_LOCALES.includes(requested)) return requested;
+  if (SUPPORTED_LOCALES.includes(lang)) return lang;
+  return DEFAULT_LOCALE;
+}
+```
+
+`fr-CA` requested but only `fr` supported → use `fr`.
+
+## Files structure
+
+```
+messages/
+├── en/
+│   ├── common.json
+│   ├── login.json
+│   ├── registration.json
+│   └── settings.json
+├── fr/
+│   └── ...
+└── de/
+    └── ...
+```
+
+Per-locale. Per-namespace within.
+
+Sample `messages/en/login.json`:
+```json
+{
+  "title": "Sign in",
+  "submit": "Continue",
+  "email_label": "Email",
+  "password_label": "Password",
+  "forgot_password": "Forgot your password?",
+  "no_account": "Don't have an account?",
+  "sign_up_link": "Create one",
+  "errors": {
+    "invalid_credentials": "Invalid email or password",
+    "account_locked": "Too many failed attempts. Try again in {minutes} minutes."
+  }
+}
+```
+
+## Loading
+
+```tsx
+import { useTranslations } from "next-intl";
+
+export default function Login() {
+  const t = useTranslations("login");
+  return (
+    <Form>
+      <h1>{t("title")}</h1>
+      <Field label={t("email_label")} />
+      <Field label={t("password_label")} type="password" />
+      <Button>{t("submit")}</Button>
+    </Form>
+  );
+}
+```
+
+## Interpolation
+
+```ts
+t("errors.account_locked", { minutes: 15 })
+// "Too many failed attempts. Try again in 15 minutes."
+```
+
+Standard ICU MessageFormat syntax.
+
+## Pluralization
+
+```json
+"sessions_count": "{count, plural, =0 {No sessions} one {1 session} other {# sessions}}"
+```
+
+```tsx
+t("sessions_count", { count: sessionsList.length })
+```
+
+Per-language plural rules built in.
+
+## Right-to-left
+
+For Arabic, Hebrew:
+
+```tsx
+<html dir={locale === "ar" || locale === "he" ? "rtl" : "ltr"}>
+```
+
+CSS Logical Properties handle layout (margin-inline-start vs margin-left).
+
+## Currency / date formats
+
+```ts
+const formatter = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+formatter.format(1234.56); // "1 234,56 €"
+
+const dateFmt = new Intl.DateTimeFormat("ja-JP");
+dateFmt.format(new Date()); // "2026/5/13"
+```
+
+Built-in. No library needed.
+
+## Translate vs avoid
+
+Some things shouldn't be translated:
+- Brand names ("Olympus" stays "Olympus").
+- Code samples.
+- Technical terms (URL, API).
+
+Mark as "do not translate":
+```json
+"line": "Visit {brand} at {url}"
+```
+
+`brand` and `url` come from app, not translation.
+
+## Translation workflow
+
+For getting translations:
+
+### Option A: in-house
+
+Native speaker on team or freelance. Manual.
+
+```bash
+# Send English file to translator
+# Receive German file back
+# Place in messages/de/
+```
+
+Slow but high quality.
+
+### Option B: translation platforms
+
+- [Crowdin](https://crowdin.com)
+- [Lokalise](https://lokalise.com)
+- [Phrase](https://phrase.com)
+
+Translators access via web UI. Plug-and-play with git.
+
+### Option C: machine + review
+
+DeepL, Google Translate, GPT-4. Get first pass, review by humans.
+
+Quality varies. For UI strings: usable. For legal text: have human review.
+
+## Coverage
+
+Track:
+
+```bash
+# scripts/i18n-coverage.sh
+for locale in fr de es ja; do
+  total=$(jq '. | length' messages/en/login.json)
+  translated=$(jq '. | length' messages/$locale/login.json)
+  echo "$locale: $translated / $total"
+done
+```
+
+Don't ship a locale that's < 80% translated. Mixed-language UI is worse than English-only.
+
+## Email localization
+
+Kratos courier templates support per-locale:
+
+```
+courier/templates/
+├── recovery_code/valid/
+│   ├── email.body.en.gotmpl
+│   ├── email.body.fr.gotmpl
+│   └── email.body.de.gotmpl
+```
+
+Kratos picks based on identity's locale.
+
+## Audit log localization
+
+```
+[INFO] Login: alice@example.com from Paris
+```
+
+The audit log is operational, not user-facing. Keep English. Otherwise grep / search breaks.
+
+If user dashboard shows audit: translate event_type labels at display time, not in storage.
+
+## User preference
+
+Settings → Language:
+
+```tsx
+<Select 
+  value={user.traits.locale}
+  onChange={(locale) => updateLocale(locale)}
+>
+  {SUPPORTED_LOCALES.map(l => 
+    <option value={l}>{LOCALE_NAMES[l]}</option>
+  )}
+</Select>
+```
+
+```ts
+async function updateLocale(locale) {
+  await kratos.adminPatch(user.id, [
+    { op: "replace", path: "/traits/locale", value: locale }
+  ]);
+  window.location.reload();
+}
+```
+
+## Number / date in browser
+
+Beyond text translation, format dates / numbers per locale:
+
+```tsx
+<time dateTime={iso}>
+  {new Intl.DateTimeFormat(locale).format(new Date(iso))}
+</time>
+```
+
+Don't hard-code `MM/DD/YYYY`.
+
+## Common pitfalls
+
+### Hard-coded strings
+
+```tsx
+// BAD
+<button>Submit</button>
+
+// GOOD
+<button>{t("submit")}</button>
+```
+
+Lint rule to enforce.
+
+### Concatenation
+
+```tsx
+// BAD - breaks word order in some languages
+<p>You have {count} messages</p>
+
+// GOOD - interpolation
+<p>{t("you_have_messages", { count })}</p>
+```
+
+In some languages "messages" comes before "you" — concatenation breaks.
+
+### Untranslated dates
+
+```tsx
+// BAD
+<span>May 13, 2026</span>
+
+// GOOD
+<time>{formatDate(date, locale)}</time>
+```
+
+## Related
+
+- [Cookbook — Localize Hera UI](/docs/cookbook/localize-hera-ui)
+- [Cookbook — Custom email templates](/docs/cookbook/custom-email-templates)
+- [Cookbook — Email template version control](/docs/cookbook/email-template-version-control)
+- [Identity — Identity schemas](/docs/identity/identity-schemas)
