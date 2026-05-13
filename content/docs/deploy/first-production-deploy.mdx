@@ -1,0 +1,179 @@
+---
+title: First production deploy
+description: Step-by-step walkthrough of your first real Olympus deployment
+---
+
+This page walks through the steps Daedalus runs when you take Olympus from "just installed Daedalus" to "real customers can register and log in." If you're using Daedalus, it does this for you; this page documents what's happening behind the scenes.
+
+## Prerequisites checklist
+
+- [ ] Domain name with DNS edit access
+- [ ] VPS provider chosen and account ready (see [provider pages](/docs/deploy/overview))
+- [ ] Postgres choice made (managed Neon or self-hosted)
+- [ ] Email provider chosen and API key ready
+- [ ] GitHub account with permission to fork `OlympusOSS/platform`
+
+End-to-end time: ~30 minutes if you're using Daedalus, ~2-3 hours manually.
+
+## Step 1: Fork the platform repo
+
+Fork `github.com/OlympusOSS/platform` to your GitHub account. The deploy pipeline runs from your fork — every operator has their own.
+
+```bash
+gh repo fork OlympusOSS/platform --clone
+cd platform
+```
+
+## Step 2: Provision the VPS
+
+Whichever provider you picked, create the VPS. Daedalus handles this automatically for DigitalOcean and Hostinger; for Direct SSH, do this manually first.
+
+Confirm SSH access:
+
+```bash
+ssh user@<vps-ip> hostname
+```
+
+## Step 3: Provision Postgres
+
+Either:
+- **Neon** — create a project at neon.tech, get five database URLs (see [Database — Managed Neon](/docs/deploy/database-managed-neon)).
+- **Self-hosted** — Daedalus's Database wizard step does this on the VPS via the `init-db.sql` script.
+
+## Step 4: Generate secrets
+
+You need:
+
+```bash
+# Encryption + signing keys
+ENCRYPTION_KEY=$(openssl rand -base64 32)
+SESSION_SIGNING_KEY=$(openssl rand -base64 32)
+CIAM_RELOAD_API_KEY=$(openssl rand -base64 32)
+IAM_RELOAD_API_KEY=$(openssl rand -base64 32)
+
+# Kratos secrets (per domain)
+CIAM_KRATOS_COOKIE_SECRET=$(openssl rand -base64 32)
+CIAM_KRATOS_CIPHER_SECRET=$(openssl rand -base64 32)
+IAM_KRATOS_COOKIE_SECRET=$(openssl rand -base64 32)
+IAM_KRATOS_CIPHER_SECRET=$(openssl rand -base64 32)
+
+# Hydra system secret
+CIAM_HYDRA_SYSTEM_SECRET=$(openssl rand -base64 32)
+IAM_HYDRA_SYSTEM_SECRET=$(openssl rand -base64 32)
+```
+
+See [Security — Secrets Management](/docs/security/secrets-management) for the full inventory.
+
+## Step 5: Store secrets in GitHub Actions
+
+```bash
+gh secret set ENCRYPTION_KEY --body "$ENCRYPTION_KEY"
+gh secret set SESSION_SIGNING_KEY --body "$SESSION_SIGNING_KEY"
+# ... and so on for each secret
+```
+
+Verify:
+
+```bash
+gh secret list
+```
+
+## Step 6: Configure DNS
+
+Point `ciam.<domain>`, `iam.<domain>`, and `<domain>` (or `app.<domain>`) at your VPS IP. See [DNS and Domains](/docs/deploy/dns-and-domains).
+
+## Step 7: Edit prod configs
+
+In your forked `platform/prod/`:
+
+- **`compose.prod.yml`**: replace any placeholder hostnames with yours.
+- **`{ciam,iam}-kratos/kratos.yml`**: set `serve.public.base_url`, `serve.admin.base_url`, `selfservice.flows.*.ui_url`, `selfservice.default_browser_return_url` to your actual domains.
+- **`{ciam,iam}-hydra/hydra.yml`**: set `urls.self.issuer`, `urls.login`, `urls.consent`, `urls.logout` to your actual domains.
+- **`Caddyfile`**: replace example.com placeholders with your domain.
+
+Commit and push:
+
+```bash
+git add -A prod/
+git commit -m "Configure for production deployment"
+git push origin main
+```
+
+## Step 8: Trigger the deploy workflow
+
+```bash
+gh workflow run deploy.yml
+```
+
+The workflow:
+1. Builds app images (athena, hera, site) and pushes to GHCR (or pulls from upstream if you're not building yourself).
+2. SCPs the prod compose + configs to the VPS.
+3. SSH'es in and runs `podman compose -f compose.prod.yml up -d`.
+4. Caddy starts and requests Let's Encrypt certs (first request triggers HTTP-01 challenge — DNS must be set up correctly).
+5. Migrations run.
+6. Apps come up.
+
+Watch the workflow:
+
+```bash
+gh run watch
+```
+
+End-to-end: ~5-10 minutes.
+
+## Step 9: Verify
+
+```bash
+curl -I https://ciam.<your-domain>/.well-known/openid-configuration
+# Expected: 200, valid Let's Encrypt cert
+
+curl -I https://iam.<your-domain>/.well-known/openid-configuration
+# Expected: 200
+```
+
+Open `https://iam.<your-domain>` in a browser — you should see the Hera IAM login UI.
+
+## Step 10: Seed an admin
+
+The dev seed (`admin@demo.user`) doesn't run in prod. Create the first admin manually:
+
+```bash
+ssh prod 'podman exec iam-kratos kratos identities import --schema-id default <<EOF
+{
+  "traits": { "email": "you@yourdomain.com", "role": "admin" },
+  "credentials": {
+    "password": { "type": "password", "identifiers": ["you@yourdomain.com"], "config": { "password": "<strong password>" } }
+  },
+  "verifiable_addresses": [{ "value": "you@yourdomain.com", "verified": true, "via": "email", "status": "completed" }]
+}
+EOF'
+```
+
+Or use the Athena Daedalus Accounts wizard step.
+
+## Step 11: Log in
+
+Open `https://iam.<your-domain>/login`. Sign in with the admin credentials you just seeded. Land in Athena IAM. Tour the dashboard.
+
+## Step 12: First post-deploy checks
+
+Immediately:
+
+- [ ] [Health endpoints](/docs/operate/health-endpoints) all return 200.
+- [ ] Try a registration flow as a fresh customer email — verify email is received.
+- [ ] Try the recovery flow — verify email is received.
+- [ ] Try registering a test OAuth2 client and exercising the [first OAuth2 flow](/docs/get-started/first-oauth-client).
+- [ ] Verify firewall rules: `nmap -p 3101,3103,4101,4103,5432 <vps-ip>` should show closed/filtered.
+- [ ] Set up the [cert-expiry alert](/docs/operate/cert-rotation).
+
+Within a week:
+
+- [ ] First [secrets audit](/docs/operate/secrets-audit) cadence scheduled.
+- [ ] [Backup procedure](/docs/operate/backups-postgres) tested with a restore drill.
+- [ ] Monitoring / log forwarding configured.
+
+## Where next
+
+- [Operate — Incident response](/docs/operate/incident-response) — when something breaks.
+- [Operate — Network Topology](/docs/operate/network-topology) — firewall verification.
+- [Operate — Secrets Audit](/docs/operate/secrets-audit) — quarterly inventory.

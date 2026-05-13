@@ -1,0 +1,156 @@
+---
+title: With the Daedalus wizard
+description: 13-step guided production deployment
+---
+
+[Daedalus](https://github.com/OlympusOSS/daedalus) is the production deployment wizard. It walks you through 13 ordered pages from "I have a domain name" to "Olympus is live and serving real users."
+
+This page is the wizard reference — what each step does, what input it expects, what it produces.
+
+## Install Daedalus
+
+Download from [github.com/OlympusOSS/daedalus/releases](https://github.com/OlympusOSS/daedalus/releases) (macOS for now; Linux/Windows TBD). Open the app.
+
+On first launch, Daedalus creates `~/.daedalus/` for state and starts an MCP server on `127.0.0.1:14210` (see [ADR 0022](/docs/adrs/0022-mcp-localhost-only)).
+
+## The 13 wizard pages
+
+### 1. Repository
+
+**Purpose:** Fork `OlympusOSS/platform`, clone locally.
+
+**Inputs:** GitHub Personal Access Token with `repo` + `workflow` scopes.
+
+**Outputs:** Local clone at `~/code/<your-org>-platform/`. The Daedalus context records the fork URL.
+
+### 2. Domain
+
+**Purpose:** Configure apex domain and subdomain choices.
+
+**Inputs:** Apex domain (e.g. `example.com`), CIAM subdomain (default `ciam`), IAM subdomain (default `iam`), Site subdomain (default `www`).
+
+**Outputs:** Updates to `platform/prod/{ciam,iam}-kratos/kratos.yml`, `platform/prod/{ciam,iam}-hydra/hydra.yml`, and `platform/prod/Caddyfile` with the chosen domains.
+
+### 3. Provider
+
+**Purpose:** Pick where the VPS lives.
+
+**Inputs:** Provider name (DigitalOcean / Hostinger / Direct SSH) and provider-specific credentials.
+
+**Outputs:** Provider config recorded for the Compute step.
+
+### 4. Email
+
+**Purpose:** Configure outbound email for verification and recovery flows.
+
+**Inputs:** Provider name (Resend / Postmark / Brevo / SMTP2GO / AWS SES / Custom SMTP) and API key or SMTP credentials. Sender address.
+
+**Outputs:** SMTP settings written into both Kratos configs (`courier.smtp.connection_uri`).
+
+### 5. Database
+
+**Purpose:** Pick Postgres host.
+
+**Inputs:** Managed (Neon API key) or self-hosted toggle.
+
+**Outputs:** Five `DATABASE_URL`s generated (one per Olympus database). For self-hosted, the `postgres` service stays enabled in `compose.prod.yml`.
+
+### 6. Compute
+
+**Purpose:** Actually provision the VPS.
+
+**Inputs:** Plan/size, region.
+
+**Outputs:** New droplet/VPS with firewall configured, SSH key generated and uploaded. VPS IP recorded.
+
+### 7. Secrets
+
+**Purpose:** Generate all cryptographic secrets.
+
+**Inputs:** None — Daedalus generates them.
+
+**Outputs:** 10+ secrets generated, stored locally in `daedalus.json`, then pushed to GitHub Actions Secrets via `gh secret set`. See [Security — Secrets Management](/docs/security/secrets-management) for the full inventory.
+
+### 8. OAuth
+
+**Purpose:** Register OAuth2 clients in Hydra for Athena and the playground.
+
+**Inputs:** None — Daedalus generates client IDs and secrets.
+
+**Outputs:** OAuth2 clients registered post-deploy via the Hydra admin API. Client IDs/secrets recorded.
+
+### 9. Deploy
+
+**Purpose:** First deploy.
+
+**Inputs:** None — runs automatically based on prior steps.
+
+**Outputs:** Commits and pushes the configured platform repo, triggers `deploy.yml` workflow via `gh workflow run`. Watches the workflow until success.
+
+### 10. Health
+
+**Purpose:** Verify every service is responsive.
+
+**Inputs:** None.
+
+**Outputs:** Parallel HTTP checks against all eight Ory health endpoints + Athena + Hera + Caddy. Pass/fail per service.
+
+### 11. Accounts
+
+**Purpose:** Seed the first IAM admin.
+
+**Inputs:** Admin email, password.
+
+**Outputs:** An IAM identity created via Kratos admin API. You log in as this identity.
+
+### 12. Applications
+
+**Purpose:** Register Athena, Hera, and Site as managed applications.
+
+**Inputs:** None — Daedalus knows.
+
+**Outputs:** Stamped into Athena's "applications" settings.
+
+### 13. Destroy
+
+**Purpose:** Full teardown when you no longer need the deployment.
+
+**Inputs:** None — confirmation prompt.
+
+**Outputs:** VPS deleted at the provider, DNS records removed, Postgres deleted (managed only — self-hosted disappears with the VPS), GitHub Secrets cleared, local context wiped.
+
+## How Daedalus stores state
+
+Everything is in `daedalus.json` in `~/.daedalus/<project>/`:
+
+```json
+{
+  "domain": { "apex": "example.com", "ciam": "ciam", "iam": "iam", "site": "www" },
+  "provider": { "name": "digitalocean", "vps_id": "abc123", "ip": "203.0.113.10" },
+  "database": { "type": "neon", "project_id": "...", "urls": {...} },
+  "secrets": { /* references to GitHub Secrets */ },
+  ...
+}
+```
+
+This file contains sensitive material (SSH keys, Neon API keys until they're pushed to GitHub Secrets). It's `gitignored`. Treat the file as you'd treat any password manager export.
+
+## Driving Daedalus from Claude
+
+Daedalus embeds an MCP server. Claude can:
+- Take a screenshot of the current wizard page.
+- Read the deployment context.
+- Click buttons.
+- Fill in form fields.
+- Run terminal commands.
+
+See [Integrate — MCP with Daedalus](/docs/integrate/mcp-with-daedalus) and [Internals — Daedalus MCP server](/docs/internals/daedalus-mcp-server).
+
+## When the wizard isn't enough
+
+If your deployment doesn't fit the wizard's assumptions (multi-region, K8s, custom DNS provider, etc.), use [Without the wizard — manual deploy](/docs/deploy/without-daedalus-manual).
+
+## Where next
+
+- [Deploy — First production deploy](/docs/deploy/first-production-deploy) — what's happening behind the wizard.
+- [Internals — Daedalus wizard state machine](/docs/internals/daedalus-wizard-state-machine)

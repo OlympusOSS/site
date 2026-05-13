@@ -1,0 +1,48 @@
+---
+title: Email — Postmark
+description: Configure Postmark as the email provider
+---
+
+[Postmark](https://postmarkapp.com) is a strong choice for transactional email with best-in-class deliverability and detailed analytics. Pricier than Resend but valuable if email is mission-critical.
+
+## Configuration
+
+```yaml
+courier:
+  smtp:
+    connection_uri: smtps://<server_token>:<server_token>@smtp.postmarkapp.com:465
+    from_address: noreply@your-domain.com
+    from_name: Your App
+```
+
+Use the same Postmark **Server Token** as both username and password (Postmark's SMTP auth model).
+
+For Daedalus: choose **Postmark** in the Email wizard; paste the Server Token.
+
+## Server vs Account tokens
+
+Postmark distinguishes:
+- **Account token** — manage the account (don't use for sending).
+- **Server token** — send email from one Postmark server. Use this.
+
+Create the server first in Postmark dashboard, then grab its server token.
+
+## Sender signature / DKIM
+
+Verify your sending domain in Postmark before going live:
+1. Add domain in Postmark dashboard.
+2. Configure DKIM, SPF, Return-Path DNS records.
+3. Verify.
+
+## Streams: Transactional vs Broadcast
+
+Postmark separates streams. Olympus's email is **transactional**. Make sure your server's default stream is `outbound` (transactional), not `broadcast` (marketing).
+
+## Free tier
+
+100 emails/month free for testing. Paid plans start at $15/mo for 10,000.
+
+## Where next
+
+- [Operate — Email deliverability](/docs/operate/email-deliverability)
+- [Security — Email verification](/docs/security/email-verification)

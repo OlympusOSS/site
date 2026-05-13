@@ -1,0 +1,124 @@
+---
+title: Sessions, AAL, refresh
+description: Kratos session lifetimes, authenticator assurance levels, and refresh
+---
+
+A Kratos session is the artifact that says "this user is logged in." It's stored in the `sessions` table of the Kratos database, identified by a session ID, and surfaced to the browser as a cookie.
+
+## Session shape
+
+```json
+{
+  "id": "01H8...",
+  "identity": { "id": "uuid", "traits": {...}, "credentials": {...} },
+  "authenticator_assurance_level": "aal1",
+  "authentication_methods": [
+    { "method": "password", "completed_at": "..." }
+  ],
+  "expires_at": "2026-04-15T12:00:00Z",
+  "authenticated_at": "2026-04-14T12:00:00Z",
+  "issued_at": "2026-04-14T12:00:00Z",
+  "active": true
+}
+```
+
+## AAL — Authenticator Assurance Level
+
+NIST 800-63B defines authenticator assurance:
+
+- **AAL1**: single factor (e.g. password alone).
+- **AAL2**: two factors of different types (e.g. password + TOTP).
+- **AAL3**: phishing-resistant hardware (e.g. WebAuthn with attestation).
+
+A Kratos session records its current AAL. It can be elevated within a single session via "step up."
+
+## How AAL is computed
+
+Each completed authentication method contributes to the AAL:
+
+| Method | Contribution |
+|---|---|
+| `password` | AAL1 |
+| `oidc` (social login) | AAL1 |
+| `totp` | additional factor → AAL2 if combined with password/oidc |
+| `webauthn` (platform) | additional factor → AAL2 |
+| `webauthn` (cross-platform with attestation) | AAL3 (theoretical; Olympus treats as AAL2) |
+| `lookup_secret` (backup code) | additional factor → AAL2 |
+
+## Session lifetime
+
+Default in Olympus:
+- `session.lifespan`: 24 hours (sliding — every request extends).
+- `session.cookie.persistent`: true (survives browser restart).
+- `session.cookie.same_site`: Lax.
+
+Configurable in [Reference — kratos.yml](/docs/reference/config/kratos-yml). For higher-security IAM deployments, shorten to 1-4 hours.
+
+## Refresh
+
+Kratos sessions don't have explicit refresh — they slide with use. Every request to a Kratos-protected endpoint resets the session expiry.
+
+For OAuth2 access tokens (which are different — Hydra-issued), see [Integrate — Refresh tokens](/docs/integrate/oauth2-refresh-tokens).
+
+## Stepping up
+
+To elevate an AAL1 session to AAL2:
+
+```
+GET /self-service/login/browser?aal=aal2&refresh=true
+```
+
+Hera renders only the second-factor methods (TOTP, WebAuthn). After successful submission, the existing session's AAL is updated; no new session is created.
+
+For security-sensitive operations (changing password, disenrolling MFA, OAuth2 client management in Athena), Kratos automatically returns a step-up redirect.
+
+## Inspecting sessions
+
+For the current user:
+```
+GET /sessions/whoami
+Cookie: ory_kratos_session=...
+```
+
+Returns the session JSON or 401 if no session.
+
+For admin / operations (Athena UI exposes this):
+```
+GET /admin/sessions?identity_id=<uuid>
+Authorization: Bearer <admin-token>
+```
+
+## Revocation
+
+Revoke a single session:
+
+```
+DELETE /admin/sessions/<session-id>
+```
+
+Revoke all sessions for an identity:
+
+```
+DELETE /admin/sessions?identity_id=<uuid>
+```
+
+Useful in incident response (see [Operate — Incident Response](/docs/operate/incident-response) for the mass-revocation playbook).
+
+## Olympus additions: location tracking
+
+The SDK records the IP and approximate location of each session (via Caddy's forwarded `X-Real-IP` header) in the `locations` table. The Athena UI's Identity Detail page surfaces this as a "Recent logins from" list.
+
+See the SDK's [`locations` module](/docs/reference/api/sdk/locations).
+
+## Olympus additions: brute-force vs session
+
+The SDK's brute-force tracking is **per identifier**, not per session. A session that's been issued continues to work even if the identifier is currently locked out — lockout only gates new login attempts.
+
+To kill an active session when its identity is locked out, revoke the session explicitly.
+
+## Where next
+
+- [Identity — Flow login](/docs/identity/flow-login)
+- [Identity — MFA Policy](/docs/identity/mfa-policy)
+- [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
+- [Operate — Incident Response](/docs/operate/incident-response) — mass session revocation.

@@ -1,0 +1,112 @@
+---
+title: DNS and domains
+description: Configuring DNS for an Olympus production deployment
+---
+
+Olympus needs **three subdomains** of a domain you control:
+
+| Subdomain | Purpose |
+|---|---|
+| `ciam.<your-domain>` | CIAM Hera login UI + CIAM Hydra OAuth2 endpoints |
+| `iam.<your-domain>` | IAM Hera login UI + IAM Hydra OAuth2 endpoints |
+| `<your-domain>` or `app.<your-domain>` | The Site (brochure + docs) and your application |
+
+Each is an `A` record pointing at your VPS's public IP (or a Reserved IP / Load Balancer if you have one).
+
+## DNS records
+
+```
+ciam.example.com    A    203.0.113.10
+iam.example.com     A    203.0.113.10
+www.example.com     A    203.0.113.10
+example.com         A    203.0.113.10
+```
+
+If you have IPv6 on the VPS, add matching `AAAA` records.
+
+If you're using Cloudflare in front of Olympus (recommended for DDoS protection), set the records as **DNS-only (grey cloud)** initially — Cloudflare's orange-cloud proxy intercepts TLS and breaks Let's Encrypt's HTTP-01 challenge. Switch to orange-cloud after the first cert is issued (use DNS-01 instead — see below).
+
+## TLS via Let's Encrypt
+
+Caddy handles TLS automatically. On first start:
+1. Caddy attempts the **HTTP-01** challenge: it spins up a temporary handler at `http://<domain>/.well-known/acme-challenge/...`, Let's Encrypt fetches it, validates, and issues the cert.
+2. Cert is stored in `/data/caddy/certificates/`.
+3. Caddy renews 30 days before expiry, automatically.
+
+For **DNS-01** (required behind Cloudflare's proxy):
+1. Issue a Cloudflare API token with `Zone.DNS.Edit` for your domain.
+2. Set `CADDY_CLOUDFLARE_API_TOKEN` in the deployment env.
+3. The Caddyfile is preconfigured to use DNS-01 when the env var is present.
+
+## Three-zone propagation timing
+
+When you update DNS records, allow up to **48 hours** for full propagation (most updates are <1 hour but some resolvers cache for the TTL of the previous record). For a quick test:
+
+```bash
+dig ciam.example.com
+dig iam.example.com
+# Expected: A record pointing at your VPS IP
+```
+
+## Wildcard certs (alternative)
+
+If you want a single wildcard cert for `*.example.com` instead of three separate certs:
+1. Use DNS-01 (HTTP-01 doesn't support wildcards).
+2. Configure Caddy with:
+   ```
+   *.example.com {
+     tls {
+       dns cloudflare {env.CADDY_CLOUDFLARE_API_TOKEN}
+     }
+   }
+   ```
+
+Wildcard certs work but make the per-subdomain Caddy config more complex. Three separate certs is simpler.
+
+## Internal-only deployment
+
+If Olympus is only reachable from a private network (Tailscale, VPN, etc.), DNS can point at private IPs:
+
+```
+ciam.example.com    A    10.0.0.5
+```
+
+For TLS, use DNS-01 with a public domain — Let's Encrypt validates ownership of the public domain regardless of where the actual host IP routes. Or use mkcert / your own internal CA.
+
+## Subdomain takeover risk
+
+If you stop pointing a subdomain at your VPS but leave the DNS record, an attacker could claim the IP (cloud providers recycle IPs). This is "subdomain takeover."
+
+Mitigation:
+- Delete DNS records as soon as you decommission a subdomain.
+- Monitor Certificate Transparency logs for cert issuance under your domain (services like Cert Spotter alert on unexpected certs).
+
+## Cookie domain configuration
+
+Once DNS is set, configure Kratos's cookie domain to match. In `kratos.yml`:
+
+```yaml
+session:
+  cookie:
+    domain: example.com   # parent — cookies visible to ciam.example.com and iam.example.com
+    same_site: Lax
+    path: /
+```
+
+But **note:** Olympus's [CIAM/IAM isolation](/docs/security/ciam-iam-isolation) wants different cookie domains for CIAM and IAM. The correct config is:
+
+```yaml
+# CIAM kratos.yml
+session.cookie.domain: ciam.example.com
+
+# IAM kratos.yml
+session.cookie.domain: iam.example.com
+```
+
+This ensures a CIAM session cookie can't be sent to IAM and vice versa.
+
+## Where next
+
+- [Deploy — First production deploy](/docs/deploy/first-production-deploy)
+- [Security — Caddy Supply Chain](/docs/security/caddy-supply-chain)
+- [Troubleshooting — Cookies not persisting](/docs/troubleshooting/cookies-not-persisting)

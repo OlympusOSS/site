@@ -1,0 +1,30 @@
+---
+title: Email — SMTP2GO
+description: Configure SMTP2GO as the email provider
+---
+
+[SMTP2GO](https://smtp2go.com) is another solid transactional email option, with free tier (1000 emails/month) and decent global delivery infrastructure.
+
+## Configuration
+
+```yaml
+courier:
+  smtp:
+    connection_uri: smtps://<smtp_user>:<smtp_password>@mail.smtp2go.com:465
+    from_address: noreply@your-domain.com
+    from_name: Your App
+```
+
+SMTP credentials are in the SMTP2GO dashboard → Settings → SMTP Users.
+
+For Daedalus: choose **SMTP2GO** in the Email wizard; paste credentials.
+
+## Free tier
+
+- 1,000 emails/month
+- All transactional
+
+## Where next
+
+- [Operate — Email deliverability](/docs/operate/email-deliverability)
+- [Security — Email verification](/docs/security/email-verification)
