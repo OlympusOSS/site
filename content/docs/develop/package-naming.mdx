@@ -1,0 +1,111 @@
+---
+title: Package naming
+description: Why npm packages are scoped under @olympusoss/ and follow source-only conventions
+---
+
+Olympus has two distributable npm packages:
+- `@olympusoss/canvas` — the design system.
+- `@olympusoss/sdk` — the shared settings/encryption library.
+
+(Plus `@olympusoss/octl` as the CLI, distributed via npm but not consumed as a library.)
+
+## The `@olympusoss/` scope
+
+All Olympus packages are scoped under the [`@olympusoss`](https://www.npmjs.com/org/olympusoss) npm organization.
+
+Reasons:
+- Avoids name collisions in the global npm namespace.
+- Visible grouping — everything `@olympusoss/*` is from us.
+- Per-scope access policy: can require auth for publish.
+
+## Source-only contract
+
+Both packages ship raw TypeScript via `package.json`:
+
+```json
+{
+  "name": "@olympusoss/sdk",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}
+```
+
+No build step at publish time. Consumers' build pipelines (Bun, Next.js, Vite) handle transpilation.
+
+See [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages) for the rationale.
+
+## Consumer setup
+
+Consumers list as a peer dependency:
+
+```json
+"peerDependencies": {
+  "@olympusoss/sdk": "^1.0.0"
+}
+```
+
+And install:
+
+```bash
+bun add @olympusoss/sdk
+```
+
+The consumer's `tsconfig.json` and bundler config must:
+- Resolve `.ts` extensions (Bun and Next.js do this by default).
+- Apply Tailwind to `node_modules/@olympusoss/canvas` (for Canvas's classes to be in the final CSS):
+
+```js
+// tailwind.config.js or v4 CSS-first
+content: [
+  "./src/**/*.{ts,tsx}",
+  "./node_modules/@olympusoss/canvas/**/*.{ts,tsx}",  // critical
+]
+```
+
+## Version pinning
+
+Olympus consumers (Athena, Hera, Site) typically use **caret ranges** (`^1.0.0`) for the SDK and Canvas. Updates within the major version are auto-pulled.
+
+For maximum reproducibility, exact-pin:
+
+```json
+"dependencies": {
+  "@olympusoss/canvas": "2.10.0",
+  "@olympusoss/sdk": "1.4.2"
+}
+```
+
+`bun.lock` then encodes the exact resolved version.
+
+## When to update
+
+Each app repo has a `dependabot.yml` that PRs version bumps. Review the changeset and merge if compatible.
+
+For major version bumps, read the CHANGELOG carefully and adjust consumer code accordingly.
+
+## Linking for live dev
+
+To edit Canvas / SDK and see changes in Athena immediately:
+
+```bash
+cd Olympus/canvas
+bun link
+
+cd ../athena
+bun link @olympusoss/canvas
+```
+
+Unlink to go back to the published version:
+
+```bash
+cd Olympus/athena
+bun unlink @olympusoss/canvas
+bun install
+```
+
+## Related
+
+- [Develop — Workspace setup](/docs/develop/workspace-setup)
+- [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
+- [Develop — Working with Canvas](/docs/develop/working-with-canvas)
+- [Develop — Working with SDK](/docs/develop/working-with-sdk)

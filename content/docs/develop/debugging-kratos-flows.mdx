@@ -1,0 +1,137 @@
+---
+title: Debugging Kratos flows
+description: Inspecting Kratos flow state and progression
+---
+
+Kratos flows (login, registration, recovery, verification, settings) are server-driven state machines. When something goes wrong, inspecting the flow state directly tells you what Kratos expected.
+
+## Fetching a flow's state
+
+Every flow has an ID embedded in the URL (`?flow=FLOW_ID`). Look up its current state:
+
+```bash
+curl http://localhost:3100/self-service/login/flows?id=<FLOW_ID> | jq
+```
+
+(Replace 3100 with the right Kratos public port for the domain.)
+
+The response includes:
+- `state` — e.g. `choose_method`, `sent_email`, `passed_challenge`.
+- `ui.nodes` — the form fields Kratos expects you to render.
+- `ui.action` — where the next submission goes.
+- `ui.messages` — any error / status messages.
+- `expires_at` — when this flow becomes invalid.
+
+## Common state issues
+
+### Flow expired
+
+`expires_at < now`. Re-initiate.
+
+### Wrong identity schema
+
+If a user is in `state: "show_form"` but Kratos returns 400 on submission, the trait data may not match the schema. Check the schema:
+
+```bash
+curl http://localhost:3100/schemas | jq
+```
+
+The submitted JSON must conform.
+
+### Identifier already taken
+
+In registration, if the email is already in use, Kratos returns the flow with error message:
+
+```json
+{ "ui": { "messages": [{ "text": "An account with the same identifier exists already" }] } }
+```
+
+User must use a different email or log in.
+
+### Identifier doesn't match
+
+In login, wrong identifier returns:
+
+```json
+{ "ui": { "messages": [{ "text": "The provided credentials are invalid" }] } }
+```
+
+Kratos doesn't distinguish "user doesn't exist" from "wrong password" (anti-enumeration).
+
+## Inspecting Kratos's view of an identity
+
+If a user reports they can't log in but you suspect the identity is broken:
+
+```bash
+# Lookup by email
+curl http://localhost:3101/admin/identities?credentials_identifier=user@example.com | jq
+```
+
+Response shows:
+- `state` — `active` / `inactive`.
+- `verifiable_addresses` — verification status of each email/phone.
+- `credentials` — what credentials exist (password? oidc? totp?).
+- `metadata_admin` — admin notes.
+
+Common issues:
+- `state: "inactive"` — user was deactivated. Reactivate via PATCH.
+- `verifiable_addresses[0].verified: false` — email isn't verified. If your config requires verification, login is blocked. Trigger verification flow.
+- `credentials.password` missing — user has no password (probably created via OIDC). They need to use social login or set a password via recovery.
+
+## Inspecting Kratos sessions
+
+```bash
+# All sessions for an identity
+curl http://localhost:3101/admin/sessions?identity_id=<UUID> | jq
+```
+
+If a user reports being logged out unexpectedly, look here:
+- Recent sessions with `active: false` — expired, revoked, or explicitly logged out.
+- AAL of the latest session — was it AAL2 when it should be?
+
+## Hooks
+
+Kratos's behavior is heavily configurable via hooks. If a flow does something unexpected, check the hook config:
+
+```bash
+podman exec ciam-kratos cat /etc/config/kratos/kratos.yml | grep -A5 hooks
+```
+
+Common hook misconfigurations:
+- `require_verified_address` enabled but verification flow is broken → users register but can't log in.
+- `session` hook on registration → users get logged in even without verification (intentional for some deployments).
+- Webhook hook with a slow / broken endpoint → flow hangs for the webhook timeout.
+
+## Tracing one flow end-to-end
+
+```bash
+# Tail Kratos logs filtered to the user's flow
+podman compose logs -f ciam-kratos | jq -c "select(.flow_id == \"<FLOW_ID>\")"
+```
+
+You'll see:
+- Flow init.
+- Each submission with validation result.
+- Any hook fires.
+- Final accept/reject.
+
+## Settings flow specifics
+
+A settings flow modifies the user's identity. Inspect the diff before commit:
+
+```bash
+# Before
+curl http://localhost:3101/admin/identities/<UUID> | jq
+# After settings submission, re-fetch and diff.
+```
+
+Use this when a user says "I changed my email but it didn't save" — the patch may have been rejected silently due to schema validation.
+
+## Related
+
+- [Identity — Flow login](/docs/identity/flow-login)
+- [Identity — Flow registration](/docs/identity/flow-registration)
+- [Identity — Flow recovery](/docs/identity/flow-recovery)
+- [Identity — Flow verification](/docs/identity/flow-verification)
+- [Identity — Flow settings](/docs/identity/flow-settings)
+- [Develop — Debugging OAuth2 flows](/docs/develop/debugging-oauth2-flows)

@@ -1,0 +1,101 @@
+---
+title: MCP with Daedalus
+description: Drive Daedalus deployments programmatically from Claude or any MCP client
+---
+
+Daedalus, the production deployment wizard, embeds a localhost MCP server on `127.0.0.1:14210`. This means Claude (or any MCP-aware agent) can drive a deployment the same way a human can: click buttons, fill forms, run shell commands, take screenshots.
+
+## Why use MCP
+
+- **Agent-driven first deploys.** Tell Claude "deploy Olympus to my DO account with domain `example.com`," Claude walks through the 13 wizard pages.
+- **Pair programming with an LLM.** You watch the wizard; Claude runs the commands. Faster than copy-pasting between chat and Daedalus.
+- **Replay deploys.** Capture an entire deployment as MCP tool calls; re-run for staging.
+
+## Connecting
+
+Daedalus must be running. The MCP server listens on `127.0.0.1:14210` (TCP, HTTP / JSON-RPC 2.0).
+
+In Claude Code:
+
+```bash
+claude mcp add daedalus --transport http http://127.0.0.1:14210
+```
+
+Or in Claude Desktop, edit `~/.config/claude/config.json`:
+
+```json
+{
+  "mcpServers": {
+    "daedalus": { "url": "http://127.0.0.1:14210", "transport": "http" }
+  }
+}
+```
+
+Restart Claude. The eight Daedalus tools appear.
+
+## The eight tools
+
+| Tool | Purpose |
+|---|---|
+| `screenshot` | Capture the current wizard UI as PNG. |
+| `get_page` | Read current path + visible text. |
+| `navigate` | Go to a specific wizard page. |
+| `click` | Click a button or element by text. |
+| `form_input` | Fill a form field by label. |
+| `read_context` | Read the deployment context (`daedalus.json`). |
+| `terminal_exec` | Run a shell command in the embedded terminal. |
+| `terminal_read` | Read recent terminal output. |
+
+Full per-tool reference: [Reference — MCP](/docs/reference/api/mcp/overview).
+
+## Typical conversation flow
+
+> **You:** Deploy Olympus to DigitalOcean with apex `example.com` and IAM admin `me@example.com`.
+
+> **Claude:** *Calls `read_context` to see current state.* I see Daedalus is on the welcome page. Let me start from Repository.
+
+> *Calls `navigate({path: "/repository"})`.*
+
+> *Calls `screenshot`.*
+
+> I see the Repository page asking for a GitHub PAT. Should I prompt you for it?
+
+> **You:** Yes, here's the token: ghp_xxx
+
+> **Claude:** *Calls `form_input({label: "GitHub PAT", value: "ghp_xxx"})`.* Now clicking Fork.
+
+> *Calls `click({text: "Fork repository"})`.*
+
+> *Watches terminal output via `terminal_read`.*
+
+> Fork succeeded. Moving to Domain step...
+
+And so on through 13 steps. Claude pauses for input where humans must (secrets, API keys), executes mechanical steps autonomously.
+
+## Security considerations
+
+The MCP server is **localhost only** ([ADR 0022](/docs/adrs/0022-mcp-localhost-only)). To reach it, you need local code execution on the operator's laptop. The exposed tools (terminal exec, secrets access) would be devastating if remotely accessible; localhost-only eliminates that risk.
+
+Screenshots and terminal output flow through a [secrets sanitizer](/docs/internals/daedalus-secrets-sanitizer) that redacts Bearer tokens, API keys, and DSN passwords. The redaction is best-effort, not exhaustive.
+
+## What MCP can't do
+
+- **Make decisions you should make.** Picking a VPS region, choosing managed vs self-hosted Postgres — these belong to the human.
+- **Provision external accounts.** Daedalus needs your DigitalOcean / Neon / Resend accounts already to exist with usable credentials.
+- **Recover from outright errors.** If the deploy fails because your GitHub PAT lacks permissions, Daedalus can detect and report; Claude can describe the error but can't fix it without your action.
+
+## Recording a session
+
+Daedalus optionally logs every MCP tool call to `~/.daedalus/sessions/<timestamp>.log`. Useful for:
+- Replaying the exact actions for a different deployment.
+- Debugging "what happened during the deploy."
+- Audit.
+
+Enable in Daedalus settings.
+
+## Where next
+
+- [Reference — MCP](/docs/reference/api/mcp/overview) — every tool's input/output schema.
+- [Internals — Daedalus MCP server](/docs/internals/daedalus-mcp-server) — implementation details.
+- [ADR 0022 — MCP localhost only](/docs/adrs/0022-mcp-localhost-only)
+- [Cookbook — Deploy with Claude MCP](/docs/cookbook/deploy-with-claude-mcp)

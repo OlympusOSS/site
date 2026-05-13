@@ -1,0 +1,76 @@
+---
+title: Versioning
+description: How Olympus packages and images are versioned
+---
+
+Different Olympus distributions have different versioning models.
+
+## Source-only npm packages
+
+`@olympusoss/canvas`, `@olympusoss/sdk`, `@olympusoss/octl`.
+
+**Strict semver.** Consumer's `^1.0.0` range gets minor/patch updates automatically.
+
+- **Patch** (`1.0.0 → 1.0.1`): bug fixes, internal refactors, no API change.
+- **Minor** (`1.0.0 → 1.1.0`): new exports, new optional config. Existing code keeps working.
+- **Major** (`1.0.0 → 2.0.0`): removed exports, renamed exports, behaviour changes. Consumers must adapt.
+
+Changesets enforce the discipline — every PR has a changeset declaring its bump type.
+
+## Container images
+
+`ghcr.io/olympusoss/athena`, `hera`, `site`, custom Caddy.
+
+**Versioned but digest-pinned.** Operators reference images by digest, not version tag, in production compose ([ADR 0014](/docs/adrs/0014-image-digest-pinning)).
+
+Tags exist for human readability (`athena:v2.10.0`). The version is informational — actual deploys reference `athena@sha256:abc123...`.
+
+Bumping the digest in `compose.prod.yml` is a deliberate, audited action. Dependabot opens PRs for digest bumps; you review and merge.
+
+## Daedalus
+
+Daedalus is a desktop app. Versioned via `Cargo.toml` (Rust side) and `package.json` (frontend).
+
+Released as macOS bundles on GitHub Releases. Users update by downloading the new bundle.
+
+## Platform
+
+The `platform` repo is **not** versioned in the traditional sense. It's the compose configs and CI/CD. Operators fork, customize, deploy. Their fork has its own commits; there's no "platform v1" tag concept.
+
+The relevant versions for operators are:
+- The image digests in their compose.
+- The Caddy version (built reproducibly from a pinned Caddy commit).
+- The Kratos / Hydra versions (pinned in compose by digest).
+
+## Docs site
+
+The docs site is shipped with the Site repo. Versioned with Site's `package.json`. Updates push to `main` and deploy via the standard pipeline.
+
+## API versioning
+
+The Athena API doesn't currently version its endpoints. New endpoints are additive; breaking changes are avoided. If breaking changes become necessary, the convention will be:
+- `/api/v2/...` for new versions.
+- Old endpoints kept for one major Athena release before removal.
+
+Kratos and Hydra are versioned by Ory. Their API stability guarantees come from Ory; Olympus pins specific Ory versions in compose.
+
+## Compatibility matrix
+
+There isn't a formal one. The general rule:
+- Athena, Hera, Site at the same minor version as each other (released together).
+- SDK and Canvas at any compatible version.
+- Kratos / Hydra at the versions pinned in the platform fork being deployed.
+
+If you mix versions (e.g. an old Hera with a new Athena), test thoroughly. The flows have evolved.
+
+## End-of-life
+
+There's no formal EOL policy. Old major versions of Canvas/SDK are not actively maintained but published artifacts on npm remain installable indefinitely.
+
+For security fixes, the maintainer backports to the previous major version on a best-effort basis.
+
+## Related
+
+- [Develop — Release process](/docs/develop/release-process)
+- [ADR 0014 — Image digest pinning](/docs/adrs/0014-image-digest-pinning)
+- [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)

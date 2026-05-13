@@ -1,0 +1,148 @@
+---
+title: Mobile integration
+description: iOS and Android apps with Olympus
+---
+
+Mobile apps are **public clients** in OAuth2 terms — they can't keep secrets. Use **Authorization Code + PKCE** and a platform-specific OAuth2 library.
+
+## iOS
+
+Apple's recommended library is [AppAuth-iOS](https://github.com/openid/AppAuth-iOS).
+
+### Setup
+
+```swift
+import AppAuth
+
+let issuer = URL(string: "https://ciam.your-domain")!
+
+OIDAuthorizationService.discoverConfiguration(forIssuer: issuer) { configuration, error in
+    guard let config = configuration else { return }
+
+    let request = OIDAuthorizationRequest(
+        configuration: config,
+        clientId: "your-client-id",
+        scopes: [OIDScopeOpenID, OIDScopeProfile, "email", "offline_access"],
+        redirectURL: URL(string: "com.your-app://callback")!,
+        responseType: OIDResponseTypeCode,
+        additionalParameters: nil
+    )
+
+    self.currentAuthFlow = OIDAuthState.authState(
+        byPresenting: request,
+        presenting: self
+    ) { authState, error in
+        // authState.lastTokenResponse.accessToken
+    }
+}
+```
+
+### URL scheme
+
+In `Info.plist`, register `com.your-app://` as a custom URL scheme. The OAuth2 callback URL `com.your-app://callback` redirects back to your app.
+
+For tighter security, use **Universal Links** (`https://your-domain/callback`) instead of a custom scheme. iOS verifies domain ownership via `.well-known/apple-app-site-association`.
+
+### Storage
+
+`authState` includes refresh tokens. AppAuth-iOS persists via `NSCoding`. Store in **Keychain**:
+
+```swift
+import KeychainAccess
+
+let keychain = Keychain(service: "com.your-app.auth")
+let data = try NSKeyedArchiver.archivedData(withRootObject: authState, requiringSecureCoding: true)
+keychain["authState"] = data.base64EncodedString()
+```
+
+## Android
+
+Use [AppAuth-Android](https://github.com/openid/AppAuth-Android).
+
+### Setup
+
+```kotlin
+val authConfig = AuthorizationServiceConfiguration(
+    Uri.parse("https://ciam.your-domain/oauth2/auth"),
+    Uri.parse("https://ciam.your-domain/oauth2/token")
+)
+
+val authRequest = AuthorizationRequest.Builder(
+    authConfig,
+    "your-client-id",
+    ResponseTypeValues.CODE,
+    Uri.parse("com.your-app:/callback")
+).setScopes("openid", "profile", "email", "offline_access").build()
+
+val intent = authService.getAuthorizationRequestIntent(authRequest)
+startActivityForResult(intent, RC_AUTH)
+```
+
+### Redirect URI
+
+Use `com.your-app:/callback` (custom scheme) or App Links (HTTPS) — the latter is more secure.
+
+### Storage
+
+```kotlin
+val masterKey = MasterKey.Builder(this).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+val prefs = EncryptedSharedPreferences.create(
+    this,
+    "auth_prefs",
+    masterKey,
+    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+)
+prefs.edit().putString("authState", authState.jsonSerializeString()).apply()
+```
+
+Use Android Keystore-backed encrypted prefs.
+
+## React Native
+
+Use [`react-native-app-auth`](https://github.com/FormidableLabs/react-native-app-auth), which wraps AppAuth-iOS / AppAuth-Android.
+
+```js
+import { authorize } from 'react-native-app-auth';
+
+const config = {
+  issuer: 'https://ciam.your-domain',
+  clientId: 'your-client-id',
+  redirectUrl: 'com.your-app://callback',
+  scopes: ['openid', 'profile', 'email', 'offline_access'],
+};
+
+const result = await authorize(config);
+// result.accessToken, result.refreshToken
+```
+
+## Flutter
+
+Use the [`flutter_appauth`](https://pub.dev/packages/flutter_appauth) package.
+
+## OAuth2 client registration
+
+Register your mobile app as a public client in Athena:
+
+- Client type: **Public**
+- Token endpoint auth: **none**
+- Redirect URIs:
+  - `com.your-app://callback` (custom scheme)
+  - `https://your-domain/callback` (Universal Link / App Link)
+- PKCE: **mandatory** (Olympus enforces; see [ADR 0019](/docs/adrs/0019-pkce-mandatory-public-clients))
+
+Add `com.your-app://callback/<flow>` patterns as needed for different auth flows.
+
+## Things that bite
+
+- **PKCE is mandatory.** AppAuth handles this automatically — don't disable.
+- **Refresh token rotation.** Hydra rotates refresh tokens on each use; store the new one each refresh.
+- **Logout.** Use RP-initiated logout (`end_session_endpoint` from discovery). Send `id_token_hint` and a post-logout URI.
+- **Biometric step-up.** For sensitive ops, prompt biometric in your app, then call `/self-service/login/browser?aal=aal2&refresh=true`. Your app's "biometric" isn't directly Olympus AAL2 — you'd map this to a TOTP credential or WebAuthn credential the user enrolled.
+
+## Related
+
+- [Integrate — OAuth2 PKCE](/docs/integrate/oauth2-pkce)
+- [Integrate — SPA integration](/docs/integrate/spa-integration)
+- [Integrate — Refresh tokens](/docs/integrate/oauth2-refresh-tokens)
+- [ADR 0019 — PKCE mandatory](/docs/adrs/0019-pkce-mandatory-public-clients)

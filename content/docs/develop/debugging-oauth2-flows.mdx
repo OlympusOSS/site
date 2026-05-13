@@ -1,0 +1,112 @@
+---
+title: Debugging OAuth2 flows
+description: How to trace an OAuth2 flow end-to-end when something goes wrong
+---
+
+OAuth2 flows touch ~5 services. When something fails, isolating the failure point matters.
+
+## The five stops
+
+1. **Your app** initiates: redirects to `<hydra>/oauth2/auth?...`.
+2. **Hydra** receives, creates a login challenge, redirects to **Hera**.
+3. **Hera** displays login form (or auto-accepts if Kratos session exists), submits to Kratos.
+4. **Kratos** authenticates the user, returns to Hera. Hera accepts the Hydra login challenge.
+5. **Hydra** redirects to consent (Hera again, auto-grants), then redirects to your app's callback with code.
+6. **Your app** exchanges code at `/oauth2/token`.
+
+Each handoff is a potential failure point.
+
+## Tracing
+
+Use browser DevTools → Network tab → Preserve log. Reproduce the failing flow. You should see:
+
+```
+1.  GET https://your-app/login                                  302
+2.  GET https://ciam.<domain>/oauth2/auth?client_id=...          302
+3.  GET https://ciam.<domain>/login?login_challenge=...          302
+4.  GET https://ciam.<domain>/self-service/login/browser?...     200 (Hera renders form)
+5.  POST https://ciam.<domain>/self-service/login?flow=...       200 / 422 (Kratos validates)
+6.  GET https://ciam.<domain>/login?...                          302 (Hera accepts challenge)
+7.  GET https://ciam.<domain>/consent?consent_challenge=...      302 (auto-grant)
+8.  GET https://your-app/callback?code=...                       200 (your app handles code)
+```
+
+If the chain breaks at any step, look at:
+- The response status and Location header.
+- The browser console for JS errors.
+- The cookies sent and received.
+
+## Common breaks
+
+### Step 2 — Hydra returns 400
+
+```
+error: invalid_client
+error_description: Client authentication failed
+```
+
+The client_id is wrong or the client doesn't have the requested grant. Check Athena → OAuth2 Clients.
+
+### Step 5 — Kratos returns 422
+
+```json
+{ "error": { "id": "session_aal2_required" } }
+```
+
+The user's session needs step-up. Follow [Troubleshooting — Session AAL too low](/docs/troubleshooting/kratos-session-aal-too-low).
+
+### Step 5 — Kratos returns 400 with CSRF violation
+
+See [Troubleshooting — Kratos CSRF violation](/docs/troubleshooting/kratos-csrf-violation).
+
+### Step 8 — Your app's callback fails
+
+Check what your callback received:
+- Did `code` arrive in the URL? If not, Hydra is rejecting the consent / redirect.
+- Did your `/oauth2/token` exchange succeed? Look at the response. See [Troubleshooting — OAuth2 invalid_grant](/docs/troubleshooting/oauth2-invalid-grant).
+- Did PKCE verifier match? See [Troubleshooting — OAuth2 pkce_required](/docs/troubleshooting/oauth2-pkce-required).
+
+## Server-side logs
+
+In each step, the relevant service logs the action. Tail:
+
+```bash
+podman compose logs -f --since 10m ciam-hera ciam-kratos ciam-hydra
+```
+
+Look for:
+- Kratos: `flow_id`, `identity_id`, error messages.
+- Hydra: `client_id`, `challenge_id`, accept/reject decisions.
+- Hera: console.log of the flow handler.
+
+## OAuth2 playground
+
+The Site app at `https://your-domain/playground` exercises a complete Authorization Code + PKCE flow against your CIAM Hydra. Useful for confirming the platform itself works when you're debugging a specific app's integration.
+
+## Decode the tokens
+
+When you get tokens back, decode the ID token (it's a JWT):
+
+```bash
+echo "$ID_TOKEN" | cut -d. -f2 | base64 -d | jq
+```
+
+Check `iss`, `aud`, `iat`, `exp` are sane.
+
+## Hydra admin debugging
+
+If a flow is stuck, look at Hydra's perspective:
+
+```bash
+# Inspect a login challenge
+podman exec ciam-hydra hydra get login-request <challenge-id> --endpoint http://localhost:5003
+```
+
+Shows whether the challenge is accepted, rejected, expired, etc.
+
+## Related
+
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)
+- [Get Started — Your first OAuth2 client](/docs/get-started/first-oauth-client)
+- [Troubleshooting — OAuth2 invalid_grant](/docs/troubleshooting/oauth2-invalid-grant)
+- [Troubleshooting — Login loops](/docs/troubleshooting/login-loops)

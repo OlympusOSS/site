@@ -1,0 +1,86 @@
+---
+title: Contributing
+description: How to submit a patch upstream under the OFCL
+---
+
+The [Olympus Free Container License](/docs/license) permits local patches and upstream contributions. This page documents how to send those contributions back.
+
+## Before you start
+
+- Read the relevant [Internals](/docs/internals/overview) page for the area you want to change.
+- Check existing open issues and PRs to see if your change is already in flight.
+- For non-trivial changes, open an issue first to discuss approach.
+
+## Workflow
+
+1. **Fork** the relevant repo on GitHub (`athena`, `hera`, etc.).
+2. **Clone** your fork.
+3. **Branch** off `main`.
+4. **Make your change.**
+5. **Run tests:** `bun run test`, `bun run typecheck`, `bun run lint`.
+6. **Add a changeset:** `bun changeset` and describe the change.
+7. **Push** to your fork.
+8. **Open a PR** against `OlympusOSS/<repo>:main`.
+
+## Conventions
+
+- **Commit messages**: concise present-tense. "Fix lockout race condition" not "Fixed a bug." Body explains *why* if non-obvious.
+- **No co-author trailers** for upstreamed contributions (this is Olympus's preference; you can credit yourself in the PR description).
+- **Tests** for new behavior. No new feature without a test.
+- **Documentation** for user-visible changes. Update the relevant section of `site/content/docs/`.
+
+## Code style
+
+- Each repo has Biome (`bun run lint`) and TypeScript strict mode. CI fails on violations.
+- Existing patterns matter — match the surrounding code.
+- Don't introduce new dependencies without a clear justification. Olympus deliberately keeps the dependency tree small.
+
+## PR review
+
+PRs are reviewed by the maintainer (Bobby Nannier). Typical turnaround:
+- Within 24h: triage / comment.
+- Within 1 week: detailed review or merge.
+
+Larger or architecturally-significant PRs may take longer.
+
+## What gets merged
+
+- Bug fixes with clear reproduction.
+- Documentation improvements.
+- New cookbook recipes, migration guides, troubleshooting pages.
+- New features that align with [ADR 0001 et al.](/docs/adrs/overview) — single-host, dual-domain, opinionated.
+
+## What gets declined
+
+- Features that drift toward multi-tenancy beyond CIAM/IAM.
+- Features that add a Kubernetes dependency.
+- Features that contradict an existing ADR.
+- Changes that significantly increase the dependency tree without proportional value.
+
+These declines aren't personal — Olympus has a deliberate scope. If your need doesn't fit, fork and run your version.
+
+## Security disclosures
+
+For security-sensitive findings, **do not** open a public issue. Email `security@olympus.app` (or follow the link in the platform repo's `SECURITY.md`).
+
+The maintainer will acknowledge within 48 hours. Coordinated disclosure: ~30 days for fix + advisory before public.
+
+## License clarification
+
+By contributing, you affirm that your contribution is your original work (or properly attributed) and you agree it can be distributed under the [OFCL](/docs/license).
+
+Since Olympus is single-author (Bobby Nannier) at the time of writing, contributions implicitly merge into a project Bobby holds copyright on. The OFCL governs distribution; copyright stays with original authors of their parts.
+
+## Recognition
+
+Significant contributors are credited in:
+- The `CONTRIBUTORS.md` file in the relevant repo (if any).
+- The release notes when their PR merges.
+- The annual blog post (if applicable).
+
+## Related
+
+- [License](/docs/license)
+- [Develop — Workspace setup](/docs/develop/workspace-setup)
+- [Develop — Running tests](/docs/develop/running-tests)
+- [Develop — Release process](/docs/develop/release-process)

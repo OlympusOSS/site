@@ -1,0 +1,134 @@
+---
+title: Running tests
+description: Per-repo test commands and what they cover
+---
+
+Every Olympus repo uses Vitest as its primary test runner ([ADR 0020](/docs/adrs/0020-vitest-as-test-stack)). Most repos also have Playwright for end-to-end.
+
+## Per repo
+
+### athena
+
+```bash
+cd athena
+bun run test          # vitest run
+bun run test:watch    # vitest watch
+bun run test:e2e      # playwright test
+```
+
+Tests cover:
+- `services/kratos/*` adapters (mocked Ory clients).
+- `lib/*` utilities.
+- Route handlers (with mocked services).
+- A small Playwright suite that exercises login → identity create → identity delete.
+
+### hera
+
+```bash
+cd hera
+bun run test
+bun run test:e2e
+```
+
+Tests cover:
+- Captcha + breach-check integration.
+- Flow rendering with mocked Kratos.
+- Playwright login flow.
+
+### platform
+
+```bash
+cd platform
+bun run test
+```
+
+Tests cover:
+- The reload sidecar.
+- `init-db.sql` shape verification.
+- Compose YAML validation.
+
+### sdk
+
+```bash
+cd sdk
+bun run test
+```
+
+Tests cover:
+- Encryption format round-trip.
+- HKDF derivation.
+- Brute-force counter logic.
+- Settings cache TTL.
+
+### canvas
+
+```bash
+cd canvas
+bun run test
+```
+
+Tests cover component behavior (Vitest + React Testing Library) and visual regression via Playwright for a small set of components.
+
+### site
+
+```bash
+cd site
+bun run test:e2e
+```
+
+Site is mostly content; Vitest unit tests are minimal. The Playwright suite exercises the OAuth2 playground.
+
+### octl
+
+```bash
+cd octl
+bun run test
+```
+
+Tests cover CLI command parsing and the bundled stack file existence.
+
+### daedalus
+
+```bash
+cd daedalus
+bun run test                     # frontend tests (Vitest)
+cargo test --manifest-path src-tauri/Cargo.toml  # backend tests (Rust)
+```
+
+## Running everything
+
+From the parent `Olympus/` directory:
+
+```bash
+for repo in athena hera platform sdk canvas site octl daedalus; do
+  echo "=== $repo ==="
+  cd $repo
+  bun run test || echo "FAIL: $repo"
+  cd ..
+done
+```
+
+## CI
+
+Every push runs the test suite for the affected repo. CI workflows live at `.github/workflows/ci.yml` in each repo.
+
+## When tests fail in CI but pass locally
+
+Common causes:
+- **Environment vars.** Some tests pull from `process.env`. CI may not have them set.
+- **Snapshot files.** Vitest's `toMatchSnapshot` writes to disk; if CI's snapshot differs from local, you might have stale snapshots committed.
+- **Bun version mismatch.** Local Bun vs CI's Bun may behave differently. Pin via `package.json`'s `engines`.
+- **Network access.** CI runners may not have outbound to the same external services your local tests touch. Mock those.
+
+## Coverage
+
+```bash
+bun run test -- --coverage
+```
+
+Coverage isn't enforced as a CI gate by default — per directive ([No Coverage Until User Says Push](https://example.com)), iteration doesn't fail builds on coverage thresholds.
+
+## Related
+
+- [Develop — Testing strategy](/docs/develop/testing-strategy)
+- [ADR 0020 — Vitest as test stack](/docs/adrs/0020-vitest-as-test-stack)

@@ -1,0 +1,88 @@
+---
+title: Release process
+description: Changesets, version bumping, and GHCR publishing
+---
+
+Olympus repos use [Changesets](https://github.com/changesets/changesets) for version management and changelog generation.
+
+## When a release happens
+
+Every push to `main` that includes a changeset triggers a release workflow. The workflow:
+1. Aggregates changesets.
+2. Bumps version in `package.json` (or `Cargo.toml` for daedalus).
+3. Generates / updates `CHANGELOG.md`.
+4. Publishes to GHCR (for Athena, Hera, Site, Caddy) or npm (for Canvas, SDK, Octl).
+5. Tags the commit.
+
+## Adding a changeset
+
+After making code changes:
+
+```bash
+bun changeset
+```
+
+Interactive:
+1. Pick the type of change (`patch`, `minor`, `major`).
+2. Describe the change in one or two sentences.
+
+This writes a markdown file to `.changeset/`. Commit it alongside your code changes.
+
+## When to bump major / minor / patch
+
+- **patch**: bug fixes, documentation, internal refactors.
+- **minor**: new features, new exports, new config options (backward-compatible).
+- **major**: breaking changes — removed exports, renamed config keys, behaviour changes.
+
+For Olympus images (Athena, Hera, Site), version doesn't affect the image consumer's interface (they pull by digest, not version). Treat version as an information signal.
+
+For Canvas / SDK (npm packages), version follows strict semver — consumers using `^` ranges need to know what's safe to auto-upgrade.
+
+## Per-repo release tooling
+
+### Athena / Hera / Site
+
+`changeset publish` in CI:
+1. Builds the container.
+2. Pushes to `ghcr.io/olympusoss/<repo>:<version>`.
+3. Tags the digest.
+
+Operators consuming these images bump their compose's image digest after each release. The `platform` repo's `dependabot` config auto-PRs the bumps.
+
+### Canvas / SDK
+
+`changeset publish` in CI:
+1. Builds (well — runs validation; source-only packages don't have a build).
+2. Publishes to npm (or GitHub Packages).
+3. Tags.
+
+### Octl
+
+Bumping octl involves syncing its bundled `stack/` from the platform repo's current state. CI runs `octl/scripts/sync-stack.sh` as part of release.
+
+### Daedalus
+
+Daedalus is a desktop app. Releases are notarized macOS bundles uploaded to GitHub Releases. The flow involves Apple Developer code signing — see `daedalus/.github/workflows/release.yml`.
+
+## "Release the platform" doesn't exist
+
+The `platform` repo isn't released — it's the compose configs. Operators fork `platform`, customize, and deploy their fork. There's no "platform v1.0.5" — there's "platform at commit abc123."
+
+## Hot-fixing production
+
+If you discover a critical bug in a deployed image:
+
+1. Patch the offending repo.
+2. Add a `patch` changeset.
+3. Commit and push to main.
+4. CI publishes a new image to GHCR.
+5. Operators see the new image digest in dependabot PRs (or via the [Operate — Network Topology](/docs/operate/network-topology) → "What's running?" inventory) and bump their compose.
+6. Redeploy.
+
+End-to-end: ~30 minutes from patch to running in production.
+
+## Related
+
+- [Develop — Versioning](/docs/develop/versioning)
+- [ADR 0004 — Push-to-main deployment](/docs/adrs/0004-push-to-main-deployment)
+- [ADR 0014 — Image digest pinning](/docs/adrs/0014-image-digest-pinning)

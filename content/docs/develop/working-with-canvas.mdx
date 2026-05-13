@@ -1,0 +1,146 @@
+---
+title: Working with Canvas
+description: Adding components, the source-only contract, contributing
+---
+
+[Canvas](https://github.com/OlympusOSS/canvas) is the Olympus design system — 105 React components used by Athena, Hera, and Site. Canvas has its own dedicated docs site with a live playground: [olympusoss.github.io/canvas](https://olympusoss.github.io/canvas/).
+
+This page is for engineers **editing Canvas itself**.
+
+## Atomic-design tiers
+
+Components live under one of:
+- `atoms/` — indivisible primitives.
+- `molecules/` — combinations of atoms.
+- `organisms/` — complete sections.
+- `charts/` — data visualisation wrappers.
+
+When adding a component, choose the tier deliberately. If unsure, see [ADR 0026 — Atomic design in Canvas](/docs/adrs/0026-atomic-design-canvas).
+
+## Source-only contract
+
+Canvas ships TypeScript source (`main: ./src/index.ts`), not a built bundle. The consumer's build pipeline (Next.js, Vite) transpiles it. See [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages).
+
+Consequences for component authors:
+- **Only use syntax the consumers support.** Bun + Next.js (Webpack) is the lower bound. Avoid bleeding-edge TS features not supported there.
+- **No build artifacts to commit.** No `dist/`, no `lib/`.
+- **Tree-shaking matters.** Don't add side-effects (`import "./styles.css"` at module level). All side-effects must be opt-in via explicit imports.
+
+## Adding a component
+
+```bash
+cd canvas
+# Pick the tier
+mkdir src/components/atoms/badge-pulse
+touch src/components/atoms/badge-pulse/{index.tsx,index.test.tsx,playground.tsx}
+```
+
+`index.tsx`:
+
+```tsx
+import { cn } from "@/lib/cn";
+
+export interface BadgePulseProps {
+  variant?: "info" | "warn" | "danger";
+  children: React.ReactNode;
+}
+
+export function BadgePulse({ variant = "info", children }: BadgePulseProps) {
+  return (
+    <span className={cn(
+      "inline-flex items-center px-2 py-1 rounded-full text-xs",
+      variant === "warn" && "bg-yellow-100 text-yellow-800",
+      variant === "danger" && "bg-red-100 text-red-800",
+      variant === "info" && "bg-blue-100 text-blue-800",
+    )}>
+      <span className="mr-1 w-2 h-2 rounded-full bg-current animate-pulse" />
+      {children}
+    </span>
+  );
+}
+```
+
+`index.test.tsx`:
+
+```tsx
+import { render } from "@testing-library/react";
+import { BadgePulse } from "./index";
+
+test("renders danger variant", () => {
+  const { container } = render(<BadgePulse variant="danger">Live</BadgePulse>);
+  expect(container.firstChild).toHaveClass("bg-red-100");
+});
+```
+
+`playground.tsx` — used by Canvas's own docs site:
+
+```tsx
+import { BadgePulse } from "./index";
+
+export function Playground() {
+  return (
+    <div className="space-x-4">
+      <BadgePulse variant="info">Info</BadgePulse>
+      <BadgePulse variant="warn">Warn</BadgePulse>
+      <BadgePulse variant="danger">Danger</BadgePulse>
+    </div>
+  );
+}
+```
+
+Add the export to `src/index.ts`:
+
+```ts
+export { BadgePulse } from "./components/atoms/badge-pulse";
+```
+
+## Tailwind setup
+
+Canvas uses Tailwind v4. Components use Tailwind classes directly; no CSS-in-JS.
+
+Tokens (colors, spacing) live in `src/styles/tokens.css`. Consumers import this:
+
+```ts
+import "@olympusoss/canvas/styles/tokens.css";
+```
+
+Adding a new token: edit `tokens.css`, then expose via Tailwind's `theme.extend` (in consumer's `tailwind.config.js` or via Tailwind v4's CSS-first config).
+
+## Versioning
+
+Canvas follows strict semver. Adding a new export: minor bump. Removing an export or breaking a prop signature: major bump.
+
+Add a changeset:
+
+```bash
+bun changeset
+```
+
+## Linking for live development
+
+When you want changes in Canvas to immediately appear in Athena (or Hera, Site) running locally:
+
+```bash
+cd Olympus/canvas
+bun link
+
+cd ../athena
+bun link @olympusoss/canvas
+```
+
+Now Athena's `import { Button } from "@olympusoss/canvas"` resolves to your local `canvas/src/`. Edit, see changes, no rebuild.
+
+To unlink:
+
+```bash
+cd Olympus/athena
+bun unlink @olympusoss/canvas
+bun install   # re-pull the published version
+```
+
+## Related
+
+- [Repo map — Canvas](/docs/repo-map)
+- [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
+- [ADR 0026 — Atomic design in Canvas](/docs/adrs/0026-atomic-design-canvas)
+- [Canvas component playground](https://olympusoss.github.io/canvas/)
