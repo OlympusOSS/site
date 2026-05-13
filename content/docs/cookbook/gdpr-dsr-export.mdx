@@ -1,0 +1,110 @@
+---
+title: GDPR DSR — Data subject request export
+description: Export all data Olympus holds about an individual user
+---
+
+Under GDPR, individuals can request a copy of their personal data. This recipe builds an export script.
+
+## What's "their data"
+
+In Olympus, an individual's data is spread across:
+
+- **Kratos identity**: traits (email, name, etc.), verifiable addresses, recovery addresses.
+- **Kratos sessions**: historical sessions including IP and UA.
+- **Hydra OAuth2 consent decisions**: which apps the user authorized.
+- **Hydra OAuth2 token grants**: active and historical tokens.
+- **Kratos courier messages**: emails sent to/about the user (verification, recovery).
+- **Olympus audit log**: login attempts, lockouts, settings changes.
+- **Olympus locations**: session location history.
+
+## Export script
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+IDENTITY_ID=${1:?identity ID required}
+DOMAIN=${2:-ciam}   # ciam or iam
+
+OUT=$(mktemp -d)
+
+# 1. Kratos identity
+curl -s "http://${DOMAIN}-kratos:5001/admin/identities/$IDENTITY_ID" | jq > "$OUT/identity.json"
+
+# 2. Kratos sessions
+curl -s "http://${DOMAIN}-kratos:5001/admin/sessions?identity_id=$IDENTITY_ID" | jq > "$OUT/sessions.json"
+
+# 3. Hydra consent sessions
+curl -s "http://${DOMAIN}-hydra:5003/admin/oauth2/auth/sessions/consent?subject=$IDENTITY_ID" | jq > "$OUT/consents.json"
+
+# 4. Kratos courier messages (with this identity as recipient)
+EMAIL=$(jq -r '.traits.email' "$OUT/identity.json")
+curl -s "http://${DOMAIN}-kratos:5001/admin/courier/messages?recipient=$EMAIL" | jq > "$OUT/courier-messages.json"
+
+# 5. Olympus audit log
+podman exec olympus-postgres psql -U postgres -d olympus -c "
+  COPY (SELECT * FROM security_audit WHERE identity_id = '$IDENTITY_ID' AND domain = '$DOMAIN')
+    TO STDOUT WITH CSV HEADER
+" > "$OUT/audit-log.csv"
+
+# 6. Olympus location history
+podman exec olympus-postgres psql -U postgres -d olympus -c "
+  COPY (SELECT * FROM locations WHERE identity_id = '$IDENTITY_ID' AND domain = '$DOMAIN')
+    TO STDOUT WITH CSV HEADER
+" > "$OUT/locations.csv"
+
+# Bundle
+tar czf "/exports/dsr-$IDENTITY_ID.tar.gz" -C "$OUT" .
+echo "Exported to /exports/dsr-$IDENTITY_ID.tar.gz"
+```
+
+## Sanitization
+
+Some fields you may want to redact even in a self-export:
+- Other users' email addresses if they appear in courier messages (CCs).
+- Internal admin notes (`metadata_admin` on the identity).
+
+Decide per your DPA.
+
+## Encryption
+
+Send to the user encrypted at rest. PGP if they have a key; otherwise a strong shared password.
+
+## Deletion (right-to-erasure)
+
+GDPR also gives the right to deletion. Olympus's deletion path:
+
+```bash
+# Hard delete the identity (Kratos)
+curl -X DELETE "http://ciam-kratos:5001/admin/identities/$IDENTITY_ID"
+
+# Soft-delete or anonymize the audit log
+podman exec olympus-postgres psql -U postgres -d olympus -c "
+  UPDATE security_audit SET identity_id = NULL WHERE identity_id = '$IDENTITY_ID';
+"
+
+# Decide on locations / login_attempts (anonymize or delete)
+```
+
+Anonymization (set `identity_id` to NULL) preserves audit completeness while honoring the deletion request — recommended over full delete.
+
+## Logging the DSR
+
+Record that a DSR was fulfilled:
+
+```sql
+INSERT INTO security_audit (event_type, metadata)
+VALUES ('gdpr_dsr_export', json_build_object('identity_id', '$IDENTITY_ID', 'requested_by', '$REQUESTER'));
+```
+
+(After anonymizing the original `identity_id` references, the audit log entry itself doesn't reference the deleted identity — but it does record that the request happened.)
+
+## SLA
+
+GDPR requires response within 30 days. Have a documented runbook so any operator can execute.
+
+## Related
+
+- [Operate — Audit log retention](/docs/operate/audit-log-retention)
+- [Security — Threat model](/docs/security/threat-model)
+- [Identity — Identity schemas](/docs/identity/identity-schemas)

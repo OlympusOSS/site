@@ -1,0 +1,106 @@
+---
+title: Add a feature flag to the settings vault
+description: Use the settings vault for runtime-configurable feature flags
+---
+
+Olympus's settings vault (via `@olympusoss/sdk`) supports arbitrary key-value pairs. Use it for feature flags — runtime-configurable booleans, scopes, percentages.
+
+## Define the key
+
+By convention: `<repo>.<feature>.<aspect>`. Examples:
+- `hera.captcha.enabled` (boolean)
+- `hera.breach_check.threshold` (number)
+- `athena.maintenance_banner.message` (string)
+
+Per-domain: each domain has its own `<domain>_settings` table. So a flag in CIAM doesn't affect IAM.
+
+## Set via Athena UI
+
+Athena → Settings → New Setting:
+- Key: `hera.captcha.enabled`
+- Value: `false`
+- Encrypted? **No** (flags aren't sensitive)
+
+Save. The setting is immediately readable by any container.
+
+## Read in code
+
+```ts
+import { getSetting } from "@olympusoss/sdk";
+
+const enabled = await getSetting("ciam", "hera.captcha.enabled");
+if (enabled === "true") {
+  // render captcha
+}
+```
+
+The settings vault returns `string | null` — convert to bool/number/etc. at read time.
+
+## Caching
+
+The SDK's settings cache (`SettingsCache`) keeps hot reads in memory for 60s. After a flag flip, propagation takes up to 60s across containers.
+
+For instant propagation, invalidate the cache:
+
+```ts
+import { settingsCache } from "@olympusoss/sdk";
+settingsCache.invalidate("hera.captcha.enabled");
+```
+
+But the cache is per-process — invalidation only affects the container you're in. Across all containers, wait the cache TTL.
+
+For settings where instant propagation matters across many containers, lower the cache TTL globally or skip the cache for that specific key.
+
+## Conditional features
+
+Boolean flags are simplest. For percentage rollouts:
+
+```ts
+const pct = parseInt(await getSetting("ciam", "feature.beta_widget.rollout_pct")) || 0;
+const userBucket = hashIdentityId(identity.id) % 100;
+if (userBucket < pct) {
+  // enable for this user
+}
+```
+
+The flag is `0` → off for everyone, `50` → half users, `100` → everyone.
+
+## Per-identity flags
+
+For per-identity flags, use traits instead of the settings vault. The vault is for global / per-domain config.
+
+```json
+// identity schema
+"feature_flags": {
+  "type": "object",
+  "properties": {
+    "beta_widget": { "type": "boolean" }
+  }
+}
+```
+
+Then in app code: `identity.traits.feature_flags?.beta_widget`.
+
+## Audit
+
+Settings changes are audit-logged (see [Security — Brute-force](/docs/security/brute-force) — same audit table). You can see who changed which flag when.
+
+```sql
+SELECT event_type, metadata, created_at
+FROM security_audit
+WHERE event_type = 'settings.changed'
+  AND metadata->>'key' = 'hera.captcha.enabled'
+ORDER BY created_at DESC;
+```
+
+## When NOT to use the settings vault
+
+- **High-frequency reads** (>100/sec): the SDK cache handles this, but consider whether the flag belongs in code-level config.
+- **Secrets**: use `encrypted: true` (the SDK encrypts at rest). The flag value isn't accidentally leaked.
+- **Cross-domain shared state**: CIAM and IAM have separate vaults. For something both domains read, write to both or use environment.
+
+## Related
+
+- [Reference — SDK Settings API](/docs/reference/api-sdk-settings)
+- [Reference — Athena Settings API](/docs/reference/api-athena-settings)
+- [Internals — SDK Modules](/docs/internals/sdk-modules)
