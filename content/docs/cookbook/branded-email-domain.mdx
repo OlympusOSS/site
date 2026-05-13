@@ -1,0 +1,239 @@
+---
+title: Send email from your customer's domain
+description: White-label transactional email
+---
+
+In white-label SaaS, your customers want auth emails to come from THEIR domain, not yours.
+
+Customer: Acme Corp. End user: alice@bigcorp.com.
+
+Without:
+```
+From: noreply@your-saas.com
+Subject: Reset your password
+"Click to reset for Acme Corp..."
+```
+
+User sees @your-saas.com. Confusing — they expected acme.com email.
+
+With:
+```
+From: noreply@acme.com
+Subject: Reset your Acme account password
+```
+
+User sees their company's domain. Consistent.
+
+## Implementation
+
+### Step 1: Customer adds DNS
+
+Customer's IT admin adds DNS records:
+
+```
+acme.com SPF: v=spf1 include:_spf.your-ESP.com -all
+acme.com DKIM: TXT record with your ESP's key
+acme.com DMARC: v=DMARC1; p=quarantine; rua=mailto:dmarc@acme.com
+```
+
+OR for full per-customer isolation:
+
+```
+mail.acme.com → CNAME to your ESP's tracking domain
+```
+
+### Step 2: Verify domain
+
+```ts
+async function verifyDomain(customerId, domain) {
+  // Step 1: ask ESP to provision the domain
+  const ddi = await sendgrid.domain.create({ domain });
+  
+  // Step 2: customer adds DNS records
+  // ...
+  
+  // Step 3: verify
+  const verified = await sendgrid.domain.verify(ddi.id);
+  if (!verified) return { error: "dns_not_propagated" };
+  
+  // Step 4: mark verified for customer
+  await db.update("customer_email_domains").set({ verified_at: new Date() }).where({ id: ddi.id });
+}
+```
+
+### Step 3: Send from customer's domain
+
+```ts
+async function sendVerificationEmail(user, customer) {
+  const fromDomain = customer.email_domain ?? "your-saas.com";  // fallback
+  
+  await sendgrid.send({
+    from: `noreply@${fromDomain}`,
+    to: user.email,
+    subject: `Reset your ${customer.name} account password`,
+    text: `Hi, click here to reset: ${url}`,
+  });
+}
+```
+
+## ESP options
+
+Most transactional ESPs support per-customer domains:
+
+- **SendGrid Inbound Parse / Domain Authentication**.
+- **Postmark Sender Signatures + Domains**.
+- **AWS SES Configuration Sets**.
+- **Resend Domains**.
+
+Each has their own provisioning flow.
+
+## Per-domain templates
+
+Branding in emails:
+
+```text
+From: noreply@acme.com
+Subject: Reset your password
+
+Hi Alice,
+
+Click below to reset your Acme password:
+{{ url }}
+
+— The Acme team
+```
+
+Customer's branding throughout. Template per customer? OR shared template with customer-specific variables.
+
+Variables:
+
+```yaml
+customer:
+  name: "Acme"
+  primary_color: "#FF5733"
+  logo_url: "https://acme.com/logo.png"
+  support_email: "support@acme.com"
+```
+
+Inject into template:
+
+```
+"Hi, {{ user.first_name }}, this is from {{ customer.name }}..."
+```
+
+## Reply-to
+
+Even from `noreply@acme.com`, replies might come back to your-saas.com. Avoid:
+
+```ts
+await sendgrid.send({
+  from: `noreply@${customerDomain}`,
+  replyTo: customer.support_email,
+  ...
+});
+```
+
+User replies → goes to acme.com's support, not yours.
+
+## Bounce handling
+
+When email to `alice@example.com` bounces, the bounce goes back to the `From` domain.
+
+Option A: bounces handled at customer's domain (their problem).
+Option B: bounces routed to your-saas.com via Return-Path.
+
+Most ESPs handle Return-Path automatically — bounces come to ESP for tracking, both you and customer see metrics.
+
+## DKIM rotation
+
+DKIM keys rotate occasionally. ESP handles, customer DNS records reference key by selector:
+
+```
+selector1._domainkey.acme.com → CNAME → ...
+selector2._domainkey.acme.com → CNAME → ...
+```
+
+Two selectors. When one rotates, fallback. No service interruption.
+
+## Spam considerations
+
+Sending from customer's domain has trade-offs:
+
+Pros:
+- User trusts the domain.
+- Anti-phishing: hard for attacker to spoof acme.com if SPF/DKIM/DMARC right.
+
+Cons:
+- Customer's sender reputation affects deliverability. Their cold list = your problem.
+- DMARC misconfig blocks delivery silently.
+
+Educate customers on email best practices.
+
+## Fallback to your domain
+
+If customer's domain isn't verified yet:
+
+```ts
+const fromDomain = customer.email_domain_verified ? customer.email_domain : "your-saas.com";
+```
+
+Send from yours. Once they verify, switch.
+
+## Tracking
+
+Add a tracking pixel? Differentiated per customer:
+
+```html
+<img src="https://track.your-saas.com/open?customer=acme&email=alice@example.com" />
+```
+
+Or use ESP's built-in tracking (most embed automatically).
+
+Privacy: disclose tracking in customer's privacy policy.
+
+## Cost
+
+Some ESPs charge per domain:
+- SendGrid: included.
+- Postmark: 1 sender signature per account; need per-customer servers.
+- Resend: included.
+
+Pick ESP that fits your white-label model.
+
+## Multi-tenant courier
+
+Kratos's courier supports configurable per-flow templates and senders. Override at runtime:
+
+```yaml
+# Webhook from Kratos calls your service to enrich
+courier:
+  channels:
+    - id: email
+      type: http
+      request_config:
+        url: http://your-mailer:3000/send
+```
+
+Your mailer service:
+```ts
+app.post("/send", async (req, res) => {
+  const { recipient, subject, body, identity_id } = req.body;
+  const customer = await getCustomerForIdentity(identity_id);
+  await sendgrid.send({
+    from: `noreply@${customer.email_domain}`,
+    to: recipient,
+    subject,
+    text: body,
+  });
+  res.json({ ok: true });
+});
+```
+
+Per-recipient customer lookup; right domain.
+
+## Related
+
+- [Cookbook — White-label SaaS customer](/docs/cookbook/whitelabel-saas-customer)
+- [Cookbook — Custom email templates](/docs/cookbook/custom-email-templates)
+- [Cookbook — Email template version control](/docs/cookbook/email-template-version-control)
+- [Operate — Email deliverability](/docs/operate/email-deliverability)
