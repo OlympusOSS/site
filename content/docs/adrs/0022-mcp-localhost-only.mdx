@@ -1,0 +1,80 @@
+---
+title: "0022 — Daedalus MCP server is localhost-only"
+description: Why the Daedalus MCP server binds to 127.0.0.1 only, with no opt-in for network exposure
+---
+
+**Status:** Accepted
+**Date:** 2026-03
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+[Daedalus](/docs/repo-map) is the desktop deployment wizard. It embeds an HTTP / JSON-RPC 2.0 MCP server that exposes 8 tools (screenshot, get_page, navigate, click, form_input, read_context, terminal_exec, terminal_read). Claude or any MCP client can call these tools to drive the wizard programmatically — the same actions a human can click through, but automatable.
+
+The MCP server's capabilities include:
+- Reading the current wizard state and deployment context (`read_context` — exposes secrets in progress).
+- Executing terminal commands (`terminal_exec` — full shell access).
+- Capturing screenshots of the wizard (including any visible secrets).
+- Navigating to any wizard page (including the Secrets page where keys are visible).
+
+These capabilities are **deliberately powerful** — the MCP is intended to let Claude drive a full deployment end-to-end. They are also **dangerous if exposed**: an attacker reaching the MCP server can drive Daedalus to deploy to attacker-controlled infrastructure, exfiltrate secrets, or destroy a live deployment.
+
+## Considered alternatives
+
+### Option A — Bind MCP to 0.0.0.0 (all interfaces), require auth token
+
+The MCP server listens on the network. Every request includes a bearer token; without it the server refuses.
+
+- *Pros*: Remote agents (running on a different machine) can drive Daedalus.
+- *Cons*: Increases attack surface significantly. Network-attached MCP means anyone on the same LAN, VPN, or with port-forwarded access can attempt to authenticate. A leaked or weak token compromises the whole deployment. Operators may not realize their MCP is reachable.
+
+### Option B — Bind MCP to 127.0.0.1 only ✓
+
+The MCP server binds to localhost. No network attacker can reach it. The MCP client must run on the same machine as Daedalus.
+
+- *Pros*: Massive reduction in attack surface. Even a misconfigured firewall doesn't expose it. No token to manage, no rotation.
+- *Cons*: Remote agents can't drive Daedalus directly. The user must run their MCP client (Claude Code, etc.) locally — which is the typical setup anyway.
+
+### Option C — Bind to 127.0.0.1 by default, opt-in to network exposure
+
+Default to localhost but allow `--bind 0.0.0.0` for advanced users.
+
+- *Pros*: Flexibility.
+- *Cons*: Defaults are powerful — the moment a "easy CI/CD recipe" suggests `--bind 0.0.0.0`, every blog-post follower deploys an attackable MCP.
+
+## Decision
+
+**Option B — localhost-only with no opt-in.**
+
+The MCP server is hard-coded to bind to `127.0.0.1:14210`. There is no flag to bind elsewhere. If a remote use case emerges, a separate ADR will revisit.
+
+## Consequences
+
+### Security
+
+- The MCP attack surface is effectively zero. To reach it, an attacker needs local code execution on the operator's machine — at which point they have full access regardless of the MCP.
+- No bearer token to leak, no auth UI to misconfigure, no per-tool authorization gates.
+
+### Convenience
+
+- The MCP client (Claude Code, an MCP-enabled chat) must run on the same machine as Daedalus. In practice, this is how everyone uses it.
+- Remote-pair workflows where one engineer drives the deployment via MCP while another watches over Zoom: still possible, just via screen-share rather than direct MCP access.
+
+### Future flexibility
+
+- If a legitimate remote-MCP use case emerges, we revisit this ADR. Possible mitigations:
+  - Reverse-tunnel via SSH (`-L 14210:localhost:14210`) — works today without code changes.
+  - Cloudflare Tunnel — also works today.
+  - Native network mode with token + IP allowlist + rate limit — would require new code, careful review.
+
+The current "localhost only" doesn't preclude future flexibility — it just doesn't pretend to it.
+
+## Related
+
+- [Internals — Daedalus MCP Server](/docs/internals/daedalus-mcp-server) — implementation details.
+- [Integrate — MCP with Daedalus](/docs/integrate/mcp-with-daedalus) — how to drive Daedalus from an MCP client.
+
+## Revisit triggers
+
+- Compelling remote-deployment use case where SSH tunneling is impractical.
+- MCP protocol evolves to include built-in auth/authorization that we can rely on.

@@ -1,0 +1,106 @@
+---
+title: Identity schemas
+description: How Kratos identity traits are modeled in Olympus
+---
+
+Kratos describes the shape of an identity's **traits** using a JSON Schema (draft-07). Olympus ships four schemas — three for the CIAM domain (default, customer, company) and one for the IAM domain (admin) — plus dev and prod variants of each.
+
+## Why JSON Schema
+
+JSON Schema buys three things:
+1. **Validation at write time** — Kratos rejects identities that don't conform, before persisting.
+2. **Typed UI generation** — the registration / settings UI is generated from the schema by Hera using `@rjsf/core`. Changing the schema changes the UI.
+3. **Credential bindings** — schemas use Kratos's `ory.sh/kratos` extension to declare which traits are identifiers (login keys), which need verification, which can be used for recovery.
+
+See [ADR 0011 — JSON Schema Identity Model](/docs/adrs/0011-json-schema-identity).
+
+## The four schemas
+
+| Schema | Domain | Purpose |
+| --- | --- | --- |
+| **Default (CIAM)** | CIAM | Baseline schema with email + name. New deployments start here. |
+| **Customer (CIAM)** | CIAM | Extended customer schema with additional traits (e.g. company linkage). |
+| **Company (CIAM)** | CIAM | Identity schema for B2B customer organizations (not individuals). |
+| **Admin (IAM)** | IAM | Employee identity with role and admin-specific traits. |
+
+The generated field-level reference is at [Reference — Schemas](/docs/reference/schemas/identity-schemas).
+
+## What goes in a trait?
+
+A trait is **any data that uniquely belongs to one identity** — email, name, phone, language preference, role, organization linkage.
+
+Things that **do not** go in traits:
+- Passwords or any credential material — Kratos stores credentials separately and never in traits.
+- Application-level state (subscription tier, account flags) — keep that in your application database, keyed by the identity ID.
+- Session state — Kratos manages sessions.
+
+## What makes a trait an identifier?
+
+Traits become **identifiers** (i.e. you can log in with them) via the `ory.sh/kratos` extension:
+
+```json
+"email": {
+  "type": "string",
+  "format": "email",
+  "title": "Email",
+  "ory.sh/kratos": {
+    "credentials": {
+      "password": { "identifier": true },
+      "webauthn": { "identifier": true }
+    },
+    "verification": { "via": "email" },
+    "recovery": { "via": "email" }
+  }
+}
+```
+
+This snippet says:
+- `email` is the username for password login.
+- `email` is the username for WebAuthn challenges.
+- `email` is sent verification messages.
+- `email` is sent recovery codes.
+
+You can have multiple identifier traits — Olympus's default schema declares `email` as the sole identifier, but a schema could declare both `email` and `username` and let users log in with either.
+
+## Email verification
+
+Email is verified via the standard Kratos verification flow. The `email_verified` claim that comes from a social IdP is **not trusted** — Kratos always runs its own verification. See [Security — OIDC `email_verified` trust](/docs/security/oidc-email-verified-trust).
+
+## Per-schema reference
+
+- [CIAM default](/docs/reference/schemas/ciam-default) — baseline schema (full field table).
+- [CIAM customer](/docs/reference/schemas/ciam-customer)
+- [CIAM company](/docs/reference/schemas/ciam-company)
+- [IAM admin](/docs/reference/schemas/iam-admin)
+
+## Adding a trait
+
+The end-to-end procedure:
+
+1. Edit the appropriate schema in `platform/dev/<domain>-kratos/` (for dev) or `platform/prod/<domain>-kratos/` (for prod).
+2. Add the trait definition with type, format, title.
+3. If the trait is required, add it to the `required` array.
+4. Run schema reload via the sidecar (see [Operate — Reload API Key Rotation](/docs/operate/reload-api-key-rotation) for how the sidecar works).
+5. Existing identities don't backfill — they get the trait set to `undefined`. If you make a new trait required, you'll need a migration that sets a default value on existing identities.
+
+For non-required traits, no migration is needed.
+
+## Switching schemas
+
+Identities reference their schema via a `schema_id` field. To migrate an identity to a different schema:
+
+1. The new schema must be a superset (or compatible) of the current schema's traits — or you handle the conversion manually.
+2. Use the Kratos admin API: `PATCH /admin/identities/<id>` with `schema_id: "new-schema-id"`.
+3. Kratos re-validates the identity against the new schema and rejects the patch if the traits don't conform.
+
+## Schema reload
+
+A Kratos config or schema change requires Kratos to reload. The platform has a sidecar that listens on `RELOAD_API_KEY` and triggers a SIGHUP to Kratos. See [Operate — Reload API Key Rotation](/docs/operate/reload-api-key-rotation).
+
+Schema reload is **near-instant** for the running process. There is no need to restart the container.
+
+## Where next
+
+- [Reference — Schemas](/docs/reference/schemas/identity-schemas) — generated field tables.
+- [Identity — Identifiers and verification](/docs/identity/identifiers-and-verification) — the verification lifecycle in detail.
+- [Identity — Account linking](/docs/identity/account-linking) — linking social IdPs to an existing password identity.

@@ -1,0 +1,125 @@
+---
+title: Use Olympus as the OIDC IdP for Grafana
+description: Configure Grafana to authenticate users against the Olympus IAM domain
+---
+
+This recipe wires Grafana's OAuth2 / OIDC authentication to the Olympus **IAM** domain. After completion, your employees log into Grafana via Hera IAM. Their Grafana role is mapped from a trait on their Kratos identity.
+
+## Prerequisites
+
+- A running Olympus deployment (IAM Hydra reachable at `https://iam.<domain>`).
+- A running Grafana instance. Tested with Grafana 10.x.
+- IAM admin access to Athena IAM.
+
+## Step 1: Register Grafana as an OAuth2 client
+
+In **Athena IAM** → **OAuth2 Clients** → **New Client**:
+
+- Name: `grafana`
+- Client type: **Confidential** (Grafana has a server-side configuration; can keep a secret)
+- Grant types: `authorization_code`, `refresh_token`
+- Response types: `code`
+- Scopes: `openid`, `profile`, `email`, `offline_access`
+- Redirect URIs: `https://grafana.<your-domain>/login/generic_oauth`
+- Token endpoint auth method: `client_secret_basic`
+
+Save. Note the **client_id** and **client_secret** that Hydra returns.
+
+## Step 2: Configure Grafana
+
+In Grafana's `grafana.ini` (or via environment variables — the `GF_*` form below works in containers):
+
+```ini
+[auth.generic_oauth]
+enabled = true
+name = Olympus
+allow_sign_up = true
+client_id = <your-client-id>
+client_secret = <your-client-secret>
+scopes = openid email profile offline_access
+auth_url = https://iam.<your-domain>/oauth2/auth
+token_url = https://iam.<your-domain>/oauth2/token
+api_url = https://iam.<your-domain>/userinfo
+allowed_domains = <your-domain>     ; optional: restrict to a specific email domain
+
+; Map Grafana role from the Kratos identity trait
+role_attribute_path = (contains(traits.groups[*], 'grafana_admin') && 'Admin') || (contains(traits.groups[*], 'grafana_editor') && 'Editor') || 'Viewer'
+
+; Logout redirects to Olympus's RP-initiated logout
+signout_redirect_url = https://iam.<your-domain>/oauth2/sessions/logout
+```
+
+Or as env vars:
+
+```bash
+GF_AUTH_GENERIC_OAUTH_ENABLED=true
+GF_AUTH_GENERIC_OAUTH_CLIENT_ID=<id>
+GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=<secret>
+GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://iam.<your-domain>/oauth2/auth
+GF_AUTH_GENERIC_OAUTH_TOKEN_URL=https://iam.<your-domain>/oauth2/token
+GF_AUTH_GENERIC_OAUTH_API_URL=https://iam.<your-domain>/userinfo
+GF_AUTH_GENERIC_OAUTH_SCOPES="openid email profile offline_access"
+GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH="(contains(traits.groups[*], 'grafana_admin') && 'Admin') || (contains(traits.groups[*], 'grafana_editor') && 'Editor') || 'Viewer'"
+GF_AUTH_GENERIC_OAUTH_SIGNOUT_REDIRECT_URL=https://iam.<your-domain>/oauth2/sessions/logout
+```
+
+Restart Grafana.
+
+## Step 3: Add the role group to your identity schema
+
+The role mapping above reads `traits.groups[]` from the identity. Add this trait to your IAM admin schema if it isn't there:
+
+```json
+{
+  "groups": {
+    "type": "array",
+    "items": { "type": "string" },
+    "title": "Group memberships",
+    "description": "Used by downstream apps for role mapping"
+  }
+}
+```
+
+Then for each IAM identity that should access Grafana:
+
+```bash
+# Via Athena IAM API
+PATCH /api/identities/<id>
+{
+  "traits": {
+    ...,
+    "groups": ["grafana_admin"]
+  }
+}
+```
+
+## Step 4: First login
+
+1. Open `https://grafana.<your-domain>/login`.
+2. Click **Sign in with Olympus**.
+3. Authenticate via Hera IAM (your IAM admin credentials).
+4. Consent (auto-granted for the configured scopes).
+5. Land in Grafana with the role corresponding to your `groups` membership.
+
+## Verification
+
+- Decoding the `id_token` issued during the flow should show your `traits.groups` (Hydra includes `traits.*` in the ID token claims).
+- Grafana's admin UI → Users → Your User shows `Login source: oauth_generic_oauth` and your role.
+
+## Troubleshooting
+
+- **"OAuth login failed: invalid_client"** — `client_id` or `client_secret` is wrong. Verify in Athena.
+- **"OAuth login failed: redirect_uri_mismatch"** — Grafana's callback isn't in the client's allowed list. Check Athena → Client → Redirect URIs.
+- **"Role assigned: Viewer but I should be Admin"** — `role_attribute_path` JMESPath is failing to match. Test in the [JMESPath playground](https://jmespath.org/) with the actual ID token claims as input.
+- **No logout** — Grafana's signout doesn't trigger Olympus's RP-initiated logout unless `signout_redirect_url` is set. Check the config.
+
+## Why IAM (not CIAM)
+
+Grafana is an internal tool — employees only. Use IAM. If you ever need to grant a customer access to Grafana, that's an exceptional case; the standard pattern is to expose the underlying dashboards via your own product UI authenticated against CIAM.
+
+## Related
+
+- [Integrate — OAuth2 Authorization Code](/docs/integrate/oauth2-authorization-code) — the underlying flow.
+- [Cookbook — Use Olympus as OIDC IdP for ArgoCD](/docs/cookbook/olympus-as-idp-argocd) — same pattern, different consumer.
+- [Cookbook — Use Olympus as OIDC IdP for pgAdmin](/docs/cookbook/olympus-as-idp-pgadmin) — already in-tree (pgAdmin SSO is built in).
+- [Security — pgAdmin DBA Accounts](/docs/security/pgadmin-dba-accounts) — the role-mapping pattern Olympus uses for pgAdmin, generalized to Grafana here.

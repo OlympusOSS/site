@@ -1,0 +1,111 @@
+---
+title: OIDC discovery
+description: Discovering OAuth2/OIDC endpoints programmatically
+---
+
+OpenID Connect Discovery (RFC) lets a client discover an OIDC provider's endpoints without hard-coding URLs. Olympus exposes the standard discovery endpoint on every Hydra instance.
+
+## The endpoint
+
+```
+GET https://<hydra-host>/.well-known/openid-configuration
+```
+
+Per Olympus port layout:
+
+| Domain | URL |
+| --- | --- |
+| CIAM (dev) | `http://localhost:3102/.well-known/openid-configuration` |
+| IAM (dev) | `http://localhost:4102/.well-known/openid-configuration` |
+| CIAM (prod) | `https://ciam.your-domain/.well-known/openid-configuration` |
+| IAM (prod) | `https://iam.your-domain/.well-known/openid-configuration` |
+
+No authentication required.
+
+## Response shape
+
+```json
+{
+  "issuer": "https://ciam.your-domain",
+  "authorization_endpoint": "https://ciam.your-domain/oauth2/auth",
+  "token_endpoint": "https://ciam.your-domain/oauth2/token",
+  "userinfo_endpoint": "https://ciam.your-domain/userinfo",
+  "jwks_uri": "https://ciam.your-domain/.well-known/jwks.json",
+  "revocation_endpoint": "https://ciam.your-domain/oauth2/revoke",
+  "introspection_endpoint": "https://ciam.your-domain/admin/oauth2/introspect",
+  "end_session_endpoint": "https://ciam.your-domain/oauth2/sessions/logout",
+  "response_types_supported": ["code", "id_token", "code id_token"],
+  "subject_types_supported": ["public"],
+  "id_token_signing_alg_values_supported": ["RS256"],
+  "scopes_supported": ["openid", "offline", "offline_access", "profile", "email"],
+  "token_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "none",
+    "private_key_jwt"
+  ],
+  "claims_supported": ["sub", "email", "email_verified", "name"],
+  "code_challenge_methods_supported": ["S256"]
+}
+```
+
+Olympus only advertises `S256` as a PKCE challenge method — `plain` is rejected. See [ADR 0019](/docs/adrs/0019-pkce-mandatory-public-clients).
+
+## Using discovery in your client
+
+### Node.js (oauth4webapi)
+
+```ts
+import * as oauth from "oauth4webapi";
+
+const issuer = new URL("https://ciam.your-domain");
+const as = await oauth
+  .discoveryRequest(issuer)
+  .then((res) => oauth.processDiscoveryResponse(issuer, res));
+
+// as.authorization_endpoint, as.token_endpoint, as.jwks_uri, etc.
+```
+
+### Python (authlib)
+
+```python
+from authlib.integrations.requests_client import OAuth2Session
+
+oauth = OAuth2Session(client_id="...", client_secret="...")
+metadata = oauth.fetch_token(
+    "https://ciam.your-domain/.well-known/openid-configuration",
+)
+```
+
+### Go (coreos/go-oidc)
+
+```go
+provider, err := oidc.NewProvider(ctx, "https://ciam.your-domain")
+// provider.Endpoint().AuthURL, provider.Endpoint().TokenURL
+```
+
+## JWKS
+
+`jwks_uri` returns the JSON Web Key Set used to sign ID tokens and JWT access tokens. Cache it per the `Cache-Control` header (Hydra defaults to 1 hour).
+
+```
+GET https://ciam.your-domain/.well-known/jwks.json
+```
+
+Rotated automatically by Hydra; keep multiple keys in your JWKS cache to handle in-flight tokens during rotation.
+
+## When discovery isn't enough
+
+Some non-standard endpoints aren't in the discovery document:
+- The **admin** introspection endpoint (`/admin/oauth2/introspect`) is admin-only and not generally discoverable. The `introspection_endpoint` in discovery may point at the admin endpoint; check whether your client should authenticate as admin or whether you should use a different validation strategy.
+- The **logout** endpoint requires `id_token_hint` from your prior session — see [RP-initiated logout](/docs/integrate/logout-rp-initiated).
+
+## Caching
+
+Cache the discovery document for ~5 minutes minimum, ~1 hour maximum. The endpoint changes are rare but possible (e.g. after a domain rename). Use the response's `Cache-Control` header as the cache TTL.
+
+## Related
+
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)
+- [Integrate — OIDC userinfo](/docs/integrate/oidc-userinfo)
+- [Reference — Hydra discoveroidcconfiguration](/docs/reference/api/hydra/oidc/discoveroidcconfiguration)

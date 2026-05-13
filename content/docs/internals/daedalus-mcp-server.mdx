@@ -1,0 +1,130 @@
+---
+title: Daedalus — MCP server
+description: How the MCP server inside Daedalus works
+---
+
+Daedalus embeds an MCP server at `127.0.0.1:14210`. This page documents how it's wired up internally — useful when inspecting or extending it.
+
+## Why it's there
+
+The MCP server lets Claude (or any MCP-aware agent) drive Daedalus the same way a human does: click buttons, type into form fields, read screenshots, execute terminal commands. The use case is **agent-driven deployments** — Claude walks through the wizard end-to-end while a human supervises.
+
+See [ADR 0022 — MCP Localhost Only](/docs/adrs/0022-mcp-localhost-only) for the security rationale.
+
+## Where the code lives
+
+| File | Purpose |
+| --- | --- |
+| `daedalus/src-tauri/src/mcp/mod.rs` | Module root. Sets up the HTTP listener at `127.0.0.1:14210`. |
+| `daedalus/src-tauri/src/mcp/protocol.rs` | JSON-RPC 2.0 envelope types: `Request`, `Response`, `Error`, `ToolDefinition`, `ToolCallResult`, `ContentBlock`. |
+| `daedalus/src-tauri/src/mcp/tools.rs` | Tool implementations. The canonical list of MCP tools. |
+| `daedalus/src-tauri/src/commands/screenshot.rs` | Native macOS screenshot via `ScreenCaptureKit`. |
+| `daedalus/src-tauri/src/commands/pty.rs` | Embedded PTY for `terminal_exec` / `terminal_read`. |
+| `daedalus/src-tauri/src/commands/context.rs` | Deployment context (`daedalus.json`) read/write. |
+
+## Protocol shape
+
+The server speaks **JSON-RPC 2.0 over HTTP POST** at the single endpoint `/`. Standard MCP methods:
+
+| Method | Purpose |
+| --- | --- |
+| `initialize` | MCP handshake. Returns server name, version, capabilities. |
+| `tools/list` | Return the list of available tools (the eight from `tools.rs`). |
+| `tools/call` | Invoke a tool with arguments. Returns `ToolCallResult`. |
+
+The 8 tools (see [Reference — MCP](/docs/reference/api/mcp/overview)):
+
+- `screenshot` — capture the Daedalus UI as PNG, return as `image` content block.
+- `get_page` — return current webview path + extracted text.
+- `navigate` — change the wizard route.
+- `click` — click an element by text or selector.
+- `form_input` — set a form field value by label or selector.
+- `read_context` — read the deployment context (`daedalus.json`).
+- `terminal_exec` — execute a command in the embedded PTY.
+- `terminal_read` — read recent PTY output.
+
+## The web<->Rust bridge
+
+Daedalus uses Tauri. The wizard UI is React running inside the webview; the MCP server runs in the Rust process.
+
+When an MCP tool needs to interact with the UI (e.g. `click`):
+1. The MCP server invokes a Tauri command (`navigate_to_path`, `click_element_by_text`, etc.) declared in `lib.rs`.
+2. The Tauri command emits a custom event to the webview (`tauri::Manager::emit`).
+3. A React effect inside the webview listens for the event and performs the DOM action.
+4. The result (or an error) is reported back to Rust via a Tauri callback.
+5. Rust returns the result to the MCP caller.
+
+Synchronous-feeling round-trip; ~10-100ms typical latency.
+
+## The screenshot pipeline
+
+`screenshot` is the most platform-specific tool:
+
+1. `Manager::get_webview_window("main")` obtains the Tauri window handle.
+2. On macOS, `commands/screenshot.rs` uses `ScreenCaptureKit` via the `screencapturekit` crate to capture the window contents.
+3. Image is encoded as PNG.
+4. The PNG bytes are base64-encoded and returned as an MCP `image` content block.
+
+Each capture is ~50-200ms depending on window size. The screenshot includes the wizard UI and any visible secrets — see [ADR 0022](/docs/adrs/0022-mcp-localhost-only) for the security framing.
+
+## The PTY pipeline
+
+`terminal_exec` and `terminal_read`:
+
+1. `commands/pty.rs` maintains a single persistent `portable-pty` instance.
+2. The PTY runs `bash` (or the user's `$SHELL`).
+3. Stdout/stderr is captured into a ring buffer (last 100KB).
+4. `terminal_exec` writes the command to the PTY's stdin.
+5. `terminal_read` returns the ring buffer content.
+
+The buffer is sanitized before return — see [Internals — Daedalus Secrets Sanitizer](/docs/internals/daedalus-secrets-sanitizer) for the regex patterns that scrub bearer tokens, API keys, and DSN passwords from the output.
+
+## Initialization
+
+On Daedalus startup, the MCP server is spawned as a Tokio task in `mcp/mod.rs::start()`:
+
+```rust
+let listener = TcpListener::bind("127.0.0.1:14210").await?;
+loop {
+    let (socket, _) = listener.accept().await?;
+    let app_handle = app_handle.clone();
+    tokio::spawn(async move {
+        handle_connection(socket, app_handle).await;
+    });
+}
+```
+
+If port 14210 is already in use (a stale Daedalus instance), the server logs the error and continues without MCP — the wizard still works for human users.
+
+## Tool registration
+
+`tools.rs::list_tools()` returns a static `Vec<ToolDefinition>`. To add a new tool:
+
+1. Add the `ToolDefinition` literal to `list_tools()` with name, description, input schema.
+2. Add the dispatch branch in `tools.rs::call_tool()` to handle the new tool name.
+3. Implement the actual logic (often as a new Tauri command).
+4. Rebuild Daedalus.
+
+The [generated MCP reference](/docs/reference/api/mcp/overview) is parsed from `tools.rs` at build time — so a new tool automatically appears in the docs without manual updates.
+
+## Error handling
+
+JSON-RPC errors use standard codes plus MCP-specific codes:
+
+- `-32700` Parse error
+- `-32600` Invalid Request
+- `-32601` Method not found (e.g. asking for a tool that doesn't exist)
+- `-32602` Invalid params (e.g. missing required field in tool arguments)
+- `-32603` Internal error
+- `-32000..-32099` Implementation-defined (Daedalus uses these for "wizard not in expected state" errors)
+
+## Testing
+
+The MCP server itself doesn't have unit tests in the Rust source — testing happens via integration with an MCP client. The CI workflow (`daedalus/.github/workflows/ci.yml`) spawns Daedalus in headless mode and runs a script that exercises every tool.
+
+## Where next
+
+- [Reference — Daedalus MCP](/docs/reference/api/mcp/overview) — generated per-tool reference.
+- [ADR 0022 — MCP Localhost Only](/docs/adrs/0022-mcp-localhost-only).
+- [Integrate — MCP with Daedalus](/docs/integrate/mcp-with-daedalus) — driving Daedalus from an MCP client.
+- [Internals — Daedalus secrets sanitizer](/docs/internals/daedalus-secrets-sanitizer).

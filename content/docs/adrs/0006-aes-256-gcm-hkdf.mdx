@@ -1,0 +1,121 @@
+---
+title: "0006 — AES-256-GCM with HKDF-SHA256 for settings encryption"
+description: How and why the SDK encrypts sensitive settings at rest
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+The Olympus SDK stores arbitrary key-value settings in the `olympus` Postgres database. Many of these settings are sensitive:
+- OAuth2 client secrets (M2M / social IdP)
+- SMTP credentials
+- Webhook signing keys
+- Third-party API tokens (Cloudflare Turnstile, etc.)
+
+A database compromise would expose every secret. Encryption at rest mitigates this — the database is one layer, the key is another.
+
+## Considered alternatives
+
+### Option A — AES-256-CBC + HMAC-SHA256 (Encrypt-then-MAC)
+
+The traditional combination: CBC mode for confidentiality, HMAC for integrity.
+
+- *Pros*: Widely understood, available everywhere.
+- *Cons*:
+  - Requires correct ordering (Encrypt-then-MAC; the reverse is unsafe).
+  - Manual padding (PKCS#7), vulnerable to padding oracles if implemented wrong.
+  - Two operations per encrypt/decrypt — slightly more code, slightly more risk.
+
+### Option B — AES-256-GCM ✓
+
+Authenticated encryption with associated data (AEAD). Combines confidentiality and integrity in one primitive.
+
+- *Pros*:
+  - Single-pass — no separate MAC.
+  - No padding required.
+  - Hardware-accelerated on every modern CPU (AES-NI, ARM crypto extensions).
+  - Standard in TLS 1.3, NaCl, age, libsodium, etc.
+- *Cons*:
+  - Nonce reuse is catastrophic (key recovery!). Must generate a unique nonce per encryption.
+  - 12-byte nonce limit; can't safely use a single key for more than ~2^32 encryptions before nonce collision becomes plausible.
+
+### Option C — ChaCha20-Poly1305
+
+Modern AEAD primitive from the NaCl / libsodium family.
+
+- *Pros*: Fast on CPUs without AES-NI (which doesn't apply to us — we target modern x86 and ARM). Larger nonce (24 bytes for XChaCha20) makes nonce reuse very unlikely.
+- *Cons*: Slightly less ubiquitous than AES-GCM in audit / compliance contexts.
+
+## Key derivation
+
+For all three options, the same question: do you encrypt with the master key directly, or derive per-record keys?
+
+- **Direct**: simpler. All records use the same key.
+- **Derived (HKDF)**: stronger. Per-record key derived from `master_key`, `info=record_id`. Compromise of one derived key reveals only one record.
+
+## Decision
+
+**AES-256-GCM with HKDF-SHA256 per-record key derivation.**
+
+```
+record_key = HKDF-SHA256(
+  master_key,                        // ENCRYPTION_KEY
+  salt = nonce[0:16],                // first half of the nonce as salt
+  info = "olympus.settings.v2:" + record_id,
+  length = 32,                       // AES-256 key size
+)
+ciphertext = AES-256-GCM-encrypt(
+  key = record_key,
+  nonce = generated 12-byte nonce,
+  plaintext = setting_value,
+  aad = record_id || record_version,
+)
+stored_value = "v2:" || nonce || ciphertext
+```
+
+Encryption format details in [Security — Encryption at Rest](/docs/security/encryption-at-rest).
+
+## Consequences
+
+### Strength
+
+- AES-256-GCM is FIPS 140-2 approved.
+- HKDF-SHA256 is NIST SP 800-56C recommended.
+- The combination is in TLS 1.3, age, signal-protocol — well-understood.
+
+### Performance
+
+- ~100ns per record encrypt/decrypt on modern hardware.
+- HKDF adds negligible overhead.
+
+### Implementation surface
+
+- Each record stores 16 bytes of nonce + ciphertext + 16-byte GCM auth tag overhead. Roughly 32 bytes + plaintext length.
+- Format version prefix `v2:` lets us migrate to a different scheme in the future without breaking existing records — see [Operate — Encryption Key Rotation](/docs/operate/encryption-key-rotation).
+
+### Failure modes
+
+- **Lost master key**: every encrypted record is permanently unreadable. The encryption-key-blocklist (see [ADR 0007](/docs/adrs/0007-encryption-key-blocklist)) refuses common-mistake values like "default" or "changeme" precisely to reduce the chance of someone setting a key, forgetting it, then needing it later.
+- **Nonce reuse**: catastrophic if it happens. The implementation uses `crypto.randomBytes(12)` for each encryption; collision probability is negligibly small until ~2^32 encryptions per key, well beyond Olympus's expected scale.
+
+### Audit / compliance
+
+- SOC 2: AES-256-GCM at rest satisfies CC6.1 (encryption-at-rest control).
+- GDPR Article 32: state-of-the-art encryption.
+- HIPAA: AES-256 is acceptable per the HIPAA Security Rule guidance.
+
+## Related
+
+- [Security — Encryption at Rest](/docs/security/encryption-at-rest) — implementation details.
+- [Security — Encryption Key Blocklist](/docs/security/encryption-key-blocklist) — known-weak values that are rejected.
+- [Operate — Encryption Key Rotation](/docs/operate/encryption-key-rotation) — runbook.
+- [Internals — SDK encryption format](/docs/internals/sdk-encryption-format) — version evolution.
+
+## Revisit triggers
+
+- Quantum-resistant primitives become standard. (AES-256-GCM is acceptable against current quantum projections for symmetric encryption.)
+- A successful attack on AES-GCM is published. (None known as of 2026.)
+- We add encryption requirements that need streaming / multi-gigabyte payloads where GCM's nonce limit becomes a concern. (Settings values are small; this won't apply.)

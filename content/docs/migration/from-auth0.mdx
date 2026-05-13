@@ -1,0 +1,201 @@
+---
+title: From Auth0
+description: Migrating an existing Auth0 deployment to Olympus
+---
+
+This guide migrates an Auth0 tenant to a self-hosted Olympus deployment. It covers concept mapping, identity export and import, OAuth2 client mapping, and two cutover patterns (big-bang and dual-write).
+
+## Concept mapping
+
+| Auth0 | Olympus |
+| --- | --- |
+| Tenant | CIAM or IAM domain (Olympus has two domains per deployment) |
+| User | Kratos identity |
+| User metadata (`user_metadata`, `app_metadata`) | Identity `traits` (in your identity schema) |
+| Connection (database, social, enterprise) | Kratos credential type (`password`, `oidc`, etc.) |
+| Application (regular web, SPA, native) | Hydra OAuth2 client (`token_endpoint_auth_method=client_secret_basic` for web; `=none` for SPA/native, plus mandatory PKCE) |
+| API (audience) | Hydra OAuth2 scope / audience |
+| Rule / Action | Custom logic in your Hera fork (post-login hook), or Kratos hooks (if applicable) |
+| Universal Login | Hera login page (the equivalent UI) |
+| Custom domain | Caddy with your domain — see [Deploy — DNS and Domains](/docs/deploy/dns-and-domains) |
+| Multi-factor enrollment | Kratos settings flow (TOTP / WebAuthn) |
+| Email templates | Kratos courier templates (mountable into Kratos) |
+| Hooks (pre-registration, post-login) | Kratos hooks in `kratos.yml` |
+
+## Identity export → Kratos import
+
+### Step 1: Export from Auth0
+
+Auth0 supports bulk user export via the Management API or the Dashboard:
+
+```bash
+curl --request POST \
+  --url 'https://YOUR_AUTH0.us.auth0.com/api/v2/jobs/users-exports' \
+  --header 'authorization: Bearer YOUR_MGMT_TOKEN' \
+  --header 'content-type: application/json' \
+  --data '{
+    "format": "json",
+    "fields": [
+      {"name":"user_id"},
+      {"name":"email"},
+      {"name":"email_verified"},
+      {"name":"name"},
+      {"name":"identities"},
+      {"name":"user_metadata"},
+      {"name":"app_metadata"},
+      {"name":"created_at"},
+      {"name":"last_login"}
+    ]
+  }'
+```
+
+Poll for the job and download the export.
+
+### Step 2: Transform to Kratos identity format
+
+Each Auth0 user becomes one Kratos identity. Kratos accepts identities via the admin API (`POST /admin/identities`) or via `kratos identities import`. The shape:
+
+```json
+{
+  "schema_id": "default",
+  "state": "active",
+  "traits": {
+    "email": "user@example.com",
+    "name": { "first": "Ada", "last": "Lovelace" }
+  },
+  "verifiable_addresses": [
+    { "value": "user@example.com", "verified": true, "via": "email", "status": "completed" }
+  ],
+  "credentials": {
+    "password": {
+      "type": "password",
+      "identifiers": ["user@example.com"],
+      "config": { "hashed_password": "<bcrypt-hash>" }
+    }
+  }
+}
+```
+
+Auth0 stores password hashes as bcrypt (by default). Kratos supports bcrypt — see [Kratos password hashers](https://www.ory.sh/docs/kratos/manage-identities/import-user-accounts-identities#hashed-password-import) for the exact format Kratos accepts.
+
+### Step 3: Bulk import to Kratos
+
+Use the Kratos CLI:
+
+```bash
+kratos identities import --endpoint http://localhost:3101 --schema-id default identities.json
+```
+
+Or via API in batches:
+
+```bash
+for f in identities-*.json; do
+  curl -X POST http://localhost:3101/admin/identities \
+    -H 'content-type: application/json' \
+    -d @"$f"
+done
+```
+
+Verify the count:
+
+```bash
+curl -s http://localhost:3101/admin/identities | jq 'length'
+```
+
+## OAuth2 client mapping
+
+For each Auth0 application:
+
+1. **Web regular**: register a confidential client in Hydra.
+
+   ```bash
+   hydra create client \
+     --endpoint http://localhost:3103 \
+     --name "my-web-app" \
+     --grant-type authorization_code,refresh_token \
+     --response-type code \
+     --scope "openid profile email" \
+     --redirect-uri https://app.example.com/callback \
+     --token-endpoint-auth-method client_secret_basic
+   ```
+
+   Record the client_id and client_secret; configure your app.
+
+2. **SPA / native**: register a public client with PKCE.
+
+   ```bash
+   hydra create client \
+     --endpoint http://localhost:3103 \
+     --name "my-spa" \
+     --grant-type authorization_code,refresh_token \
+     --response-type code \
+     --scope "openid profile email" \
+     --redirect-uri https://app.example.com/callback \
+     --token-endpoint-auth-method none
+   ```
+
+   Olympus enforces PKCE for public clients — see [ADR 0019](/docs/adrs/0019-pkce-mandatory-public-clients).
+
+3. **M2M**: register a confidential client with `client_credentials` grant.
+
+   ```bash
+   hydra create client \
+     --endpoint http://localhost:3103 \
+     --name "my-worker" \
+     --grant-type client_credentials \
+     --scope "api:write"
+   ```
+
+## Cutover patterns
+
+### Big-bang
+
+Best when: you can schedule downtime, your traffic is low during the cutover window, you've fully tested the migration in staging.
+
+1. Schedule a maintenance window (typically 30–60 minutes).
+2. Set Auth0 to read-only (suspend new registrations).
+3. Export the latest identity dump from Auth0.
+4. Import into Kratos.
+5. Update DNS to point your login domain at Olympus.
+6. Switch your apps to the new OIDC issuer (the Olympus discovery URL).
+7. End maintenance window.
+
+Risk: any users who hit Auth0 during the export ↔ DNS-update window lose access until DNS propagates. Verify with low-traffic tests first.
+
+### Dual-write
+
+Best when: zero downtime is required, you have multiple weeks for the migration, you can route traffic conditionally.
+
+1. **Read traffic**: at each login, check Olympus first. If the user doesn't exist there, fall back to Auth0. On Auth0 success, *also create* the user in Olympus and migrate the credential.
+2. **Write traffic**: every change to user data updates both Auth0 and Olympus.
+3. Continue until your Olympus user count matches Auth0's (or a defined "stale user" threshold).
+4. Cut over reads to Olympus only.
+5. Decommission Auth0.
+
+This requires custom code in your login path. The standard place to implement it is your application backend — both Auth0 and Olympus issue OIDC ID tokens with `sub` you can correlate across.
+
+## Things that *don't* directly map
+
+- **Auth0 Actions / Rules** — Auth0's hook system runs JavaScript inside Auth0's runtime. Olympus's equivalent is hooking into Kratos via webhooks (`kratos.yml` → `selfservice.flows.<flow>.after.hooks`). The DSL is different; logic must be rewritten.
+- **Auth0 Hosted Database** — if your users live in Auth0's database connection with a custom DB action script, you have to invert: instead of Auth0 calling your DB on login, you import the user into Kratos. Subsequent logins go through Kratos.
+- **Auth0 Anomaly Detection** — Olympus's equivalent is the SDK's brute-force tracking plus Caddy rate-limit plus Cloudflare Turnstile. The shape is different (purely operator-configured, no ML), but the coverage is similar.
+- **Auth0 Enterprise Connections (SAML, AD)** — Kratos supports OIDC IdPs natively. SAML requires a translation layer (e.g. SAML→OIDC bridge). Plan for this if you have enterprise customers using SAML SSO.
+
+## Validation checklist
+
+After cutover, verify:
+
+- [ ] Every Auth0 user count matches Olympus identity count.
+- [ ] A sample user can log in with their existing password.
+- [ ] Social login providers configured (Google, GitHub, etc.) work end to end.
+- [ ] Email verification flows trigger correctly.
+- [ ] Recovery flow sends to the user's verified email.
+- [ ] MFA-enrolled users are still required to present their second factor.
+- [ ] Your apps can validate access tokens (see [Cookbook — Validate access token (Node)](/docs/cookbook/validate-token-node)).
+- [ ] Auth0's domain (`yourtenant.auth0.com`) is parked / redirects to your new domain.
+
+## Related
+
+- [Identity — Identity schemas](/docs/identity/identity-schemas) — how to model your Auth0 user_metadata.
+- [Get Started — Your first OAuth2 client](/docs/get-started/first-oauth-client) — end-to-end flow exercise.
+- [Migration — From Keycloak](/docs/migration/from-keycloak) — the parallel guide.

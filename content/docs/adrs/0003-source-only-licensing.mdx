@@ -1,0 +1,110 @@
+---
+title: "0003 — Source-only licensing (Olympus Free Container License)"
+description: Why Olympus is source-available, container-redistributable, but not Apache-2.0
+---
+
+**Status:** Accepted (draft)
+**Date:** 2026-03
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Olympus is an identity platform. Operators need to:
+1. **Trust** what the code does — they're handing it customer credentials and PII.
+2. **Operate** it freely on their own infrastructure, indefinitely, without per-user fees.
+3. **Patch** it locally for emergent issues.
+4. **Inspect** containers when investigating incidents.
+
+The project also wants to preserve a viable commercial path:
+1. The maintainer reserves the option to sell hosted Olympus, support contracts, certified images.
+2. The license should prevent a hyperscaler from repackaging Olympus and reselling access as their own SaaS, competing with the maintainer's own hosting business.
+
+These goals are in tension under the standard OSS licenses.
+
+## Considered alternatives
+
+### Option A — Apache-2.0 (or MIT, BSD-3-Clause)
+
+The classic permissive license.
+
+- *Pros*: Universally understood, maximum reuse, OSI-approved, simple compliance.
+- *Cons*: Any commercial entity can repackage Olympus, host it, resell access, and compete directly. The cycle ElasticSearch and MongoDB went through ten years ago.
+
+### Option B — AGPL-3.0
+
+Copyleft license — anyone who exposes Olympus over a network must publish their source modifications.
+
+- *Pros*: Prevents proprietary forks.
+- *Cons*: Toxic to enterprise adoption — many corporate legal departments forbid AGPL software. Even Google's internal policy historically prohibited it. Compliance burden discourages exactly the operators we want.
+
+### Option C — SSPL (Server Side Public License — MongoDB's approach)
+
+Like AGPL but with much broader copyleft: anyone offering Olympus as a service must publish *all* their service-supporting infrastructure.
+
+- *Pros*: Hyperscaler-proof.
+- *Cons*: OSI rejected SSPL. The legal interpretation of "service-supporting infrastructure" is unclear and discourages adoption.
+
+### Option D — Elastic License v2 / FSL (Sentry)
+
+Source-available, time-locked. Source becomes Apache-2.0 after N years (FSL: 4 years).
+
+- *Pros*: Eventually-permissive. The maintainer keeps initial commercial protection but the community gets long-term assurance.
+- *Cons*: Operators reading the license get nervous about the "for now, you can't repackage" clause. The time-lock is hard to internalize.
+
+### Option E — Custom source-available license tailored to Olympus's exact goals ✓
+
+Write a license that:
+- Permits indefinite operation of containers.
+- Permits source inspection of those containers.
+- Permits local patches and upstream contributions.
+- Forbids redistribution of modified source as a competing distribution.
+- Does **not** time-lock (no expiration to permissive).
+
+This is the **Olympus Free Container License (OFCL)**.
+
+## Decision
+
+**Option E — Custom OFCL.** Draft at [`platform/LICENSE.draft.md`](https://github.com/OlympusOSS/platform/blob/main/LICENSE.draft.md).
+
+## Consequences
+
+### Adoption
+
+- The OFCL is **not OSI-approved.** Some corporate legal departments will balk; some won't.
+- Operators must read the actual license text to determine what they can do, rather than relying on the well-known properties of Apache-2.0.
+- The "draft" label on the license signals that the terms may change before v1.0 is finalized. New users see this and may delay adoption pending finalization.
+
+### Hosted SaaS option
+
+- The maintainer can operate a hosted Olympus and charge for it without competing with downstream redistributors.
+
+### Documentation framing
+
+- **The [Develop section](/docs/develop/overview) and [Internals section](/docs/internals/overview) are framed for licensees inspecting their containers, not contributors to an open community.** This is a deliberate tone choice — see [Develop — Inspecting your containers](/docs/develop/inspecting-your-containers).
+- We do welcome contributions; the OFCL permits them. We just don't pretend Olympus is "open source" when it isn't, strictly.
+
+### Compliance burden
+
+- Image consumers carry the OFCL text inside `/app/LICENSE`. Anyone who pulls the image can read it.
+- The license version that applies is whichever is in the image — we may rev OFCL to v1.1, v2.0 etc. over time. Operators who don't pull new images keep the old license terms for their pinned digest.
+
+### Trademark
+
+- The "Olympus" name is reserved. Forks must rename to avoid trademark confusion.
+- Logo and branding are independent of the OFCL (likely separate trademark or unlicensed).
+
+## Open questions
+
+- Finalize the draft license. Currently labeled "v1.0 draft."
+- Decide whether to register the OFCL through a recognized initiative (FOSSA, SPDX) for tooling support.
+
+## Related
+
+- [License](/docs/license) — operator-facing summary.
+- [Develop — Inspecting your containers](/docs/develop/inspecting-your-containers) — the inspection workflow under the OFCL.
+- [`LICENSE.draft.md`](https://github.com/OlympusOSS/platform/blob/main/LICENSE.draft.md) — authoritative draft text.
+
+## Revisit triggers
+
+- Bobby decides to relicense (which the [memory note](https://github.com/OlympusOSS) on Olympus authorship makes unilaterally feasible — there are no third-party copyright holders to coordinate with).
+- A new license shape becomes industry-standard for the source-available category.

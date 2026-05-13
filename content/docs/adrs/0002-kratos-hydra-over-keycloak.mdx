@@ -1,0 +1,106 @@
+---
+title: "0002 — Kratos + Hydra over Keycloak"
+description: Why Olympus uses Ory's two-service split rather than a monolithic auth server
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Olympus needs an open-source identity layer with:
+- OAuth 2.0 / OIDC support, standards-compliant.
+- Self-service flows (registration, login, recovery, verification, settings).
+- An identity schema that's flexible per deployment.
+- Self-hostable, manageable by one engineer.
+- Production-grade — not a research project.
+
+The space has ~4 viable candidates: Ory Kratos+Hydra, Keycloak, Authentik, Zitadel.
+
+## Considered alternatives
+
+### Option A — Keycloak
+
+JBoss/RHat's auth server. Mature (15+ years), widely deployed, OIDC + SAML + LDAP.
+
+- *Pros*: Single binary; SAML support (Olympus doesn't have this); enterprise-grade; many features.
+- *Cons*:
+  - Java stack — heavy memory footprint (>500MB baseline).
+  - Configuration is admin-console-driven rather than file-driven, making infra-as-code awkward.
+  - Theming is per-Realm and uses Freemarker; customizing the login UI for branding is non-trivial.
+  - The "Realm" abstraction conflates identity and OAuth2 — separate isolation requires complex Realm-per-tenant work.
+  - Large attack surface (SAML, OIDC, LDAP, account console, admin console, REST API, all in one binary).
+
+### Option B — Authentik
+
+Python-based modern auth platform. Active development.
+
+- *Pros*: Nice UI, decent OIDC support, easy to demo.
+- *Cons*:
+  - Python startup time and memory pattern is unfavorable.
+  - Smaller community than Keycloak or Ory.
+  - "Flows" engine is custom; learning curve.
+
+### Option C — Zitadel
+
+Go-based, modern, multi-tenant by design.
+
+- *Pros*: Multi-tenant out of the box; modern Go stack.
+- *Cons*:
+  - Coupled identity + OAuth2 (similar to Keycloak Realms — same conflation).
+  - Multi-tenant model overlaps with Olympus's dual-domain (CIAM/IAM) approach in awkward ways.
+  - Less battle-tested than Ory's stack.
+
+### Option D — Ory Kratos + Ory Hydra ✓
+
+Two separate Go binaries. Kratos handles identity (registration, login, recovery, sessions). Hydra handles OAuth2/OIDC.
+
+- *Pros*:
+  - **Clean separation of concerns.** Identity and OAuth2 are different problems; conflating them creates the failure modes of Keycloak.
+  - Configuration is YAML-driven — fits infra-as-code naturally.
+  - Stateless services; horizontally scalable.
+  - Best-in-class OIDC compliance (Hydra is OpenID Certified).
+  - Small attack surface per binary.
+  - Excellent docs and dev experience.
+  - Headless by design — the auth UI is yours to build, which makes Hera's branding straightforward.
+- *Cons*:
+  - You operate **two** services (and their two databases) instead of one.
+  - No SAML support out of the box. (Olympus doesn't have this requirement; SAML can be added later via a translator.)
+  - The headless model means you ship the login UI yourself — but this is also a feature, see [Hera](/docs/repo-map).
+
+## Decision
+
+**Option D — Ory Kratos + Ory Hydra.**
+
+## Consequences
+
+### What we get
+
+- Configuration-as-code feels native (YAML in `platform/dev/{ciam,iam}-kratos/kratos.yml`).
+- Identity isolation via separate Kratos instances is straightforward — we just run two pairs (see [ADR 0001](/docs/adrs/0001-dual-domain-architecture)).
+- Hera, the login UI, is ours to design. Re-themes, language additions, custom flows all live in our code.
+- Each service is replaceable independently — if Hydra's roadmap diverges from our needs, we could swap it for another OAuth2 server without touching Kratos.
+
+### What we give up
+
+- SAML SSO at the IAM layer. We don't support SAML federation directly. For SAML-required customers, run a SAML→OIDC bridge (e.g. `saml-to-oidc-proxy`) in front of IAM Hera.
+- A single "Realm" UI for non-technical admins to configure everything. The Olympus admin surface (Athena) is purpose-built, not generic — see [Athena](/docs/repo-map).
+- "Standard" tooling assumptions. Some auth integrations docs assume Keycloak; you'll port them.
+
+### Operational
+
+- Twice the Ory containers running. ~$5-10/month additional cloud cost (negligible).
+- Twice the upgrade work — but Ory is good at non-breaking changes and the YAML config makes upgrades scriptable.
+
+## Related
+
+- [ADR 0001 — Dual-domain architecture](/docs/adrs/0001-dual-domain-architecture)
+- [Architecture](/docs/architecture) — top-level layout.
+- [Repo Map](/docs/repo-map) — Athena, Hera, and how they wrap Kratos + Hydra.
+
+## Revisit triggers
+
+- Ory significantly changes their open-source licensing (currently Apache-2.0).
+- A new OSS identity stack emerges that beats Kratos+Hydra on operability and standards compliance.
+- A SAML requirement becomes critical and the bridge approach is insufficient.

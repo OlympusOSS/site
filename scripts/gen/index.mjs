@@ -16,6 +16,9 @@ const GENERATORS = [
 	{ name: "MCP tools", cmd: ["bun", "run", "scripts/gen/mcp-tools.mjs"] },
 	{ name: "SDK API", cmd: ["bun", "run", "scripts/gen/sdk-api.mjs"] },
 	{ name: "Athena routes", cmd: ["bun", "run", "scripts/gen/athena-routes.mjs"] },
+	{ name: "Kratos config", cmd: ["bun", "run", "scripts/gen/kratos-config.mjs"] },
+	{ name: "Hydra config", cmd: ["bun", "run", "scripts/gen/hydra-config.mjs"] },
+	{ name: "Caddyfile", cmd: ["bun", "run", "scripts/gen/caddyfile.mjs"] },
 ];
 
 let failed = 0;

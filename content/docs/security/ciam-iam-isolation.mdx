@@ -1,0 +1,109 @@
+---
+title: CIAM/IAM isolation
+description: The boundary between customer and employee identity, and how it's enforced
+---
+
+Olympus's CIAM and IAM domains are completely independent identity stacks running on the same host. This page documents the isolation boundary — what is shared and what is not, what could break the isolation, and what guarantees that breakage is caught.
+
+## What's separate
+
+| Component | CIAM | IAM |
+| --- | --- | --- |
+| Kratos public API | `:3100` | `:4100` |
+| Kratos admin API | `:3101` | `:4101` |
+| Hydra public API | `:3102` | `:4102` |
+| Hydra admin API | `:3103` | `:4103` |
+| Hera (login UI) | `:3000` | `:4000` |
+| Athena (admin UI) | `:3001` | `:4001` |
+| Postgres DB | `ciam_kratos`, `ciam_hydra` | `iam_kratos`, `iam_hydra` |
+| Identity schemas | CIAM schemas (`default`, `customer`, `company`) | IAM schemas (`admin`) |
+| Cookie domain | `ciam.your-domain` | `iam.your-domain` |
+| OAuth2 clients | Registered in CIAM Hydra | Registered in IAM Hydra |
+| Verification/recovery email templates | CIAM-specific (customer-facing branding) | IAM-specific (employee-facing branding) |
+| Configuration files | `platform/{dev,prod}/ciam-kratos/`, `ciam-hydra/` | `platform/{dev,prod}/iam-kratos/`, `iam-hydra/` |
+
+## What's shared
+
+| Component | Why |
+| --- | --- |
+| The host VPS | Both stacks run as containers on the same machine. |
+| Caddy reverse proxy | A single Caddy instance serves both `ciam.<domain>` and `iam.<domain>`. |
+| Postgres instance | One Postgres serves all four databases — but the databases themselves are separate. |
+| `ENCRYPTION_KEY` | One value, used for settings encryption on both sides. (The `olympus` settings DB is shared.) |
+| The `olympus` settings DB | One database for both domains; rows are partitioned by domain via a `domain` column. |
+| The Olympus SDK image | One image, included in both CIAM and IAM Athena/Hera containers. |
+| GitHub repos and CI | One repo set; the `platform` deploy workflow deploys both domains simultaneously. |
+
+## What the isolation buys
+
+1. **A breach of CIAM credentials does not give the attacker IAM credentials.** Even if a customer's password is stolen, an internal employee account is unaffected.
+2. **A breach of the CIAM Kratos database does not expose IAM credentials.** Different DB, different connection string, different read permissions.
+3. **Policies are configured per-domain.** Customer password policy, MFA requirements, session lifetimes, schema fields are all independent.
+4. **Customer traffic does not affect employee identity capacity.** A DDoS or sudden registration spike consumes only the CIAM half.
+5. **GDPR DSR / data deletion** for a customer touches only `ciam_*` databases.
+
+## What the isolation does NOT buy
+
+1. **Host compromise still cross-cuts.** If an attacker has root on the VPS, they can read both databases regardless of isolation.
+2. **Shared settings DB.** A bug in the SDK that allows cross-domain read would expose both domains' settings.
+3. **The `ENCRYPTION_KEY` is shared.** If `ENCRYPTION_KEY` is compromised, both domains' encrypted settings are exposed.
+4. **Caddy serves both.** A vulnerability in Caddy (or a misconfigured rule) could route CIAM traffic to IAM upstreams.
+
+The compensating controls are: harden the host (firewall, SSH key auth, fail2ban), rotate `ENCRYPTION_KEY` quarterly, pin Caddy image by digest, run [Security — Caddy Supply Chain](/docs/security/caddy-supply-chain) builds.
+
+## How the boundary is enforced
+
+### At the network layer
+
+The Caddy reverse proxy routes requests based on hostname:
+
+```
+ciam.<domain> -> ciam-hera:3000
+iam.<domain>  -> iam-hera:4000
+```
+
+Caddy is the only public entry point. There is no path-based way to reach the IAM Hera from a `ciam.<domain>` request.
+
+### At the cookie layer
+
+Kratos cookies set by CIAM use `Domain=ciam.<domain>` (or the parent if you've configured it that way). IAM cookies use `Domain=iam.<domain>`. The browser never sends a CIAM cookie to an IAM endpoint or vice versa.
+
+### At the database layer
+
+Each Kratos / Hydra connects to its own database with its own credentials. The `DATABASE_URL` of CIAM Kratos does not have permission to read IAM tables — enforced by Postgres role grants.
+
+### At the application layer
+
+Athena (CIAM) is configured to talk to **only the CIAM** Kratos and Hydra admin APIs. It does not even know the IAM admin URLs. The same for the IAM Athena.
+
+The exception: an operator logging into Athena CIAM via the IAM domain (because employees log in via IAM, even when administering CIAM data) — but that's a different question. The IAM session authenticates the employee; Athena CIAM then makes API calls to the **CIAM** admin APIs using a server-side admin credential.
+
+## What can break the isolation
+
+1. **Configuring Caddy to proxy CIAM paths to IAM upstreams.** A typo in `Caddyfile`. Caught by the `verify-prod-config.yml` CI workflow if you put guard checks for the four upstream targets.
+2. **Setting the cookie domain to a parent.** If both CIAM and IAM use `Domain=<your-domain>` (the parent), cookies leak across. Cookie domain should be the subdomain, not the parent, for each side.
+3. **Sharing `DATABASE_URL` across CIAM and IAM Kratos.** A copy-paste mistake. Caught by the seed scripts which verify each Kratos can reach exactly one Kratos DB.
+4. **Using the same OAuth2 client ID for CIAM and IAM apps.** Conceptually possible (Hydra doesn't enforce uniqueness across instances) but logically wrong. The client would only work for one side.
+
+## Audit / verification
+
+To verify isolation in a running deployment:
+
+```bash
+# CIAM Kratos cannot reach the IAM database
+ssh prod 'podman exec ciam-kratos sh -c "psql $IAM_KRATOS_URL -c \"SELECT 1\""'
+# Expected: connection refused or auth failure.
+
+# IAM Athena cannot read CIAM identities
+ssh prod 'podman exec iam-athena curl -s http://ciam-kratos:5001/admin/identities'
+# Expected: error (Athena IAM doesn't have CIAM Kratos URL configured).
+```
+
+A regression suite asserting these isolations would be a good Phase 2 addition to the platform CI.
+
+## Related
+
+- [ADR 0001 — Dual-domain architecture](/docs/adrs/0001-dual-domain-architecture) — the decision rationale.
+- [Architecture](/docs/architecture) — visual layout.
+- [Operate — Network Topology](/docs/operate/network-topology) — port-by-port.
+- [Security — Threat Model](/docs/security/threat-model) — where isolation matters.

@@ -1,0 +1,166 @@
+---
+title: Threat model
+description: What Olympus defends against, and what it doesn't
+---
+
+Olympus is an identity platform — it stores credentials, issues tokens, and authorizes access. This page lists the threats it defends against and the threats that are out of scope (and how you can compensate for them at the deployment level).
+
+## In scope
+
+### Credential theft via brute force
+
+Online password guessing against a single account.
+
+**Defense:** SDK brute-force tracking with progressive lockout (see [Security — Brute-Force](/docs/security/brute-force)). The login-attempt window and lockout threshold are configurable per domain. Lockouts are stored in the `lockouts` table and observable in [Athena — Locked Accounts](/docs/operate/locked-account-unlock).
+
+### Credential theft via mass-credential-stuffing
+
+Botnet-driven distributed credential stuffing.
+
+**Defense:**
+- Caddy `rate_limit` per IP at the edge (see [Security — Rate Limiting](/docs/security/rate-limiting)).
+- Cloudflare Turnstile captcha at the registration/login form (see [Security — Captcha Turnstile](/docs/security/captcha-turnstile)).
+- Breached-password check via HaveIBeenPwned k-anonymity API rejecting known-compromised passwords (see [Security — Breached Password](/docs/security/breached-password)).
+
+### Session theft via XSS
+
+Stealing the auth session cookie via injected JavaScript.
+
+**Defense:**
+- Strict Content Security Policy on both Hera and Athena (`script-src 'self' 'nonce-...'`, no `unsafe-inline`, no third-party origins).
+- Session cookies are `HttpOnly`, `Secure`, `SameSite=Lax`.
+- HSTS with `preload` (1 year) — see [Security — Security Headers](/docs/security/security-headers).
+
+### Session theft via CSRF
+
+Forcing a user's browser to submit a request to Olympus from another origin.
+
+**Defense:**
+- Kratos's CSRF token on every flow.
+- Athena admin routes require `Content-Type: application/json` and read from `request.json()` — cross-origin form submissions cannot set this content type without a preflight, providing implicit CSRF protection.
+- `frame-ancestors 'none'` blocks clickjacking.
+
+### Session theft via cookie tampering
+
+Modifying the auth session cookie to escalate privilege.
+
+**Defense:** Session cookies are HMAC-signed with `SESSION_SIGNING_KEY` (Athena) or via Kratos's signing keys (Kratos sessions). Any tampering invalidates the signature and the request is rejected. Key rotation is documented in [Operate — Session Signing Key Rotation](/docs/operate/session-signing-key-rotation).
+
+### Settings vault exposure via DB compromise
+
+A database read attack revealing settings values.
+
+**Defense:** Sensitive settings (OAuth client secrets, social IdP secrets, SMTP credentials) are encrypted at rest with AES-256-GCM and HKDF-SHA256 key derivation. The master `ENCRYPTION_KEY` lives only in environment, never in the database. See [Security — Encryption at Rest](/docs/security/encryption-at-rest).
+
+### Weak `ENCRYPTION_KEY`
+
+An operator setting `ENCRYPTION_KEY` to a known-weak value (e.g. `"changeme"` or a public sample value).
+
+**Defense:** Encryption-key blocklist — the SDK refuses to start if `ENCRYPTION_KEY` matches any value on the blocklist. See [Security — Encryption Key Blocklist](/docs/security/encryption-key-blocklist).
+
+### Token theft via authorization-code interception
+
+Intercepting an OAuth2 authorization code mid-flight (TLS-terminating proxies, app-shared device storage).
+
+**Defense:** **PKCE is mandatory** for all public clients. The interceptor can't redeem a stolen code without the original verifier. See [Security — PKCE Enforcement](/docs/security/pkce-enforcement).
+
+### Pre-linking attack on social login
+
+A pre-existing attacker-controlled social IdP account being silently linked to a victim's password account.
+
+**Defense:** No auto-linking. The Kratos settings flow requires an active session (AAL1 minimum), and the account-linking confirmation screen requires explicit user submission. See [Identity — Account Linking](/docs/identity/account-linking).
+
+### Trust over the OIDC `email_verified` claim
+
+Trusting upstream IdP's `email_verified` claim could allow account takeover.
+
+**Defense:** Kratos requires its own verification (independent email verification flow) before treating an email as verified, regardless of what the IdP claims. See [Security — OIDC `email_verified` trust](/docs/security/oidc-email-verified-trust).
+
+### Compromise of the CIAM half affecting IAM (or vice versa)
+
+A compromise of the customer surface reaching internal employee identity.
+
+**Defense:** Dual-domain isolation. CIAM and IAM run as independent Kratos+Hydra stacks with separate databases, separate credentials, separate cookies (different domains). See [Security — CIAM/IAM Isolation](/docs/security/ciam-iam-isolation).
+
+### Direct attack on Kratos/Hydra admin APIs
+
+The admin APIs (`:3101`, `:3103`, `:4101`, `:4103`) have no native authentication — they assume network-level access control.
+
+**Defense:** **Host firewall must block these ports from the public internet.** Only Caddy (port 443) should be reachable. See [Operate — Network Topology](/docs/operate/network-topology).
+
+### Compromise of the Caddy proxy binary
+
+A malicious Caddy build silently logging credentials or terminating TLS incorrectly.
+
+**Defense:** Caddy is built reproducibly with a pinned manifest in the `caddy-build` CI workflow. The image is published to GHCR with a verifiable digest. See [Security — Caddy Supply Chain](/docs/security/caddy-supply-chain).
+
+### Cert expiry causing outage
+
+Forgetting to rotate the Caddy or database TLS cert.
+
+**Defense:** `cert-expiry-check.yml` workflow runs daily and opens a GitHub Issue when any cert is within 30 days of expiry. See [Operate — Cert Rotation](/docs/operate/cert-rotation).
+
+## Out of scope
+
+These are real threats that Olympus **does not** directly defend against. Most have deployment-level compensating controls.
+
+### Physical access to the host
+
+Anyone with physical access to the VPS can read `ENCRYPTION_KEY` from the environment, read disk, dump memory.
+
+**Compensating control:** trust your VPS provider's physical-security posture. Choose providers with SOC2 / ISO27001 attestations.
+
+### Compromise of the GitHub Actions runner
+
+A malicious workflow run could push a compromised image to GHCR.
+
+**Compensating control:**
+- Branch protection on `main` requires PR review (you can opt into this; default is push-to-main).
+- `verify-image-pins.yml` enforces digest-pinned images in compose files.
+- Inspect new images yourself (see [Develop — Inspecting Your Containers](/docs/develop/inspecting-your-containers)) before deploying.
+
+### Compromise of the npm registry (`@olympusoss/sdk`, `@olympusoss/canvas`)
+
+A malicious version published to the registry.
+
+**Compensating control:** Pin SDK and Canvas versions exactly in `package.json` (no `^` or `~`). Optionally vendor them via git submodule.
+
+### Subdomain takeover
+
+An expired CIAM/IAM subdomain DNS record claimed by an attacker.
+
+**Compensating control:** Use your DNS registrar's auto-renew. Set up Cloudflare or similar with a fallback. Monitor DNS via cert-transparency log alerts.
+
+### Compromise of the email provider
+
+If Resend / Postmark / Brevo is compromised, an attacker can intercept email-based recovery flows.
+
+**Compensating control:** Choose a reputable transactional email provider, use a dedicated sender domain, enable DMARC and SPF strictly. Recovery emails use HMAC-signed tokens — see [ADR 0017](/docs/adrs/0017-recovery-hmac-token) — but if the attacker controls the mailbox, they have everything.
+
+### Social engineering of operators
+
+An attacker tricking an operator into running an unsafe command.
+
+**Compensating control:** Out of scope for a product. Train operators. Use phishing-resistant MFA (WebAuthn) for IAM accounts.
+
+### Zero-day in Kratos or Hydra
+
+A pre-disclosure RCE in upstream Ory code.
+
+**Compensating control:** Follow `@OryHQ` for advisories. Pinning Ory by digest gives you a known baseline; pulling new images is a conscious act.
+
+## Defense in depth
+
+Olympus deliberately layers defenses:
+
+- Caddy rate-limit *plus* SDK lockout *plus* captcha — three independent throttles on credential abuse.
+- HMAC session signing *plus* `HttpOnly` cookies *plus* CSP — three independent defenses against session theft.
+- Mandatory `verify-full` Postgres SSL *plus* private intranet network *plus* host firewall — three independent layers around DB access.
+
+This is intentional: any single layer being misconfigured does not give an attacker full access.
+
+## Where next
+
+- [Security — CIAM/IAM Isolation](/docs/security/ciam-iam-isolation) — the boundary.
+- [Operate — Secrets Audit](/docs/operate/secrets-audit) — quarterly inventory.
+- [ADRs](/docs/adrs/overview) — design decisions behind the threat model.

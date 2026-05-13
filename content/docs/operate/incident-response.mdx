@@ -1,0 +1,163 @@
+---
+title: Incident response
+description: On-call playbook for Olympus production incidents
+---
+
+This playbook is the on-call response for an Olympus production incident — something is broken or potentially compromised, users are affected (or about to be), and someone is paged.
+
+## Severity matrix
+
+| Sev | Definition | First response time |
+| --- | --- | --- |
+| **Sev 1** | Production identity is completely down. No new logins, all sessions invalid, or active data corruption. | 15 minutes |
+| **Sev 2** | Significant degradation. Some logins failing, latency >5× baseline, or a security alert without confirmed breach. | 30 minutes |
+| **Sev 3** | Limited impact. One IdP broken (others working), email delivery delayed, single account locked accidentally. | 2 hours |
+| **Sev 4** | Cosmetic or pre-incident. Cert expires in <30 days, low disk warning, etc. | next business day |
+
+A **confirmed compromise** (credentials leaked, unauthorized admin access) is always Sev 1 regardless of immediate user impact.
+
+## Sev 1 / Sev 2 first response
+
+1. **Acknowledge the page.** Post in incident channel: "Investigating, ETA on next update in 15 minutes."
+2. **Establish what's broken.** Run quickly through:
+
+   ```bash
+   # Are containers up?
+   ssh prod 'podman ps'
+
+   # Health endpoints
+   for s in ciam-hera ciam-athena iam-hera iam-athena ciam-kratos iam-kratos ciam-hydra iam-hydra; do
+     ssh prod "curl -s http://$s:?/health/alive | head -1" || echo "$s DOWN"
+   done
+
+   # Caddy reachable?
+   curl -sI https://ciam.<domain>/healthz
+   curl -sI https://iam.<domain>/healthz
+
+   # Database
+   ssh prod 'podman exec olympus-postgres pg_isready'
+   ```
+
+3. **Identify the scope.** Is it one service, one domain, both domains? Is the database affected, or just the apps?
+4. **Decide: investigate or stop the bleed.** If user impact is severe and you don't know root cause within 5 minutes, **fail over / restart / rollback first, investigate after**. Identity is critical infrastructure; one minute of degradation matters.
+
+## Common incident playbooks
+
+### Database TLS handshake failures across all services
+
+Symptom: every Kratos/Hydra container logs `TLS handshake failed: certificate verify failed`.
+
+```bash
+# Check cert expiry
+ssh prod 'echo | openssl s_client -connect $POSTGRES_HOST:5432 -starttls postgres 2>/dev/null | openssl x509 -noout -dates'
+```
+
+If expired, run [Operate — Cert Rotation](/docs/operate/cert-rotation).
+
+### Caddy serving a fresh / invalid TLS cert (after an ACME renewal)
+
+Symptom: browsers show cert warning.
+
+```bash
+# Check what cert Caddy is serving
+ssh prod 'podman exec olympus-caddy cat /data/caddy/certificates/.../olympus.app.crt | openssl x509 -noout -text | head -20'
+```
+
+If ACME failed, check Caddy logs for the failure mode. Usually a temporary Let's Encrypt rate-limit; wait and retry. If sustained, switch to a backup ACME provider (ZeroSSL) — Caddy supports it via Caddyfile config.
+
+### All logins failing with `kratos_csrf_violation`
+
+Symptom: every login attempt at Hera returns 400 with `error: "security_csrf_violation"`.
+
+```bash
+# Likely the SESSION_SIGNING_KEY or Kratos cookie secret was rotated unsafely
+ssh prod 'podman exec olympus-ciam-kratos env | grep COOKIE'
+```
+
+If the cookie secrets have changed without proper key rotation, all in-flight sessions are invalidated. Users who refresh and start a new flow are unblocked. If this was accidental, revert the cookie secret change and redeploy.
+
+### Athena 500s on every admin route
+
+Symptom: `/api/health` returns 500 or 200 but other routes return 500.
+
+```bash
+# Most likely cause: ENCRYPTION_KEY or SESSION_SIGNING_KEY missing
+ssh prod 'podman logs olympus-athena-1 | tail -50'
+```
+
+The startup validation runs once. If it ran and accepted bad keys, that's a bug. Otherwise:
+
+- Missing `ENCRYPTION_KEY` → container should refuse to start. If it's running, check the env injection.
+- Missing `SESSION_SIGNING_KEY` → container should refuse to start. Same.
+
+Quick mitigation: redeploy with the correct env. Investigate the env source after the immediate fire.
+
+### Captcha entirely down (Turnstile API failures)
+
+Symptom: every registration / login attempt returns "captcha verification failed."
+
+Cloudflare Turnstile is the dependency. Check [status.cloudflare.com](https://status.cloudflare.com).
+
+Temporary mitigation if Turnstile is broken: set `TURNSTILE_DISABLED=true` in your container env and redeploy. **Document this in the incident ticket and re-enable as soon as Turnstile recovers** — you've removed your bot-mitigation layer.
+
+### Email not sending (recovery and verification broken)
+
+Symptom: users report missing recovery emails.
+
+```bash
+# Check Kratos courier queue
+ssh prod 'podman exec olympus-ciam-kratos kratos courier list-messages | head -20'
+```
+
+If queued and not sending, your transactional provider has issues. Check the provider status page. Re-trigger flushing with `kratos courier flush`.
+
+If the provider is fully down for >30 minutes, swap to the secondary provider configured in `kratos.yml`. (You should have a secondary configured — if you don't, this is a finding for the post-incident retrospective.)
+
+### Suspected credential compromise
+
+If you have evidence (e.g. brute-force succeeded against a specific identifier):
+
+1. Lock the affected account from Athena: navigate to the identity → Sessions → Revoke All → Mark identity as deleted-but-recoverable.
+2. Force a password change next login (Kratos `state: active` → `state: needs_password_reset`).
+3. Trigger the recovery flow to the identity's known-good email.
+4. Add the source IP to the Caddy block list.
+5. If the compromise was systemic (multiple accounts), execute the **mass session revocation** procedure:
+
+   ```bash
+   # Revoke all CIAM sessions
+   ssh prod 'podman exec olympus-ciam-kratos kratos sessions revoke --all'
+   # Revoke all Hydra refresh tokens
+   ssh prod 'podman exec olympus-ciam-hydra hydra revoke token --all'
+   ```
+
+   This forces every user to log in again. Treat as Sev 1 even if the breach was contained.
+
+### Suspected database compromise
+
+1. Treat as Sev 1 confirmed compromise.
+2. Rotate `ENCRYPTION_KEY` ([procedure](/docs/operate/encryption-key-rotation)).
+3. Rotate `SESSION_SIGNING_KEY` ([procedure](/docs/operate/session-signing-key-rotation)).
+4. Rotate all Hydra signing keys (forces re-issuance of all JWTs).
+5. Revoke all sessions and tokens (see previous section).
+6. Take a forensic snapshot of the database before any cleanup.
+7. Engage legal / your DPO if PII is potentially exposed.
+
+## Communication
+
+- **During the incident**: every 15 minutes, post a status update — what you know, what you're trying, ETA on next update.
+- **End of incident**: confirm restoration, note any user-visible impact, link to the post-incident document.
+- **Within 48 hours**: write the post-incident retrospective. Root cause, what went well, what didn't, follow-up items with owners and dates.
+
+## Post-incident
+
+- Every Sev 1 and Sev 2 gets a written retrospective.
+- Every retrospective has at least one action item with an owner and a due date.
+- Action items either become tickets in the platform repo or get scheduled in the next sprint.
+
+## Reference
+
+- [Operate — Network Topology](/docs/operate/network-topology) — which ports must be reachable.
+- [Operate — Cert Rotation](/docs/operate/cert-rotation)
+- [Operate — Encryption Key Rotation](/docs/operate/encryption-key-rotation)
+- [Operate — Session Signing Key Rotation](/docs/operate/session-signing-key-rotation)
+- [Security — Threat Model](/docs/security/threat-model)

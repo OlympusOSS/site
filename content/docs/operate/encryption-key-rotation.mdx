@@ -1,0 +1,117 @@
+---
+title: Encryption key rotation
+description: Zero-downtime rotation of the SDK ENCRYPTION_KEY
+---
+
+`ENCRYPTION_KEY` is the master key used by the SDK to encrypt sensitive settings (OAuth client secrets, SMTP passwords, social-IdP secrets) at rest in the `olympus` database. It is derived per-record via HKDF-SHA256, then used to AES-256-GCM-encrypt the value before writing.
+
+Rotating `ENCRYPTION_KEY` re-encrypts every ciphertext in the database with the new key. The procedure is zero-downtime — old and new ciphertexts coexist during the migration window.
+
+## When to rotate
+
+- **Quarterly** as part of the [Secrets Audit](/docs/operate/secrets-audit) cadence.
+- **Immediately** if the key has been exposed (env var leaked in a log, in a screenshot, in a chat, on a former employee's laptop).
+- **After every significant change** to the SDK's encryption format (see [Security — Encryption at Rest](/docs/security/encryption-at-rest) for the format-version table).
+
+## Prerequisites
+
+- Generate the new key:
+
+  ```bash
+  openssl rand -base64 32
+  ```
+
+  Verify it doesn't match anything on the [Encryption Key Blocklist](/docs/security/encryption-key-blocklist) — the SDK will refuse to start with a blocklisted value, but it's faster to check before deploy.
+
+- Have the SDK's `migrate-encryption-key` script available:
+
+  ```bash
+  cat /app/node_modules/@olympusoss/sdk/src/migrate-encryption-key.ts
+  ```
+
+## Procedure (zero downtime)
+
+### 1. Stage the new key alongside the old
+
+Set both `ENCRYPTION_KEY` (current) and `ENCRYPTION_KEY_NEXT` (new) in your container environment:
+
+```bash
+# Production: GitHub Secrets → deploy.yml → compose.prod.yml env injection
+ENCRYPTION_KEY=<old>
+ENCRYPTION_KEY_NEXT=<new>
+```
+
+Redeploy. The SDK now reads ciphertexts with `<old>` and accepts writes with either key. New ciphertexts are written with `<old>` (no change yet).
+
+### 2. Run the migration
+
+From inside any container that imports the SDK (e.g. an Athena container):
+
+```bash
+podman exec olympus-athena-1 bun run /app/node_modules/@olympusoss/sdk/src/migrate-encryption-key.ts
+```
+
+The script:
+1. Iterates every encrypted row in the `olympus` database.
+2. Decrypts with `ENCRYPTION_KEY` (old).
+3. Re-encrypts with `ENCRYPTION_KEY_NEXT` (new).
+4. Writes back atomically.
+5. Logs progress to stdout.
+
+The migration is **idempotent** — re-running picks up any rows that were written during the migration window (e.g. a settings change happened concurrently).
+
+### 3. Promote the new key
+
+Once the migration completes:
+
+```bash
+ENCRYPTION_KEY=<new>     # promote new to primary
+ENCRYPTION_KEY_NEXT=     # unset
+```
+
+Redeploy. The SDK now uses the new key exclusively.
+
+### 4. Verify
+
+```bash
+# Verify SDK startup with new key
+podman exec olympus-athena-1 node -e \
+  "require('@olympusoss/sdk').getSetting('test_key').then(v => console.log('OK', v))"
+```
+
+Any settings read should succeed. If you see `OperationError: Cipher.openssl: bad decrypt`, the rotation didn't complete cleanly — re-run step 2 and verify `ENCRYPTION_KEY_NEXT` is still set.
+
+### 5. Audit and rotate the old key out of any backup
+
+The old key still decrypts any **backups** taken before rotation. If you take encrypted database backups, treat the old key as still-active for the retention period of the oldest backup. Delete the old key from your secret store only after the retention window has passed.
+
+## Failure modes
+
+### Migration interrupted mid-run
+
+The script is idempotent. Re-run it. Any rows already migrated are skipped (the row's ciphertext header includes the key fingerprint).
+
+### `ENCRYPTION_KEY_NEXT` not set but containers refuse to start
+
+The SDK requires `ENCRYPTION_KEY` to be set unconditionally. Setting `ENCRYPTION_KEY_NEXT` is optional; setting only `ENCRYPTION_KEY_NEXT` without `ENCRYPTION_KEY` is an error.
+
+### Blocklisted value
+
+If your generated key happens to be on the blocklist (extremely unlikely for `openssl rand` output — the blocklist is for known-public sample values, not random strings), the SDK refuses to start. Generate a new key.
+
+### Settings page shows "decryption failed" after rotation
+
+You promoted `ENCRYPTION_KEY=<new>` before the migration finished. Roll back: set `ENCRYPTION_KEY=<old>` and `ENCRYPTION_KEY_NEXT=<new>`, redeploy, re-run the migration.
+
+## Why this works
+
+- The SDK reads tries `ENCRYPTION_KEY` first, then `ENCRYPTION_KEY_NEXT`. Both keys are valid for reads during the migration window.
+- Writes always use `ENCRYPTION_KEY`. After the migration completes and you've promoted, all reads are by the new key — but old ciphertexts that you didn't catch are still readable via the (still-staged) `ENCRYPTION_KEY_NEXT` for one more deploy cycle.
+- The format version prefix (`v2:`) lets the SDK identify which scheme each ciphertext uses, so future rotations across format versions also work.
+
+## Related
+
+- [Security — Encryption at Rest](/docs/security/encryption-at-rest) — the encryption format in detail.
+- [Security — Encryption Key Blocklist](/docs/security/encryption-key-blocklist) — known-weak values that are rejected.
+- [Operate — Secrets Audit](/docs/operate/secrets-audit) — the quarterly cadence.
+- [Operate — Session Signing Key Rotation](/docs/operate/session-signing-key-rotation) — the parallel runbook for `SESSION_SIGNING_KEY`.

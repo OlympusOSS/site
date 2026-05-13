@@ -1,0 +1,102 @@
+---
+title: "0010 — Podman over Docker"
+description: Why Olympus targets Podman instead of Docker for its container runtime
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Olympus is delivered as a set of OCI containers. The deployment relies on a Compose-style orchestrator on a single VPS (multi-node deployment is out of scope per [ADR 0001](/docs/adrs/0001-dual-domain-architecture)). The choice of container runtime affects security posture, operational model, and the cost of getting started.
+
+## Considered alternatives
+
+### Option A — Docker (Docker Engine + Docker Compose)
+
+The default.
+
+- *Pros*:
+  - Ubiquitous; every developer has it.
+  - Docker Compose YAML is the de facto standard format.
+  - Mature, ample documentation.
+- *Cons*:
+  - **Root daemon.** `dockerd` runs as root by default. Compromise of the daemon (or its socket) is root on the host.
+  - **License changes.** Docker Desktop changed its commercial terms in 2021 — companies above 250 employees need a license. Even if Olympus's audience is below that threshold, the precedent is uncomfortable.
+  - Rootless Docker exists but is opt-in and second-class.
+  - Docker Compose v2 is now a plugin, but it relies on the Docker daemon being up.
+
+### Option B — Podman ✓
+
+A drop-in `docker` replacement from Red Hat that doesn't require a daemon.
+
+- *Pros*:
+  - **Rootless by default.** No daemon; containers run as your user. A container compromise stays at that user's privilege.
+  - **Daemonless.** No `dockerd` process to manage, monitor, or restart. Better resilience.
+  - Apache-2.0 license throughout. No commercial-use uncertainty.
+  - Compose support via `podman-compose` (Python) or `podman compose` (Go, newer). Mostly compatible with Compose YAML.
+  - Native systemd integration via `podman generate systemd`.
+- *Cons*:
+  - Less ubiquitous than Docker; developers may need to install it explicitly.
+  - Some Compose features have subtle differences (network DNS resolution, volume mounting in rootless mode).
+  - On macOS, Podman runs in a VM via `podman machine` — small startup latency.
+
+### Option C — Containerd directly
+
+The lower-level runtime, with `nerdctl` as the CLI.
+
+- *Pros*: minimal.
+- *Cons*: too low-level for an operator-friendly story.
+
+### Option D — Kubernetes
+
+Out of scope. Multi-node K8s for a single-VPS identity platform is over-engineering; [ADR 0010 declines K8s](/docs/adrs/0001-dual-domain-architecture).
+
+## Decision
+
+**Option B — Podman.**
+
+## Consequences
+
+### Security
+
+- Containers run as a non-root user by default. A container escape doesn't get root on the host.
+- No daemon to compromise; nothing listens on the network.
+- Aligns with the NIST and CIS recommendations to prefer rootless containers.
+
+### Developer onboarding
+
+- Mac developers: `brew install podman && podman machine init && podman machine start`. Slightly more friction than `brew install --cask docker`.
+- Linux developers: `apt install podman` or `dnf install podman`. Quicker than Docker (no daemon to start).
+- We document the install in [Prerequisites](/docs/get-started/prerequisites). `octl deploy` auto-installs on macOS.
+
+### Compose differences
+
+A few Compose features behave slightly differently:
+
+- **DNS resolution between containers**: Podman uses a separate DNS plugin (`dnsname`). Set up correctly by `octl deploy` and the platform repo's `compose.dev.yml`; not a concern in normal operation.
+- **Volume permissions**: rootless containers may need `:Z` or `:z` mount flags on SELinux systems. Olympus uses standard `rw` mounts that work in both.
+- **Privileged containers**: rare in Olympus (only the `caddy-build` builder uses `--privileged`, and only in CI).
+
+### Production
+
+- The production VPS runs Podman directly. systemd units (generated via `podman generate systemd`) keep containers up across reboots.
+- Image registry: GHCR (`ghcr.io/olympusoss/*`). Podman pulls and runs these natively.
+
+### CI/CD
+
+- GitHub Actions runners use Docker by default. Olympus's `verify-prod-config.yml` and `caddy-build.yml` use Docker because the runners come with it pre-installed; for local production parity we use Podman.
+- Both runtimes consume the same OCI images, so a Docker-built image runs fine under Podman and vice versa.
+
+## Related
+
+- [Get Started — Prerequisites](/docs/get-started/prerequisites)
+- [Get Started — Quickstart with podman compose](/docs/get-started/quickstart-podman-compose)
+- [Operate — Network Topology](/docs/operate/network-topology) — Compose network and rootless DNS behaviour.
+
+## Revisit triggers
+
+- Docker reverts to a permissive license model and ships rootless as the default. (Reduces the security delta.)
+- Podman drops Compose support or makes it harder to use. (Increases friction.)
+- A new entrant offers strictly better trade-offs.

@@ -1,0 +1,99 @@
+---
+title: "0019 — PKCE mandatory for all public clients"
+description: Why Olympus rejects authorization-code flows without PKCE for public clients
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+OAuth 2.0's Authorization Code grant uses a short-lived **authorization code** that the client exchanges for tokens. The code is transmitted via the user's browser (in the redirect URL), creating opportunities for interception:
+
+1. **Mixed-up redirect URI** — phishing pages that capture codes meant for legitimate apps.
+2. **HTTP referer leakage** — the redirect URL ending up in `Referer` headers to third-party scripts.
+3. **App-shared device storage** — on mobile, another app reading the URL via custom URL scheme handling.
+
+RFC 7636 (Proof Key for Code Exchange, PKCE) defends against these. The flow:
+1. Client generates a random `code_verifier` and its SHA-256 hash, the `code_challenge`.
+2. Client sends `code_challenge` and `code_challenge_method=S256` in the authorization request.
+3. Server records both.
+4. When the client exchanges the code for tokens, it must include the original `code_verifier`.
+5. Server verifies `SHA-256(verifier) == challenge`. If not, the exchange fails.
+
+An attacker who intercepts the code cannot redeem it without the verifier.
+
+RFC 9700 (OAuth 2.0 Security Best Current Practice, 2024) explicitly recommends PKCE for all OAuth2 clients — public and confidential.
+
+## Considered alternatives
+
+### Option A — PKCE optional, per-client setting
+
+Allow public clients to register without PKCE if they prefer. This is Hydra's default.
+
+- *Pros*: Maximum interoperability with legacy clients.
+- *Cons*: Olympus deployments would be vulnerable to authorization-code interception against clients that didn't enable PKCE. The decision lives with each client developer, not the platform.
+
+### Option B — PKCE required for public clients, optional for confidential ✓
+
+Public clients (SPAs, mobile, CLIs) **must** use PKCE. Confidential clients (server-side apps with secrets) may use PKCE (and benefit) but are not required to.
+
+- *Pros*: Aligns with RFC 9700. The case where PKCE matters most (public clients) is enforced. Confidential clients retain compatibility with libraries that don't yet emit PKCE.
+- *Cons*: Any existing public client without PKCE breaks.
+
+### Option C — PKCE required for **all** clients (public and confidential)
+
+Per RFC 9700's strongest recommendation.
+
+- *Pros*: Maximum security.
+- *Cons*: Some confidential-client libraries (older versions) don't emit PKCE. Breaking these costs adoption.
+
+## Decision
+
+**Option B — PKCE required for public clients.** Confidential clients should use PKCE but aren't blocked from registration without it.
+
+Enforcement happens in Hydra's `token_endpoint_auth_method=none` flow (public clients): without PKCE, the authorization code exchange fails with `pkce_required`.
+
+The Athena admin UI prevents accidental misconfiguration — when creating a public client, the PKCE field is checked and not editable.
+
+Olympus only accepts **S256** as the challenge method (not the deprecated `plain`).
+
+## Consequences
+
+### Application developers
+
+- Every SPA, mobile, and CLI integration must implement PKCE. Modern OAuth2 libraries do this automatically (`oauth4webapi`, `appauth-android`, `appauth-ios`, `oidc-client-ts`).
+- Legacy clients without PKCE support won't work. This is a feature, not a bug.
+
+### Documentation
+
+- The [PKCE integration guide](/docs/integrate/oauth2-pkce) is the canonical reference.
+- [Your first OAuth2 client](/docs/get-started/first-oauth-client) walks through a PKCE-protected flow.
+- [Troubleshooting — `pkce_required`](/docs/troubleshooting/oauth2-pkce-required) covers the common misconfiguration.
+
+### Performance
+
+- PKCE adds two SHA-256 operations and a string roundtrip. Negligible.
+
+### Security
+
+- Authorization-code interception is no longer a viable attack vector against Olympus public clients.
+
+## Enforcement points
+
+1. **Hydra config** — `oauth2.pkce.enforced_for_public_clients: true` in [`hydra.yml`](/docs/reference/config/hydra-yml).
+2. **Hydra config** — `oauth2.pkce.enforced: false` for confidential clients (default; can be turned on at deployment time).
+3. **Athena UI** — `is_public_client=true` forces PKCE flags on.
+4. **`verify-prod-config.yml`** CI workflow — fails the build if PKCE enforcement is turned off in production config.
+
+## Related
+
+- [Security — PKCE Enforcement](/docs/security/pkce-enforcement) — the enforcement details.
+- [Integrate — OAuth2 PKCE](/docs/integrate/oauth2-pkce) — implementation guide.
+- [Troubleshooting — `pkce_required`](/docs/troubleshooting/oauth2-pkce-required) — common error case.
+
+## Revisit triggers
+
+- Major OAuth2 spec changes that supersede PKCE (e.g. token binding becoming widely supported).
+- A new RFC obsoleting the Authorization Code grant entirely.
