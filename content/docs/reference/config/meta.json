@@ -1,0 +1,14 @@
+{
+  "title": "Configuration",
+  "pages": [
+    "overview",
+    "kratos-yml",
+    "hydra-yml",
+    "caddyfile",
+    "compose-services",
+    "athena-env",
+    "hera-env",
+    "site-env",
+    "sdk-env"
+  ]
+}

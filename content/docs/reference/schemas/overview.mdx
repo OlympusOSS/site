@@ -1,0 +1,38 @@
+---
+title: Schemas
+description: Identity schemas and database schemas
+---
+
+## Identity schemas
+
+Olympus ships six JSON Schema (draft-07) identity-trait schemas — one set per CIAM/IAM domain, one set per dev/prod environment.
+
+| Schema | File | Domain | Environment |
+| --- | --- | --- | --- |
+| CIAM default | `platform/dev/ciam-kratos/identity.schema.json` | CIAM | dev |
+| CIAM customer | `platform/dev/ciam-kratos/customer.identity.schema.json` | CIAM | dev |
+| CIAM company | `platform/dev/ciam-kratos/company.identity.schema.json` | CIAM | dev |
+| IAM admin | `platform/dev/iam-kratos/identity.schema.json` | IAM | dev |
+| (prod variants) | `platform/prod/{ciam,iam}-kratos/*.json` | both | prod |
+
+The generated [Identity Schemas](/docs/reference/schemas/identity-schemas) reference page lands in Phase 4. Until then, see the narrative pages under [Identity](/docs/identity/overview).
+
+## Database schemas
+
+Five PostgreSQL databases:
+
+| Database | Owned by | Tables documented in |
+| --- | --- | --- |
+| `ciam_kratos` | Kratos (Ory-defined) | upstream Ory docs |
+| `ciam_hydra` | Hydra (Ory-defined) | upstream Ory docs |
+| `iam_kratos` | Kratos (Ory-defined) | upstream Ory docs |
+| `iam_hydra` | Hydra (Ory-defined) | upstream Ory docs |
+| `olympus` | SDK (Olympus-defined) | the generated [Database Schemas](/docs/reference/schemas/database-schemas) page (Phase 4) |
+
+For the `olympus` database, the table set is small:
+
+- `ciam_settings`, `iam_settings` — key-value settings vault
+- `locations` — session location history
+- `login_attempts` — recent login attempts (for brute-force tracking)
+- `lockouts` — active and historical lockouts
+- `security_audit` — audit log

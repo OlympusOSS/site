@@ -1,0 +1,41 @@
+---
+title: APIs
+description: Every HTTP and RPC surface in Olympus
+---
+
+This sub-section catalogs every API surface in Olympus. Most pages are generated; this overview is hand-written.
+
+## What's documented and how
+
+| Service | Surface | Generation |
+| --- | --- | --- |
+| Ory Kratos (CIAM + IAM) | Public + Admin REST | Phase 3 — generated from upstream Ory OpenAPI spec, plus a hand-written deltas page documenting Olympus-specific defaults |
+| Ory Hydra (CIAM + IAM) | Public + Admin REST | Phase 3 — generated from `athena/openapi.json`, plus deltas |
+| Athena | REST API under `/api/*` | Phase 3 — generated from `athena/src/app/api/**/route.ts` AST |
+| SDK | TypeScript exports | Phase 3 — generated via TypeDoc from `sdk/src/index.ts` |
+| Site | OAuth2 playground routes | Phase 3 — small surface, hand-written |
+| Daedalus MCP | JSON-RPC 2.0 tools | Phase 3 — generated from `daedalus/src-tauri/src/mcp/tools.rs` |
+
+## Authentication summary
+
+| Surface | Auth |
+| --- | --- |
+| Kratos Public | Session cookie or token (per flow type) |
+| Kratos Admin | Network ACL only — must be firewalled to localhost/intranet |
+| Hydra Public | OAuth2 token (per endpoint) or unauthenticated (discovery, JWKS) |
+| Hydra Admin | Network ACL only — must be firewalled |
+| Athena | `athena-session` HMAC cookie, role check on admin routes |
+| SDK | Library, not network — no auth boundary |
+| MCP | Localhost only, no network exposure |
+
+See [Athena API Authentication](/docs/reference/api-athena-authentication) for the Athena auth chain in full detail.
+
+## Already available
+
+While the generated pages land in Phase 3, the hand-written Athena reference is complete:
+
+- [Athena API Authentication](/docs/reference/api-athena-authentication)
+- [Athena API Errors](/docs/reference/api-athena-errors)
+- [Athena API Pagination](/docs/reference/api-athena-pagination)
+- [Athena Settings API](/docs/reference/api-athena-settings)
+- [SDK Settings API](/docs/reference/api-sdk-settings)

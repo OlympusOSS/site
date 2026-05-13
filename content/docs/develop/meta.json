@@ -1,0 +1,18 @@
+{
+  "title": "Develop",
+  "pages": [
+    "overview",
+    "inspecting-your-containers",
+    "workspace-setup",
+    "package-naming",
+    "running-tests",
+    "testing-strategy",
+    "working-with-canvas",
+    "working-with-sdk",
+    "release-process",
+    "versioning",
+    "debugging-oauth2-flows",
+    "debugging-kratos-flows",
+    "contributing"
+  ]
+}

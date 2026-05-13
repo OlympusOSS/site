@@ -1,0 +1,50 @@
+---
+title: Overview
+description: Orientation for the Security section
+---
+
+This section is the security model — the threats Olympus defends against, the mechanisms doing the defending, and the headers, encryption, and policies in effect.
+
+## Defining the perimeter
+
+- [Threat model](/docs/security/threat-model) — what we defend against and what we don't.
+- [CIAM/IAM isolation](/docs/security/ciam-iam-isolation) — the rationale and the enforcement boundary.
+
+## At rest
+
+- [Encryption at rest](/docs/security/encryption-at-rest) — AES-256-GCM with HKDF-SHA256.
+- [Encryption key blocklist](/docs/security/encryption-key-blocklist) — known-weak values the SDK refuses.
+
+## In flight
+
+- [Session cookies](/docs/security/session-cookies) — HMAC-signed, separate `SESSION_SIGNING_KEY` from `ENCRYPTION_KEY`.
+- [Security headers](/docs/security/security-headers) — HSTS, X-Frame-Options, Referrer-Policy.
+- [CSP — Athena](/docs/security/csp-athena) — admin dashboard CSP.
+- [CSP — Hera](/docs/security/csp-hera) — login UI CSP.
+
+## Abuse mitigation
+
+- [Brute-force protection](/docs/security/brute-force) — login-attempt tracking and account lockout.
+- [Account lockout](/docs/security/account-lockout) — Hera's lockout policy.
+- [Breached password](/docs/security/breached-password) — HaveIBeenPwned k-anonymity check.
+- [Captcha Turnstile](/docs/security/captcha-turnstile) — Cloudflare Turnstile policy.
+- [Rate limiting](/docs/security/rate-limiting) — Caddy `rate_limit` module.
+
+## OAuth2 hardening
+
+- [PKCE enforcement](/docs/security/pkce-enforcement) — RFC 9700 alignment; mandatory for all public clients.
+
+## Email and IdP trust
+
+- [Email verification](/docs/security/email-verification) — mandatory in production.
+- [OIDC `email_verified` trust](/docs/security/oidc-email-verified-trust) — why we never trust the upstream `email_verified` claim.
+
+## DBA access
+
+- [pgAdmin SSO](/docs/security/pgadmin-sso) — OIDC through Olympus IAM Hydra.
+- [pgAdmin DBA accounts](/docs/security/pgadmin-dba-accounts) — least-privilege per-DBA database roles.
+
+## Supply chain
+
+- [Caddy supply chain](/docs/security/caddy-supply-chain) — reproducible builds with the `rate_limit` module.
+- [Secrets management](/docs/security/secrets-management) — secret material lifecycle.

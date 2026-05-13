@@ -1,0 +1,61 @@
+---
+title: Your first login
+description: Walk through a Kratos login flow end-to-end
+---
+
+This page exercises a real login — both as the seeded admin (so you can see what works) and a fresh customer account (so you can see registration and email verification).
+
+## Prerequisite
+
+You've run [`octl deploy`](/docs/get-started/quickstart-octl). All eighteen containers are up.
+
+## Log in as the seeded admin
+
+1. Open [http://localhost:4001](http://localhost:4001) (Athena IAM).
+2. Click **Sign in with Olympus IAM**.
+3. You'll redirect to Hera IAM at [http://localhost:4000](http://localhost:4000).
+4. Enter `admin@demo.user` / `admin123!` and submit.
+5. You'll redirect through the Hydra IAM consent flow (auto-granted) and land on the Athena dashboard.
+
+What just happened, step by step:
+
+- Athena IAM redirected to Hydra IAM `/oauth2/auth` to start an OAuth2 flow.
+- Hydra IAM didn't have a session yet, so it redirected to Hera IAM with a `login_challenge`.
+- Hera IAM had no Kratos session for you, so it rendered the Kratos login flow.
+- You submitted credentials. Kratos validated against the `admin@demo.user` identity in the `iam_kratos` database.
+- Hera IAM accepted the Kratos session and informed Hydra IAM via `/admin/oauth2/auth/requests/login/accept`.
+- Hydra IAM asked for consent. Hera IAM auto-granted (the Athena IAM scopes are pre-approved).
+- Hydra IAM issued an authorization code and redirected to Athena IAM's `/api/auth/callback`.
+- Athena IAM exchanged the code for tokens, set the `athena-session` cookie, redirected to `/`.
+
+You are now logged in. Click around the Athena dashboard — Identities, Sessions, OAuth2 Clients, Schemas — to see what's seeded.
+
+## Register a new customer
+
+1. Open [http://localhost:3000](http://localhost:3000) (Hera CIAM).
+2. Click **Sign up** (or go to `/registration`).
+3. Enter a fake email like `customer1@demo.user` and a password like `CustomerTest123!`.
+4. Submit.
+5. Hera CIAM creates the identity in the `ciam_kratos` database and triggers a verification email.
+6. Open [http://localhost:5434](http://localhost:5434) (MailSlurper).
+7. Find the verification email, click the verification link.
+8. You're now verified and logged in.
+
+You can see the new customer identity in Athena CIAM at [http://localhost:3001](http://localhost:3001) — log in as the admin first (you'll go through the Athena IAM auth flow), then navigate to Identities.
+
+## Try the recovery flow
+
+1. From Hera CIAM, click **Forgot password**.
+2. Enter `customer1@demo.user`.
+3. Open MailSlurper and click the recovery link.
+4. Set a new password.
+
+## What the playground does
+
+The [Site at localhost:2000](http://localhost:2000) includes an **OAuth2 playground** that exercises an Authorization Code + PKCE flow against a registered playground client. It shows the full token round-trip including the decoded ID token and scopes — useful for understanding what your apps will see.
+
+## Where next
+
+- [Your first OAuth2 client](/docs/get-started/first-oauth-client) — register a real client and consume tokens from your own app.
+- [Identity — Flow Login](/docs/identity/flow-login) — the Kratos login flow as a state diagram.
+- [Integrate — OAuth2 authorization code](/docs/integrate/oauth2-authorization-code) — the protocol perspective.

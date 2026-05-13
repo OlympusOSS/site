@@ -1,0 +1,223 @@
+---
+title: Social Login
+description: End-user social login via OIDC providers (Google, GitHub, etc.)
+---
+
+## Overview
+
+Olympus supports social login (OIDC-based) via Kratos's native OIDC strategy. In V1, Google is the only configured provider. The login and registration pages render social buttons dynamically based on which providers an admin has enabled in Athena — no providers are hardcoded in Hera.
+
+Account linking allows an existing Olympus user to connect a social provider to their account, enabling them to log in with either their password or the social provider. Linking requires explicit user confirmation and an authenticated session — no auto-linking occurs.
+
+---
+
+## Social Login Buttons
+
+### How Hera Gets the Provider List
+
+Hera fetches the enabled provider list from Athena's `GET /api/connections/public` endpoint at page load. The response is cached server-side for 30–60 seconds to avoid per-request Athena calls.
+
+If the Athena endpoint is unreachable, Hera renders the login and registration pages without social buttons (fail-open). No error is shown to the user, but the failure is logged server-side for monitoring.
+
+**Note**: The old URL (`/api/connections/social?enabled=true`) is deprecated as of athena#49. Use `/api/connections/public` exclusively. The response shape also changed — the new endpoint returns `{ "providers": ["google"] }` (an object with a `providers` array), not a bare array of objects. Hera must derive display names locally from provider IDs.
+
+### Button Rendering Rules
+
+| Rule | Detail |
+|------|--------|
+| Label format | "Continue with [Provider Name]" (e.g., "Continue with Google") |
+| Icon | Provider-specific SVG, stored in Canvas or Hera `public/` — no external CDN calls |
+| Order | Matches the `order` field from the API response (admin-configured) |
+| Visibility | Section and "or" divider are completely hidden when no providers are enabled |
+| Accessibility | Each button has `aria-label="Continue with [Provider Name]"` |
+
+### Login Page Behavior
+
+```
+Login page loads
+        │
+        ▼
+Hera (server-side) calls GET /api/connections/public
+        │
+        ├─ 0 providers → social section hidden, email/password form only
+        │
+        └─ 1+ providers → render social buttons above "or" divider, then email/password form
+```
+
+### Initiating a Social Login
+
+When the user clicks a social provider button, Hera calls the Kratos OIDC login initiation endpoint:
+
+```
+GET /self-service/login/browser?provider={provider_slug}
+```
+
+Kratos redirects the user to the provider's OAuth2 authorization URL. After the user authenticates with the provider, Kratos handles the callback and creates or retrieves the matching Olympus identity.
+
+The `provider` value in the URL comes from the API response — it is never hardcoded in Hera.
+
+---
+
+## API Reference (Athena → Hera)
+
+### `GET /api/connections/public`
+
+Returns the list of enabled provider IDs. Used by Hera to render social login buttons.
+
+**Authentication**: None required. Registered outside `ADMIN_PREFIXES`.
+
+**Response** (200):
+
+```json
+{ "providers": ["google"] }
+```
+
+**Empty response (no providers configured or all disabled)**:
+
+```json
+{ "providers": [] }
+```
+
+| Field | Description |
+|-------|-------------|
+| `providers` | Array of provider ID strings. Each entry is the `provider=` value used in the Kratos OIDC initiation URL (`/self-service/login/browser?provider=:id`). |
+
+**Notes**:
+- No credential fields are returned. OAuth2 client ID, client secret, and redirect URIs are managed by Kratos and Athena — they never appear in this response.
+- Provider display names (e.g., "Google") are derived by Hera from the provider ID. They are not included in the response.
+- "Not configured" and "configured but disabled" are both represented as `{ "providers": [] }` — these states are indistinguishable from the outside.
+
+---
+
+## Account Linking
+
+Account linking connects a social provider to an existing Olympus account. Once linked, the user can log in with either their password or the social provider.
+
+### Important: No Auto-Linking
+
+Olympus never automatically links a social account to an existing Olympus account, even when the emails match. Every link operation requires explicit user confirmation. This is a security policy decision — not a configurable option.
+
+The reason: pre-linking attacks. An attacker can create a social account with the victim's email before the victim registers. If the system auto-links on email match, the attacker's social account gains access to the victim's Olympus account. Requiring explicit confirmation from an authenticated Olympus user prevents this.
+
+### Linking a Social Provider (Happy Path)
+
+```
+Account Settings → Security → Connected Accounts → Click "Connect" for Google
+        │
+        ▼
+Hera initiates Kratos settings flow with OIDC method
+Kratos redirects to Google OAuth2
+User authenticates with Google
+        │
+        ▼
+Google callback → Kratos returns to Hera settings page
+        │
+        ▼
+Hera displays confirmation screen:
+  "You are about to link your Google account (alice@gmail.com)
+   to your Olympus account (alice@example.com). Continue?"
+        │
+        ├─ User clicks Cancel → no link, returns to Connected Accounts
+        │
+        └─ User clicks Confirm → Hera submits the settings flow to Kratos
+                               → Kratos adds OIDC credential to the identity
+                               → Connected Accounts shows Google as linked
+```
+
+The confirmation screen is server-enforced. Bypassing it via direct API call does not work — the Kratos settings flow requires explicit submission.
+
+### Email Conflict (New User, Email Matches Existing Account)
+
+When a user attempts to log in with a social provider and their social email matches an existing Olympus account:
+
+```
+New user attempts social login with Google (alice@gmail.com)
+Kratos detects email matches existing Olympus identity
+        │
+        ▼
+Hera renders "Link accounts?" confirmation screen:
+  "An Olympus account with this email already exists.
+   To link your Google account, please sign in with your
+   password first, then connect Google from your account settings."
+        │
+        ▼
+User signs in with password
+User goes to Account Settings → Connected Accounts → Connect Google
+(Standard linking flow above)
+```
+
+**Note**: If the user has forgotten their password, they can use the "Forgot password" link to reset it, then proceed to link. There is no bypass for forgotten passwords — the user must authenticate with their existing Olympus account before linking.
+
+### Unlinking a Social Provider
+
+A user can unlink a social provider from Account Settings > Security > Connected Accounts. The unlink option is only available when the user has at least one other active login method (another social provider or a password).
+
+```
+Account Settings → Connected Accounts → Click "Unlink" for Google
+        │
+        ▼
+Hera validates: user has at least one other active credential
+        │
+        ├─ Only one credential → error:
+        │   "You cannot remove your only login method.
+        │    Add another login method before removing this one."
+        │
+        └─ Multiple credentials → confirmation prompt
+                                → Hera calls Kratos to remove OIDC credential
+                                → Connected Accounts updates
+```
+
+**Race condition protection**: The credential count check must be atomic. Hera checks the count server-side and Kratos validates at the time of removal. If two simultaneous unlink requests arrive, Kratos's identity state ensures only one succeeds (the other gets a 409 or equivalent error).
+
+---
+
+## Connected Accounts UI
+
+The Connected Accounts section appears in Account Settings > Security. It shows:
+
+| Section | Content |
+|---------|---------|
+| Linked providers | Provider name, linked date, "Unlink" button (disabled if last credential) |
+| Available providers | Provider name, "Connect" button (only for providers the admin has enabled but the user has not yet linked) |
+
+If no providers are configured by the admin, the Connected Accounts section is not shown.
+
+---
+
+## Edge Cases
+
+### Provider disabled by admin after user has linked it
+
+If an admin disables a provider in Athena after a user has linked it, the user can still log in with that provider until the credential is explicitly removed. The admin disabling a provider removes the login button from the UI but does not revoke existing credentials. Revoking credentials requires removing them via the identity management panel in Athena.
+
+### Social login with a different email than the Olympus account
+
+A user's Olympus account may be `alice@work.com` while their linked Google account is `alice@gmail.com`. This is expected — the linking confirmation screen shows both emails so the user can verify they are linking the correct accounts. After linking, either email can be used to identify the session.
+
+### Olympus account without a password
+
+A user who created their account through a social provider has no password. If they unlink their only social provider without first setting a password, they are left with no login method. Hera prevents this by checking for at least one other active credential before allowing an unlink. Admins can set a temporary password via Athena if a user becomes locked out.
+
+---
+
+## Security Considerations
+
+- **Session required for all linking**: Kratos's settings flow requires an active authenticated session (AAL1 minimum). Unauthenticated linking attempts are rejected by Kratos natively.
+- **Confirmation is server-enforced**: The linking confirmation screen is not UI-only. The Kratos settings flow requires explicit submission before the OIDC credential is committed to the identity. Bypassing the UI does not bypass the flow submission requirement.
+- **No auto-linking, ever**: This is a hard policy. Do not implement auto-linking even for edge cases where it might seem safe. The pre-linking attack risk is real and well-documented.
+- **Audit trail**: All linking and unlinking events are logged: `{ identityId, provider, action: "linked" | "unlinked", timestamp, sourceIp }`. This satisfies SOC2 CC6.3.
+- **Email enumeration**: The email conflict screen reveals that an Olympus account with the given email exists. This is an accepted trade-off — preventing the message entirely would leave social users confused about why their login fails. The message is kept generic: "An account with this email already exists."
+- **CSRF protection**: The confirmation POST uses the Kratos flow ID as a CSRF token equivalent. The flow ID is server-generated and not guessable.
+
+---
+
+## Related Issues
+
+- [hera#30](https://github.com/OlympusOSS/hera/issues/30) — Social login buttons on login and registration screens
+- [hera#31](https://github.com/OlympusOSS/hera/issues/31) — Account linking: connect social provider to existing account
+- [athena#49](https://github.com/OlympusOSS/athena/issues/49) — Social connections API (provider list endpoint)
+- [platform#15](https://github.com/OlympusOSS/platform/issues/15) — Social provider OIDC configuration in Kratos
+
+---
+
+*Last updated: 2026-04-01 (Technical Writer — hera#30 social login buttons, hera#31 account linking)*

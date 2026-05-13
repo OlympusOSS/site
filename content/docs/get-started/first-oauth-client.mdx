@@ -1,0 +1,137 @@
+---
+title: Your first OAuth2 client
+description: Register an OAuth2 client and consume tokens
+---
+
+This page registers a brand-new OAuth2 client in CIAM Hydra and walks through the Authorization Code + PKCE flow against it from a tiny Node script.
+
+## Prerequisite
+
+You've completed [Your first login](/docs/get-started/first-login). You're logged into Athena CIAM as `admin@demo.user`.
+
+## Register the client (via Athena UI)
+
+1. In Athena CIAM, go to **OAuth2 Clients**.
+2. Click **New Client**.
+3. Fill in:
+   - Name: `playground-client`
+   - Client type: **Public** (it's a CLI — no client secret)
+   - Redirect URI: `http://localhost:8765/callback`
+   - Allowed grant types: `authorization_code`, `refresh_token`
+   - Allowed scopes: `openid`, `profile`, `email`
+   - Response types: `code`
+   - PKCE required: **yes** (Olympus enforces this anyway — see [Security — PKCE Enforcement](/docs/security/pkce-enforcement))
+4. Save. Note the resulting **client ID** (e.g. `c-abc123`).
+
+## Register the client (via Hydra admin CLI)
+
+If you'd rather use the command line:
+
+```bash
+podman exec ciam-hydra-public-dev hydra create client \
+  --endpoint http://localhost:3103 \
+  --name playground-client \
+  --grant-type authorization_code,refresh_token \
+  --response-type code \
+  --scope "openid profile email" \
+  --redirect-uri http://localhost:8765/callback \
+  --token-endpoint-auth-method none
+```
+
+Output includes `CLIENT_ID` — keep it.
+
+## Run the flow
+
+A minimal Node.js script:
+
+```js
+import crypto from "node:crypto";
+import http from "node:http";
+
+const CLIENT_ID = "c-abc123";
+const HYDRA = "http://localhost:3102";
+const REDIRECT = "http://localhost:8765/callback";
+
+// 1. Build PKCE pair
+const codeVerifier = crypto.randomBytes(64).toString("base64url");
+const codeChallenge = crypto
+  .createHash("sha256")
+  .update(codeVerifier)
+  .digest("base64url");
+const state = crypto.randomBytes(16).toString("base64url");
+
+// 2. Print the authorize URL
+const authorizeUrl = new URL(`${HYDRA}/oauth2/auth`);
+authorizeUrl.search = new URLSearchParams({
+  client_id: CLIENT_ID,
+  response_type: "code",
+  redirect_uri: REDIRECT,
+  scope: "openid profile email",
+  state,
+  code_challenge: codeChallenge,
+  code_challenge_method: "S256",
+}).toString();
+console.log("Open this in a browser:\n", authorizeUrl.toString());
+
+// 3. Listen for the callback
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, "http://localhost:8765");
+  if (url.pathname !== "/callback") {
+    res.writeHead(404).end();
+    return;
+  }
+  const code = url.searchParams.get("code");
+  res.writeHead(200, { "content-type": "text/plain" });
+  res.end("Got code — check the terminal.\n");
+
+  // 4. Exchange code for tokens
+  const tokenRes = await fetch(`${HYDRA}/oauth2/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: CLIENT_ID,
+      code,
+      redirect_uri: REDIRECT,
+      code_verifier: codeVerifier,
+    }),
+  });
+  const tokens = await tokenRes.json();
+  console.log("Tokens:", tokens);
+  server.close();
+});
+server.listen(8765, () => console.log("Listening on :8765"));
+```
+
+Save as `flow.mjs`, run `node flow.mjs`. Open the printed URL. Log in (as a customer, or use the existing `admin@demo.user`). Approve the consent screen.
+
+The script prints the access token, ID token, and refresh token.
+
+## Decode the ID token
+
+The ID token is a JWT. Decode the middle segment as base64-url:
+
+```bash
+echo "$ID_TOKEN" | cut -d. -f2 | base64 -d | jq
+```
+
+You should see claims including `sub` (the identity ID), `email`, `iat`, `exp`, `iss`, and `aud`.
+
+## What just happened
+
+You exercised the full Authorization Code + PKCE flow:
+
+1. Generated a PKCE verifier and challenge.
+2. Sent the user to Hydra's `/oauth2/auth` with the challenge.
+3. Hydra delegated to Kratos (via Hera) to identify the user.
+4. Hera auto-granted consent.
+5. Hydra returned a single-use authorization code to your callback.
+6. You exchanged the code (plus the original verifier) for tokens.
+
+The PKCE pair prevents anyone who intercepts the authorization code from being able to redeem it — only the holder of the original verifier can.
+
+## Where next
+
+- [Integrate — OAuth2 PKCE](/docs/integrate/oauth2-pkce) — full PKCE reference.
+- [Integrate — OIDC userinfo](/docs/integrate/oidc-userinfo) — get profile data after login.
+- [Integrate — Token validation cookbook](/docs/cookbook/validate-token-node) — validate the access token in your backend.

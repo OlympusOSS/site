@@ -1,0 +1,112 @@
+---
+title: Repo Map
+description: The eight Olympus repositories at a glance
+---
+
+Olympus is eight Git repositories under the [OlympusOSS](https://github.com/OlympusOSS) GitHub organization. Each repo is independently versioned, has its own CI/CD pipeline, and ships either a container image (Athena, Hera, Site) or an npm package (Canvas, SDK) or a binary (Octl, Daedalus).
+
+## At a glance
+
+| Repo | Language | Distribution | Purpose |
+| --- | --- | --- | --- |
+| [platform](https://github.com/OlympusOSS/platform) | YAML, shell, Dockerfile | — | Compose configs, Ory configs, schemas, CI/CD |
+| [athena](https://github.com/OlympusOSS/athena) | TypeScript / Next.js | `ghcr.io/olympusoss/athena` | Admin dashboard |
+| [hera](https://github.com/OlympusOSS/hera) | TypeScript / Next.js | `ghcr.io/olympusoss/hera` | Login + consent UI |
+| [site](https://github.com/OlympusOSS/site) | TypeScript / Next.js + Fumadocs | `ghcr.io/olympusoss/site` | Brochure, OAuth2 playground, docs |
+| [canvas](https://github.com/OlympusOSS/canvas) | TypeScript / React | `@olympusoss/canvas` (npm) | Design system |
+| [sdk](https://github.com/OlympusOSS/sdk) | TypeScript | `@olympusoss/sdk` (npm) | Settings, encryption, brute-force |
+| [octl](https://github.com/OlympusOSS/octl) | TypeScript | `@olympusoss/octl` (npm), `npx octl` | Local-dev CLI |
+| [daedalus](https://github.com/OlympusOSS/daedalus) | TypeScript + Rust (Tauri) | macOS app + MCP server | Production deployment wizard |
+
+## Platform — the center of gravity
+
+[github.com/OlympusOSS/platform](https://github.com/OlympusOSS/platform)
+
+The platform repo contains the **runtime configuration** of an Olympus deployment, separate from any application code:
+
+- `dev/compose.dev.yml` — development stack (18 services, app code volume-mounted)
+- `prod/compose.prod.yml` — production stack (16 services, all from pinned images)
+- `dev/ciam-kratos/`, `dev/iam-kratos/`, `prod/ciam-kratos/`, `prod/iam-kratos/` — Kratos configs and identity schemas per domain per environment (16 config files)
+- `dev/ciam-hydra/`, `prod/ciam-hydra/`, etc. — Hydra configs
+- `prod/Caddyfile` — production reverse-proxy and rate-limiting configuration
+- `dev/init-db.sql`, `prod/init-db.sql` — database initialization
+- `prod/seed-prod.sh`, `dev/iam-seed-dev.sh` — initial admin and demo identity seeding
+- `.github/workflows/` — seven shared CI/CD workflows: deploy, cert-expiry-check, verify-image-pins, verify-email-enforcement, verify-prod-config, caddy-build, claude
+
+Changes to the platform repo trigger production deploys via `deploy.yml`. See [Internals — Deploy Pipeline](/docs/internals/platform-deploy-pipeline).
+
+## Athena — admin dashboard
+
+[github.com/OlympusOSS/athena](https://github.com/OlympusOSS/athena)
+
+Next.js admin panel. Twelve feature modules (`src/features/`): analytics, auth, identities, m2m-clients, messages, oauth2-auth, oauth2-clients, oauth2-tokens, schemas, security, sessions, settings. Twenty-four API routes under `src/app/api/`. One instance per domain — in practice, operators primarily use the IAM Athena because Athena can manage both CIAM and IAM Kratos/Hydra through configured admin endpoints.
+
+See [Internals — Athena Route Map](/docs/internals/athena-route-map).
+
+## Hera — login UI
+
+[github.com/OlympusOSS/hera](https://github.com/OlympusOSS/hera)
+
+Renders Kratos self-service flows and Hydra consent screens. The user-visible login experience. Ten page routes. Implements the breached-password check, account-lockout, PKCE analytics, captcha integration, and social login.
+
+See [Internals — Hera Route Map](/docs/internals/hera-route-map).
+
+## Site — brochure + playground + docs
+
+[github.com/OlympusOSS/site](https://github.com/OlympusOSS/site)
+
+Three things in one Next.js app:
+1. Marketing landing page (`/`)
+2. OAuth2 playground (`/playground`) that exercises a real Authorization Code + PKCE flow against the local CIAM or IAM Hydra
+3. This documentation site (`/docs`) built with [Fumadocs](https://fumadocs.dev/)
+
+The playground is useful for verifying a deployment end-to-end: log in via CIAM or IAM, see the decoded ID token, inspect scopes, watch the callback round-trip.
+
+## Canvas — design system
+
+[github.com/OlympusOSS/canvas](https://github.com/OlympusOSS/canvas)
+
+105 React components organized by atomic-design tier: atoms (22), molecules (35), organisms (28), and charts (20 — Nivo wrappers). Built on Radix UI primitives, Lucide icons, and Tailwind v4. Distributed as a **source-only** npm package — `main: ./src/index.ts` — so consumers tree-shake what they actually use and get full type inference.
+
+Canvas has its own dedicated docs site with live playgrounds at **[olympusoss.github.io/canvas](https://olympusoss.github.io/canvas/)**. The current Olympus docs do not duplicate it.
+
+See [ADR 0012 — Source-Only NPM Packages](/docs/adrs/0012-source-only-npm-packages) and [ADR 0026 — Atomic Design in Canvas](/docs/adrs/0026-atomic-design-canvas).
+
+## SDK — shared library
+
+[github.com/OlympusOSS/sdk](https://github.com/OlympusOSS/sdk)
+
+Forty-one exports across eight TypeScript files. Imported by Athena, Hera, and Site. Provides:
+- Settings CRUD against the `olympus` database (per-domain)
+- AES-256-GCM encryption with HKDF-SHA256 key derivation
+- In-memory TTL cache (60s default)
+- Brute-force tracking, lockout, and security audit
+- Session location tracking
+
+See [Reference — SDK Settings API](/docs/reference/api-sdk-settings) and [Internals — SDK Modules](/docs/internals/sdk-modules).
+
+## Octl — local-dev CLI
+
+[github.com/OlympusOSS/octl](https://github.com/OlympusOSS/octl)
+
+Interactive CLI for **local** development only. `octl deploy` auto-installs Podman if needed, builds dev images, starts the full Compose stack in the right order, runs migrations, seeds an admin identity, and prints access URLs. `octl destroy` tears it down. Bundles the platform configs inside its npm package so `npx octl` works in an empty directory.
+
+Production deployment is a different beast — that's Daedalus.
+
+See [Internals — Octl Stack Bundle](/docs/internals/octl-stack-bundle).
+
+## Daedalus — deployment wizard
+
+[github.com/OlympusOSS/daedalus](https://github.com/OlympusOSS/daedalus)
+
+Tauri desktop application (macOS for now) for **production** deployments. Thirteen wizard pages from `Repository` through `Destroy` cover the full lifecycle. Shells out to `gh`, `doctl`, `ssh`, `podman-compose`, and provider APIs (DigitalOcean, Hostinger, Neon, Resend, Postmark, Brevo, SMTP2GO). All output flows through xterm.js with a secrets sanitizer that redacts bearer tokens, API keys, and DSN passwords.
+
+Daedalus embeds a localhost MCP server on `127.0.0.1:14210` that exposes eight tools (screenshot, get_page, navigate, click, form_input, read_context, terminal_exec, terminal_read). This means Claude can drive Daedalus the same way a human can.
+
+See [Internals — Daedalus MCP Server](/docs/internals/daedalus-mcp-server) and [ADR 0022 — MCP Localhost Only](/docs/adrs/0022-mcp-localhost-only).
+
+## Where next
+
+- [Architecture](/docs/architecture) — how the repos compose at runtime.
+- [Get Started](/docs/get-started/overview) — run it.
+- [Develop — Workspace Setup](/docs/develop/workspace-setup) — clone the eight repos as siblings.

@@ -1,0 +1,43 @@
+---
+title: Overview
+description: Orientation for the Integrate section
+---
+
+This section is for application developers integrating an app against Olympus. You don't need to understand Olympus's internals — only the OAuth2/OIDC protocol surface and a few Olympus-specific defaults.
+
+## OAuth2 flows
+
+- [OAuth2 overview](/docs/integrate/oauth2-overview) — when to use which grant.
+- [Authorization Code](/docs/integrate/oauth2-authorization-code) — server-side web apps.
+- [Authorization Code + PKCE](/docs/integrate/oauth2-pkce) — SPAs, mobile apps, CLIs. **Mandatory for all public clients in Olympus.**
+- [Client Credentials](/docs/integrate/oauth2-client-credentials) — server-to-server / M2M.
+- [Refresh Tokens](/docs/integrate/oauth2-refresh-tokens) — long-lived sessions.
+- [OAuth2 Error Codes](/docs/integrate/oauth2-error-codes) — RFC 6749 and Olympus-specific.
+
+## OIDC
+
+- [OIDC Discovery](/docs/integrate/oidc-discovery) — the `.well-known` endpoint, JWKS.
+- [OIDC userinfo](/docs/integrate/oidc-userinfo) — getting profile data after login.
+- [RP-initiated logout](/docs/integrate/logout-rp-initiated) — the standard OIDC logout flow.
+
+## Integration patterns
+
+- [SPA integration](/docs/integrate/spa-integration) — single-page apps end-to-end.
+- [Mobile integration](/docs/integrate/mobile-integration) — iOS / Android specifics.
+- [MCP with Daedalus](/docs/integrate/mcp-with-daedalus) — driving deployments programmatically from Claude.
+
+## Where to find the OAuth2 endpoints
+
+Use the standard discovery endpoint:
+
+```
+https://ciam.your-domain.example/.well-known/openid-configuration
+https://iam.your-domain.example/.well-known/openid-configuration
+```
+
+For local development:
+
+```
+http://localhost:3102/.well-known/openid-configuration   # CIAM
+http://localhost:4102/.well-known/openid-configuration   # IAM
+```

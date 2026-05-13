@@ -1,0 +1,25 @@
+{
+  "title": "Deploy",
+  "pages": [
+    "overview",
+    "prerequisites",
+    "with-daedalus-wizard",
+    "without-daedalus-manual",
+    "provider-digitalocean",
+    "provider-hostinger",
+    "provider-direct-ssh",
+    "database-managed-neon",
+    "database-self-hosted",
+    "database-ssl-overview",
+    "database-ssl-verify-full",
+    "email-resend",
+    "email-postmark",
+    "email-brevo",
+    "email-smtp2go",
+    "email-custom-smtp",
+    "dns-and-domains",
+    "kratos-production-config",
+    "first-production-deploy",
+    "dev-vs-prod"
+  ]
+}

@@ -1,0 +1,218 @@
+---
+title: Monitoring — PKCE Analytics
+description: Observability for PKCE-protected OAuth2 traffic
+---
+
+**Ticket**: hera#32, hera#46
+**Last updated**: 2026-04-12
+
+## Overview
+
+`hera/src/lib/analytics.ts` provides a structured analytics emitter. `hera/src/lib/auth.ts` uses it to emit three `auth.pkce.*` events that cover the lifetime of an OAuth2 PKCE authorization code flow. These events feed the Athena analytics dashboard (PKCE adoption coverage, enforcement rejection rate, auth flow completion funnel, and code interception attack signal).
+
+## How It Works
+
+### Emitter Architecture
+
+`emitAnalyticsEvent()` in `analytics.ts` writes newline-delimited JSON to stdout with a `type:"analytics"` discriminator. The Loki log pipeline consumes these with the query:
+
+```
+{app="hera"} | json | type="analytics"
+```
+
+Events are emitted unconditionally — there is no `NODE_ENV` gate on the emit call. Every event carries an `env` property set to `process.env.NODE_ENV`. The Athena dashboard filters all production panels to `env === 'production'` at query time, so dev and staging traffic never reaches production dashboards. Do not add a `NODE_ENV` guard to the emit call — doing so would suppress production events if the check were ever inverted.
+
+### Event Flow
+
+```
+auth.pkce.started    — emitted when code_verifier is generated and cookie is set
+                       (before the authorization redirect to Hydra)
+
+auth.pkce.completed  — emitted when Hydra returns tokens (token exchange succeeded)
+                       duration_ms = Date.now() - cookie.started_at
+
+auth.pkce.failed     — emitted when token exchange fails for any PKCE-related reason
+                       reason maps to error_code and error_source fields
+```
+
+The `started_at` Unix ms timestamp is stored inside the `pkce_code_verifier` cookie as part of the `PkceCookiePayload` struct — not as a property of `auth.pkce.started`. This design is intentional: the callback handler must be able to compute `duration_ms` at `auth.pkce.completed` time without access to the original server action that emitted `started`.
+
+## API / Technical Details
+
+### `emitAnalyticsEvent(properties)` — `analytics.ts`
+
+The base emitter. All `auth.pkce.*` helpers in `auth.ts` call this.
+
+```typescript
+emitAnalyticsEvent({
+  event: "auth.pkce.started",
+  client_id: "hera-ciam-client",
+  domain: "ciam",
+  method: "S256",
+});
+```
+
+Output written to stdout:
+
+```json
+{
+  "type": "analytics",
+  "event": "auth.pkce.started",
+  "client_id": "hera-ciam-client",
+  "domain": "ciam",
+  "method": "S256",
+  "timestamp": "2026-04-06T00:00:00.000Z",
+  "env": "production"
+}
+```
+
+### `auth.pkce.started`
+
+Emitted inside `redirectToDefaultClient()` immediately after the `pkce_code_verifier` cookie is set and before the redirect to Hydra.
+
+**Properties**: `{ client_id, domain, method: "S256", timestamp, env }`
+
+**Scope limitation (hera#46)**: As of commit d16122e, this event only fires on the **fallback path** (direct Hydra redirect for non-standard clients). On the primary path, `redirectToDefaultClient()` calls `getSiteLoginUrl()` and redirects to the Site's `/login/<domain>` route before reaching the PKCE setup code. The Site app handles PKCE and state cookie setup on its own origin. If the Site app does not emit its own `auth.pkce.started` event, PKCE telemetry will not cover the primary login flow.
+
+**Important**: `emitPkceStarted` is not an exported function. It is inlined inside `redirectToDefaultClient()` as a direct `emitAnalyticsEvent()` call. This is intentional — `auth.pkce.started` is only ever emitted in one place (the fallback non-Site-client path), so there is no benefit to exporting a helper. The export pattern (`emitPkceCompleted`, `emitPkceFailed`) is used only where the event may need to be emitted from an external callback route handler. Because `auth.pkce.started` is always emitted within the same function that generates the verifier, it does not need to be callable from outside this module.
+
+### `emitPkceCompleted(clientId, startedAt)` — exported
+
+Emits `auth.pkce.completed` with `duration_ms` computed from the stored `started_at` timestamp.
+
+**Pre-condition**: Only call this after the Hydra token endpoint returns a 200 response. Calling it before confirming a successful token exchange would misrepresent the event as a completed flow.
+
+**Scope**: This helper is exported for use by Hera callback route handlers only. It is not intended for import by Site or other apps — the Site app runs its own PKCE flow independently and has no dependency on Hera's auth module. Importing `emitPkceCompleted` into Site would create a cross-app dependency that violates the per-app module boundary.
+
+**Properties**: `{ client_id, domain, duration_ms, timestamp, env }`
+
+```typescript
+// In a Hera callback route handler — after confirming 200 from Hydra:
+const raw = cookieStore.get("pkce_code_verifier")?.value;
+if (raw) {
+  const payload: PkceCookiePayload = JSON.parse(raw);
+  emitPkceCompleted(clientId, payload.started_at);
+}
+```
+
+### `emitPkceFailed(clientId, reason)` — exported
+
+Emits `auth.pkce.failed` with mapped `error_code` and `error_source` fields.
+
+**Reason values and error_code mapping**:
+
+| `reason` | `error_code` | When to use |
+|----------|-------------|-------------|
+| `cookie_missing` | `invalid_request` | `pkce_code_verifier` cookie absent at callback time |
+| `missing_verifier` | `invalid_request` | `code_verifier` not sent in the token exchange request |
+| `challenge_mismatch` | `invalid_grant` | Hydra returned `invalid_grant` (verifier/challenge mismatch) |
+| `invalid_request` | `invalid_request` | Hydra returned `invalid_request` on the token endpoint |
+
+**Note on `error_code: "invalid_request"` for `cookie_missing` and `missing_verifier`**: These are pre-Hydra failures — the token exchange request is never sent to Hydra when the cookie is missing or the verifier is absent. Despite the failure happening before any Hydra call, the `error_code` field uses the Hydra-style `invalid_request` string for consistency with the analytics schema. This means the `error_code` field alone cannot distinguish a pre-Hydra failure from a Hydra-returned `invalid_request`. Use the `error_source` field (which carries the `reason` value) to distinguish them when querying dashboards or correlating against Hydra logs.
+
+**Properties**: `{ client_id, domain, reason, error_code, error_source, timestamp, env }`
+
+### `PkceCookiePayload` interface — exported from `auth.ts`
+
+The JSON payload stored in the `pkce_code_verifier` cookie:
+
+```typescript
+export interface PkceCookiePayload {
+  code_verifier: string;  // passed to Hydra at token exchange time
+  started_at: number;     // Unix ms — used to compute duration_ms at auth.pkce.completed
+}
+```
+
+Cookie value is `JSON.stringify(payload)` — callers must `JSON.parse` to read it.
+
+## Examples
+
+### Emitting `auth.pkce.started` (inline in `redirectToDefaultClient`)
+
+```typescript
+// Inside redirectToDefaultClient() — after cookie is set:
+emitAnalyticsEvent({
+  event: "auth.pkce.started",
+  client_id: DEFAULT_OAUTH2_CLIENT_ID,
+  domain: IS_IAM ? "iam" : "ciam",
+  method: "S256",
+});
+```
+
+### Emitting `auth.pkce.completed` from a callback route
+
+```typescript
+import { emitPkceCompleted, PkceCookiePayload } from "@/lib/auth";
+
+// In a Hera callback route handler — after confirming 200 from Hydra:
+const raw = cookieStore.get("pkce_code_verifier")?.value;
+if (raw) {
+  const payload: PkceCookiePayload = JSON.parse(raw);
+  emitPkceCompleted(clientId, payload.started_at);
+}
+cookieStore.delete("pkce_code_verifier");
+```
+
+### Emitting `auth.pkce.failed` from a callback route
+
+```typescript
+import { emitPkceFailed } from "@/lib/auth";
+
+// Cookie absent at callback time:
+if (!cookieStore.get("pkce_code_verifier")) {
+  emitPkceFailed(clientId, "cookie_missing");
+  return new Response("Missing PKCE verifier", { status: 400 });
+}
+
+// Hydra returned invalid_grant:
+if (hydraError === "invalid_grant") {
+  emitPkceFailed(clientId, "challenge_mismatch");
+}
+```
+
+### Querying events in Athena
+
+```
+# All PKCE events from production:
+{app="hera"} | json | type="analytics" | env="production" | event=~"auth\\.pkce\\..*"
+
+# Failed flows only — grouped by error source:
+{app="hera"} | json | type="analytics" | env="production" | event="auth.pkce.failed"
+  | stats count() by error_source
+
+# Challenge mismatch — code interception attack signal:
+{app="hera"} | json | type="analytics" | env="production" | event="auth.pkce.failed"
+  | error_source="challenge_mismatch"
+```
+
+## Edge Cases
+
+### `auth.pkce.abandoned` is absent
+
+The `auth.pkce.abandoned` event is not implemented. An abandoned flow is one where `auth.pkce.started` fires but no `auth.pkce.completed` or `auth.pkce.failed` ever follows within the 10-minute authorization code TTL.
+
+Implementing this requires the server to know which started flows never finished. Next.js server actions are stateless and ephemeral — there is no in-process mechanism to observe that a started event has not been followed by a completed event within 10 minutes. Detecting abandonment server-side would require a Redis store or database table with a background job scanning for uncompleted flows.
+
+The deferred approach: the Athena analytics pipeline can compute abandonment post-hoc by querying `auth.pkce.started` events with no matching `auth.pkce.completed` or `auth.pkce.failed` within 10 minutes. This requires no new infrastructure and no background job. It is not implemented as a dedicated emitted event in the current cycle.
+
+### `emitPkceCompleted` called before Hydra confirms 200
+
+If `emitPkceCompleted` is called before confirming a 200 response from Hydra, the `auth.pkce.completed` event is emitted for a flow that has not actually completed. This inflates the completion rate metric and corrupts the `duration_ms` baseline. Always confirm the token response is a success before calling `emitPkceCompleted`.
+
+### Dev traffic in production dashboards
+
+Events emitted in development (e.g., local `npm run dev`) carry `env: "development"`. The Athena dashboard filters all production panels to `env === 'production'` at query time. Dev events are not suppressed at emit time — they are excluded at query time. This means dev events appear in raw log queries but not in dashboard panels.
+
+## Security Considerations
+
+- No PII in any event property. The `client_id` is an OAuth2 client identifier, not a user identifier.
+- The `challenge_mismatch` reason in `auth.pkce.failed` is the highest-severity security signal. A legitimate user's `code_verifier` always matches the stored `code_challenge`. Any `challenge_mismatch` event from a non-dev environment is either a code interception attack or a bug — both require immediate investigation.
+- The `cookie_missing` and `missing_verifier` reasons use `error_code: "invalid_request"` even though the failure occurs before the Hydra token endpoint is called. When correlating `auth.pkce.failed` events against Hydra access logs, filter by `error_source` (not `error_code`) to isolate pre-Hydra failures from Hydra-returned errors. Using `error_code` alone for correlation will produce false matches against actual Hydra `invalid_request` responses.
+- `emitPkceFailed` is exported for use by Hera callback routes only. Importing it into Site would bypass the per-app module boundary and could result in events with incorrect `domain` values (the `domain` is computed from Hera's `IS_IAM` config, which may differ from Site's environment).
+
+## References
+
+- `hera/src/lib/analytics.ts` — base emitter
+- `hera/src/lib/auth.ts` — `emitPkceCompleted`, `emitPkceFailed`, `PkceCookiePayload`
+- `hera/docs/oauth2-pkce.md` — PKCE S256 implementation guide (cookie spec, deployment order, Hydra client config)
+- hera#32 — origin ticket

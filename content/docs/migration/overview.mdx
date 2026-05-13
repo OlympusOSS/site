@@ -1,0 +1,32 @@
+---
+title: Overview
+description: Migrating to Olympus from other identity platforms
+---
+
+This section helps you move an existing identity workload from another vendor onto Olympus. Each guide covers the same three questions:
+
+1. **Concept mapping** — their term ↔ Olympus term.
+2. **Identity export → Kratos import** — getting the user directory across.
+3. **OAuth2 client mapping** — re-registering apps against Hydra without breaking them.
+
+## Guides
+
+- [From Auth0](/docs/migration/from-auth0)
+- [From Keycloak](/docs/migration/from-keycloak)
+- [From AWS Cognito](/docs/migration/from-aws-cognito)
+- [From Okta](/docs/migration/from-okta)
+- [From Firebase Auth](/docs/migration/from-firebase-auth)
+- [From Supabase Auth](/docs/migration/from-supabase-auth)
+
+## Cutover patterns
+
+All migrations support two cutover patterns:
+
+- **Big-bang** — short scheduled downtime; export, transform, import, switch.
+- **Dual-write** — temporarily authenticate against both the old and the new platform, gradually phase out the old one.
+
+The Auth0 and Keycloak guides cover both patterns; the others currently cover big-bang only.
+
+## Status
+
+This section is built out in **Phase 8** of the documentation plan.

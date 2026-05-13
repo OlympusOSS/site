@@ -12,9 +12,9 @@ const PRODUCT_LINKS = [
 
 const DOCS_LINKS = [
 	{ label: "Getting started", href: "/docs" },
-	{ label: "OAuth2", href: "/docs/oauth2" },
-	{ label: "Kratos schemas", href: "/docs/schemas" },
-	{ label: "Self-hosting", href: "/docs/self-hosting" },
+	{ label: "OAuth2", href: "/docs/integrate/oauth2-overview" },
+	{ label: "Kratos schemas", href: "/docs/identity/identity-schemas" },
+	{ label: "Self-hosting", href: "/docs/deploy/overview" },
 ];
 
 const COMPANY_LINKS = [

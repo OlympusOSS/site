@@ -1,0 +1,57 @@
+---
+title: License
+description: The Olympus Free Container License — what you can and can't do
+---
+
+Olympus is distributed under the **Olympus Free Container License v1.0** (OFCL). The OFCL is a source-available license, not a permissive open-source license. This page explains what it does and doesn't allow.
+
+The canonical license text is the [`LICENSE.draft.md`](https://github.com/OlympusOSS/platform/blob/main/LICENSE.draft.md) file in the platform repository. **Note: as of this writing, the license is still labeled "draft."** The summary on this page is provided for orientation; the license file itself is the authoritative document.
+
+## In plain English
+
+You can:
+
+- **Deploy and operate** the Olympus containers (and Canvas / SDK npm packages) for your own organization or your customers.
+- **Inspect** the source code of any container image you have running — this is what most of the [Internals](/docs/internals/overview) section is for.
+- **Patch locally** to fix bugs in your own deployment, and contribute those patches upstream.
+- **Self-host indefinitely** without any per-user or per-MAU fees.
+
+You cannot:
+
+- **Redistribute modified source code** as a competing product, fork, or derivative distribution. The source is provided for transparency and local fixes, not for repackaging.
+- **Resell access** to a hosted Olympus deployment as a turnkey identity SaaS without a separate commercial agreement.
+- **Strip the license headers** or attribution notices.
+
+If your intended use is not covered above, read the full license text or open a discussion on the [platform repo](https://github.com/OlympusOSS/platform).
+
+## Why source-available and not Apache-2.0?
+
+Apache-2.0 (or MIT, or BSD-3-Clause) would allow any cloud provider to take the Olympus source, repackage it, and resell access — competing directly with the maintainer's own hosting plans. The OFCL preserves the option of running a commercial hosted Olympus while keeping the source readable for self-hosters.
+
+This is the same shape used by Sentry's Functional Source License (FSL), Elastic's Elastic License v2, MongoDB's SSPL, and Sidekiq Pro. See [ADR 0003 — Source-Only Licensing](/docs/adrs/0003-source-only-licensing) for the full rationale.
+
+## What this means for these docs
+
+The [Internals](/docs/internals/overview) section is written for **licensees inspecting the containers they are running** — not as a contributor onboarding guide for an open-source community. The framing matters:
+
+- Internals docs assume you have a deployed Olympus and want to understand why a specific log line is emitted, why an env var is shaped a certain way, or what the data flow looks like when a flow times out.
+- They do not assume you are about to write a pull request, though they are equally useful in that case.
+- They link to specific commits and file paths so you can correlate the doc against your pinned image.
+
+Architecturally, this is also why every page in the [Reference](/docs/reference/overview) section is generated from source — so the surface a licensee can inspect (the image they pulled) and the surface this site documents (the API reference) are always in lock-step.
+
+## Versioning of this license
+
+The OFCL is currently at **v1.0 (draft)**. Future versions of Olympus may move to a later OFCL version. The license that applies to your deployment is whichever version is present in the `LICENSE` file of the image you pulled.
+
+You can determine the license version of a running container by:
+
+```bash
+podman exec olympus-athena-1 cat /app/LICENSE | head -5
+```
+
+## Where next
+
+- [Develop — Inspecting Your Containers](/docs/develop/inspecting-your-containers) — how to read the source of a running container.
+- [ADR 0003 — Source-Only Licensing](/docs/adrs/0003-source-only-licensing) — the decision record.
+- [LICENSE.draft.md on GitHub](https://github.com/OlympusOSS/platform/blob/main/LICENSE.draft.md) — the authoritative text.

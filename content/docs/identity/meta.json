@@ -1,0 +1,23 @@
+{
+  "title": "Identity",
+  "pages": [
+    "overview",
+    "identity-schemas",
+    "schema-ciam-default",
+    "schema-ciam-customer",
+    "schema-ciam-company",
+    "schema-iam-admin",
+    "identifiers-and-verification",
+    "sessions-aal-refresh",
+    "flow-login",
+    "flow-registration",
+    "flow-recovery",
+    "flow-verification",
+    "flow-settings",
+    "account-linking",
+    "social-login",
+    "social-connections-admin",
+    "totp-and-webauthn",
+    "mfa-policy"
+  ]
+}

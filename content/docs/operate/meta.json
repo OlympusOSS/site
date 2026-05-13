@@ -1,0 +1,25 @@
+{
+  "title": "Operate",
+  "pages": [
+    "overview",
+    "health-endpoints",
+    "network-topology",
+    "incident-response",
+    "cert-rotation",
+    "session-signing-key-rotation",
+    "encryption-key-rotation",
+    "reload-api-key-rotation",
+    "secrets-audit",
+    "locked-account-unlock",
+    "pgadmin-dba-offboarding",
+    "monitoring-pkce-analytics",
+    "monitoring-mfa-stats",
+    "backups-postgres",
+    "backups-caddy-data",
+    "audit-log-retention",
+    "email-deliverability",
+    "rate-limiting-tuning",
+    "captcha-tuning",
+    "logs-and-observability"
+  ]
+}

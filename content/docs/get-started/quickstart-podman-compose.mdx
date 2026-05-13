@@ -1,0 +1,80 @@
+---
+title: Quickstart with podman compose
+description: Start the dev stack by hand (what octl deploy does, expanded)
+---
+
+This page covers the manual equivalent of [`octl deploy`](/docs/get-started/quickstart-octl). Run these commands yourself when you want to understand what's happening or when you're modifying the platform repo and need to bring services up one at a time.
+
+## Clone the workspace
+
+Olympus is a multi-repo project. Clone all eight repos as siblings of one parent directory:
+
+```bash
+mkdir Olympus && cd Olympus
+for repo in platform athena hera site canvas sdk octl daedalus; do
+  git clone https://github.com/OlympusOSS/$repo.git
+done
+```
+
+The sibling layout matters — `compose.dev.yml` references `../athena`, `../hera`, etc. as bind mounts for live reload.
+
+## Start services
+
+```bash
+cd platform/dev
+podman compose up -d
+```
+
+This starts every container. Initial start (with image builds) takes ~3 minutes; subsequent starts are seconds.
+
+## Watch the seed
+
+```bash
+podman compose -f platform/dev/compose.dev.yml logs -f athena-seed-dev
+```
+
+When you see `Seed complete!`, the platform is fully initialized — an `admin@demo.user` IAM identity has been created and a CIAM OAuth2 client has been registered for the playground.
+
+## Access points
+
+| URL | Service | Purpose |
+| --- | --- | --- |
+| [localhost:2000](http://localhost:2000) | Site | Brochure, OAuth2 playground, docs |
+| [localhost:3000](http://localhost:3000) | Hera CIAM | Customer login/registration UI |
+| [localhost:3001](http://localhost:3001) | Athena CIAM | Customer identity admin dashboard |
+| `:3100` `:3101` | CIAM Kratos | Identity API (public / admin) |
+| `:3102` `:3103` | CIAM Hydra | OAuth2/OIDC API (public / admin) |
+| [localhost:4000](http://localhost:4000) | Hera IAM | Employee login/registration UI |
+| [localhost:4001](http://localhost:4001) | Athena IAM | Employee identity admin dashboard |
+| `:4100` `:4101` | IAM Kratos | Identity API (public / admin) |
+| `:4102` `:4103` | IAM Hydra | OAuth2/OIDC API (public / admin) |
+| `:5432` | PostgreSQL | 5 databases |
+| [localhost:5433](http://localhost:5433) | pgAdmin | Database admin, SSO via IAM |
+| [localhost:5434](http://localhost:5434) | MailSlurper | Captured outbound email |
+
+All app repos (athena, hera, site) are mounted as volumes for **live reload** during development.
+
+## Default credentials
+
+**IAM Admin:**
+- Email: `admin@demo.user`
+- Password: `admin123!`
+
+**pgAdmin:** OAuth2 SSO through IAM — click "Login with Olympus" on the pgAdmin login page.
+
+**MailSlurper:** No auth — open [localhost:5434](http://localhost:5434) to see captured verification and recovery emails.
+
+## Tearing down
+
+```bash
+cd platform/dev
+podman compose down -v
+```
+
+The `-v` removes named volumes too — the database is reset. Drop the `-v` to keep data across restarts.
+
+## Where next
+
+- [First login](/docs/get-started/first-login) — exercise the login flow end-to-end.
+- [Architecture](/docs/architecture) — what each of those eighteen containers does.
+- [Operate — Network Topology](/docs/operate/network-topology) — which ports must be firewalled in prod.

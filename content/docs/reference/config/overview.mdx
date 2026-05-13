@@ -1,0 +1,26 @@
+---
+title: Configuration
+description: Every configuration file, every field
+---
+
+This sub-section is the exhaustive configuration reference: every file, every field, every default, every recommended production value. Most pages are generated from source in Phase 4.
+
+## Scope
+
+| File | Pages | Source | Generator |
+| --- | --- | --- | --- |
+| `kratos.yml` (4 instances) | per-section pages, ~60 leaf fields | `platform/dev/{ciam,iam}-kratos/kratos.yml`, prod variants | YAML walk + curated overlay |
+| `hydra.yml` (4 instances) | per-section pages, ~30 leaf fields | `platform/dev/{ciam,iam}-hydra/hydra.yml`, prod variants | YAML walk + curated overlay |
+| `Caddyfile` (prod) | per-directive pages, ~10 directive blocks | `platform/prod/Caddyfile` | Caddyfile parser |
+| `compose.dev.yml`, `compose.prod.yml` | per-service pages, 18 services | `platform/{dev,prod}/compose*.yml` | YAML parser |
+| Container env vars | per-container | `grep process.env.` plus curated overlay | grep + overlay |
+
+## Already published outside the generated reference
+
+The narrative deploy guidance lives in:
+
+- [Deploy — Kratos Production Config](/docs/deploy/kratos-production-config)
+- [Deploy — Dev vs Prod](/docs/deploy/dev-vs-prod)
+- [Deploy — Database SSL verify-full](/docs/deploy/database-ssl-verify-full)
+
+The generated config reference does not duplicate the narrative — it complements it with field-level detail.

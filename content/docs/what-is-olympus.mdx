@@ -1,0 +1,79 @@
+---
+title: What is Olympus
+description: Design philosophy, scope, and what's in the box
+---
+
+Olympus is an open-source identity platform you can self-host. It provides everything a typical SaaS needs from an identity vendor — registration, login, password recovery, email verification, social login, MFA, OAuth2 + OIDC, account linking, admin tooling — without any of the vendor lock-in.
+
+## The problem
+
+Most identity vendors put you in a fork in the road:
+
+1. Use a hosted SaaS (Auth0, Cognito, Okta, Stytch, …). Pay per-MAU. Live with their data residency, their pricing changes, their downtime, their schema. Lose control of your users.
+2. Roll your own. Burn six engineer-months on flows that are essentially solved problems, then operate them forever.
+
+Olympus is a third path: take **Ory Kratos** and **Ory Hydra** — two production-grade open-source identity primitives — and assemble them into a deployment-ready stack with admin tooling, login UI, deployment automation, and a documented operations model.
+
+You get full control of your users, your schemas, your audit logs, your latency, and your costs. The only thing you pay per-MAU for is the VPS you run it on.
+
+## Design philosophy
+
+1. **Stand on the shoulders of Ory.** Olympus does not reimplement OAuth2 or session management. It composes Kratos and Hydra at a layer that's hard to build correctly: dual-domain isolation, encryption-at-rest, admin tooling, login/consent UI, deployment automation, supply chain integrity.
+
+2. **Dual-domain by default.** CIAM (customer identity) and IAM (employee identity) are separate Kratos+Hydra instances on different ports with separate databases. A compromise on one side does not affect the other. See [Architecture](/docs/architecture).
+
+3. **Self-hosted, not self-engineered.** You should be able to go from `git clone` to a running production deployment with TLS, a managed Postgres, and a load balancer in **under thirty minutes** — without touching infrastructure-as-code. The Daedalus wizard exists for this reason.
+
+4. **Source-available, container-redistributable.** Olympus uses the [Olympus Free Container License](/docs/license) — you can deploy and operate the containers freely; redistribution of modified source is restricted. See the license page for the full framing.
+
+5. **Operator-first.** Every long-lived secret has a rotation runbook. Every error code has a remediation page. Every host-bound port has a firewall rationale. This is not a research project; it is an operations stack.
+
+## What's in the box
+
+Olympus is composed of eight Git repositories. Each is small enough that one engineer can read it end-to-end in a day.
+
+| Repo | What it is |
+| --- | --- |
+| [platform](https://github.com/OlympusOSS/platform) | Infrastructure: Podman Compose configs, Ory configs, identity schemas, Caddy reverse proxy, CI/CD workflows. The center of gravity. |
+| [athena](https://github.com/OlympusOSS/athena) | Admin dashboard for Kratos and Hydra. One instance per CIAM/IAM domain. |
+| [hera](https://github.com/OlympusOSS/hera) | Login, consent, and logout UI. One instance per domain. |
+| [site](https://github.com/OlympusOSS/site) | This documentation site, the marketing brochure, and a working OAuth2 playground. |
+| [canvas](https://github.com/OlympusOSS/canvas) | Design system — React + Tailwind components used by Athena, Hera, and Site. Source-only npm package. Ships its own [component playground](https://olympusoss.github.io/canvas/). |
+| [sdk](https://github.com/OlympusOSS/sdk) | Shared library for settings, AES-256-GCM encryption, brute-force protection, and session location tracking. |
+| [octl](https://github.com/OlympusOSS/octl) | Interactive CLI for **local** development (`octl deploy` / `octl destroy`). |
+| [daedalus](https://github.com/OlympusOSS/daedalus) | Tauri desktop wizard for **production** deployments. Embeds a localhost MCP server so Claude can drive the wizard programmatically. |
+
+See [Repo Map](/docs/repo-map) for a deeper breakdown.
+
+## What's not in the box (yet)
+
+Olympus is opinionated about what it does and doesn't do. The current scope deliberately excludes:
+
+- **Multi-tenancy beyond CIAM/IAM.** Olympus has exactly two domains. If you need N tenants, you operate N Olympus deployments — not N tenants inside one deployment.
+- **Federation between Olympus deployments.** If you operate multiple Olympus instances they do not share an identity directory.
+- **Mobile SDKs.** Olympus is OAuth2-compliant; any standard OAuth2 / OIDC client (including the standard mobile SDKs from Auth0, Microsoft, Google) will work against it.
+- **Built-in user impersonation.** Admins cannot "log in as" a user from Athena — this is intentional. Recovery happens through documented flows.
+- **Custom user-defined flows.** You can change the identity schema and configure the Kratos flow YAML. You cannot drop in a custom flow plugin without forking.
+- **A serverless edition.** Olympus runs as Podman Compose. There is no Cloudflare Workers / Vercel / Lambda packaging.
+
+These exclusions keep the surface area small enough that one engineer can own the whole stack.
+
+## Comparison to other approaches
+
+| | Auth0 / Okta | Keycloak | Olympus |
+| --- | --- | --- | --- |
+| Self-hosted | ❌ | ✅ | ✅ |
+| Per-MAU pricing | ✅ | — | — |
+| Open-source identity engine | ❌ | ✅ | ✅ (Ory) |
+| Dual-domain CIAM/IAM | ❌ | (manual) | ✅ |
+| Admin dashboard | ✅ | ✅ | ✅ |
+| Production deployment automation | (managed) | (manual) | ✅ (Daedalus wizard) |
+| MCP-driven deploys | ❌ | ❌ | ✅ |
+| Source-only license | (proprietary) | Apache-2.0 | Olympus Free Container License |
+| Standards-compliant OAuth2/OIDC | ✅ | ✅ | ✅ (Hydra) |
+
+## Where next
+
+- [Get Started](/docs/get-started/overview) — try it in five minutes.
+- [Architecture](/docs/architecture) — the dual-domain design.
+- [License](/docs/license) — what you can and can't do with the source.

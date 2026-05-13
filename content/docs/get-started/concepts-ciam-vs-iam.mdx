@@ -1,0 +1,78 @@
+---
+title: CIAM vs IAM
+description: The most important concept in Olympus
+---
+
+Every Olympus deployment runs **two complete identity stacks side by side**:
+
+- **CIAM** — Customer Identity and Access Management. The half exposed to your end users. Customers register here, log in here, recover passwords here. Ports 3xxx.
+- **IAM** — Identity and Access Management. The half exposed to your employees. Operators, engineers, support staff authenticate here. Ports 4xxx.
+
+Each half is a fully independent Kratos + Hydra stack with its own database namespace.
+
+## Why two?
+
+A single-domain architecture would be simpler. Olympus chooses the more complex shape on purpose because of **isolation**:
+
+| Concern | Why it's isolated |
+| --- | --- |
+| **Compromise blast radius** | If the customer-facing surface is breached, internal employees are untouched. |
+| **Policy independence** | Customer password policies, MFA requirements, and session lifetimes are typically different from employee ones. |
+| **Data residency / retention** | Customer PII and employee credentials live in different databases. GDPR DSR for a customer touches one half, not both. |
+| **Scaling** | A customer-traffic spike does not impact the database hosting employee auth. |
+| **Upgrade isolation** | The CIAM Kratos can be upgraded ahead of (or behind) the IAM Kratos. |
+
+See [ADR 0001 — Dual-Domain Architecture](/docs/adrs/0001-dual-domain-architecture) for the full decision record.
+
+## What's on each side
+
+```
+CIAM (your customers)
+├── Hera CIAM     (login UI customers see)
+├── Athena CIAM   (admin dashboard for managing customers, used by employees)
+├── Kratos CIAM   (customer identity service)
+└── Hydra CIAM    (OAuth2 for customer-facing apps)
+
+IAM (your employees)
+├── Hera IAM      (login UI employees see)
+├── Athena IAM    (admin dashboard for managing employees and operating the platform)
+├── Kratos IAM    (employee identity service)
+└── Hydra IAM     (OAuth2 for internal apps — pgAdmin SSO, Grafana SSO, etc.)
+```
+
+Note the asymmetry: **Athena CIAM is operated by employees, but it manages customer data.** Employees log into Athena CIAM via the **IAM** domain, then act on the **CIAM** Kratos and Hydra admin APIs. The C/I prefix refers to the data the dashboard manages, not the audience using the dashboard.
+
+## A typical user-facing flow
+
+A customer signing up on your SaaS:
+
+1. Lands on your app's landing page.
+2. Clicks "Sign up."
+3. Your app redirects to **Hera CIAM** (`/login` → registration form).
+4. Hera CIAM renders a **Kratos CIAM** registration flow.
+5. Customer submits email and password.
+6. **Kratos CIAM** validates against the CIAM identity schema, sends a verification email (captured by MailSlurper in dev).
+7. Customer clicks the link, lands on the verification page in Hera CIAM.
+8. Hera CIAM redirects back to **Hydra CIAM** which issues an OAuth2 authorization code.
+9. Your app's callback receives the code, exchanges for a token, customer is logged in.
+
+A typical employee-facing flow:
+
+1. Employee opens Athena IAM (`localhost:4001` in dev).
+2. Athena IAM redirects to **Hera IAM**.
+3. Hera IAM renders a **Kratos IAM** login flow.
+4. Employee submits credentials.
+5. Hera IAM grants consent via **Hydra IAM**.
+6. Athena IAM receives the OAuth2 code, exchanges for a token, employee is in the dashboard.
+
+The flows are identical in shape. The **data planes are completely separate.**
+
+## A note on terminology
+
+You'll see "CIAM" and "IAM" used as domain prefixes throughout — service names like `ciam-kratos-dev`, env vars like `CIAM_KRATOS_PUBLIC_URL`, schema fields like `iam_admin_role`. The convention is consistent: anything with a `ciam` prefix lives in the customer half, anything with `iam` lives in the employee half.
+
+## Where next
+
+- [Identity vs OAuth2](/docs/get-started/concepts-identity-vs-oauth2) — why we run both Kratos and Hydra.
+- [Architecture](/docs/architecture) — the full port and service layout.
+- [Security — CIAM/IAM Isolation](/docs/security/ciam-iam-isolation) — the enforcement boundary.

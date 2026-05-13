@@ -1,0 +1,238 @@
+---
+title: OAuth2 with PKCE
+description: PKCE-protected Authorization Code flow for public OAuth2 clients
+---
+
+**Ticket**: hera#32, hera#46
+**Last updated**: 2026-04-12
+
+## Overview
+
+All OAuth2 authorization code flows in Hera (CIAM login UI, port 3000) and Athena (admin UI, port 3001) use PKCE with the S256 method (RFC 7636). An intercepted authorization code cannot be exchanged for tokens without the `code_verifier` that was generated at the start of the flow.
+
+This is required by RFC 9700 (OAuth 2.0 Security Best Current Practice) for all authorization code flows, including confidential clients.
+
+## How It Works
+
+### Flow — CIAM Login (Hera) — Primary Path (Site Delegation)
+
+When the default OAuth2 client's redirect URI matches the Site app's `/callback/<domain>` pattern, Hera delegates the login initiation to the Site app. This ensures the `oauth_state_ciam` cookie is set on the correct origin (the Site app) before the Hydra redirect.
+
+1. User arrives at the Hera CIAM login page (no `login_challenge` present)
+2. `redirectToDefaultClient()` in `hera/src/lib/auth.ts` calls `getSiteLoginUrl()` to convert the client's callback URI (e.g., `http://localhost:2000/callback/ciam`) to the Site login initiation URI (e.g., `http://localhost:2000/login/ciam`)
+3. Hera redirects the browser to the Site's `/login/ciam` route
+4. The Site route sets the `oauth_state_ciam` cookie on its own origin, generates PKCE parameters, and redirects to CIAM Hydra's `/oauth2/auth` endpoint
+5. User authenticates via Kratos
+6. Hydra redirects the browser back to the Site's `/callback/ciam` with an authorization `code` and `state` parameter
+7. Site's callback handler validates `state` against the `oauth_state_ciam` cookie and completes the PKCE token exchange
+8. User session established
+
+This is the default path for all standard Olympus deployments.
+
+### Flow — CIAM Login (Hera) — Fallback Path (Direct Hydra)
+
+When `getSiteLoginUrl()` returns `null` (the redirect URI does not match the `/callback/<domain>` pattern), Hera falls back to a direct Hydra redirect with PKCE. State cookie management is the operator's responsibility on this path.
+
+1. User arrives at the Hera CIAM login page
+2. `redirectToDefaultClient()` generates a cryptographically random `code_verifier` (43-128 characters, URL-safe base64) and a random `state` (256-bit hex)
+3. Computes `code_challenge = base64url(SHA-256(code_verifier))` (S256 method)
+4. Stores `code_verifier` in the `pkce_code_verifier` cookie (see cookie spec below)
+5. Constructs the authorization URL with `code_challenge`, `code_challenge_method=S256`, and `state`
+6. Redirects the browser to the CIAM Hydra authorization endpoint
+7. User authenticates via Kratos
+8. Hydra redirects the browser back to the callback URL with an authorization `code`
+9. The callback handler reads the `pkce_code_verifier` cookie and completes the token exchange
+10. Hydra verifies: `base64url(SHA-256(code_verifier)) == stored_code_challenge`
+11. Hydra issues tokens; callback handler deletes the `pkce_code_verifier` cookie
+12. User session established
+
+On this path, PKCE provides code exchange protection but the `state` parameter is not validated by Hera. Operators using custom redirect URIs must implement their own CSRF state validation.
+
+### Flow — Athena Admin Login
+
+The Athena admin login flow uses IAM Hydra as the authorization server. `athena/src/app/api/auth/login/route.ts` handles login initiation with PKCE. The same delegation pattern applies when the redirect URI matches a Site `/callback/iam` path.
+
+### Attacker Interception Scenario
+
+1. Attacker intercepts the authorization `code` (log exposure, referrer leak, misconfigured redirect URI)
+2. Attacker attempts token exchange without the `code_verifier`
+3. Hydra rejects with `400 invalid_grant` — the verifier is required but absent
+4. The authorization code expires within 10 minutes
+5. Attack fails
+
+## API / Technical Details
+
+### `pkce_code_verifier` Cookie Specification
+
+| Attribute | Value | Rationale |
+|-----------|-------|-----------|
+| Name | `pkce_code_verifier` | Unambiguous; no collision with Kratos or Hydra session cookies |
+| `HttpOnly` | `true` | Prevents JavaScript access — required |
+| `Secure` | `true` in production; `false` in dev (HTTP localhost) | TLS enforcement |
+| `SameSite` | `Lax` | Allows the redirect back from Hydra to the callback URL; `Strict` would suppress the cookie on this cross-site redirect and break token exchange |
+| `Path` | `/` | See "Cookie Path Deviation" below |
+| `maxAge` | `600` (10 minutes) | Aligned with Hydra's default authorization code lifetime; the verifier expires with the code |
+
+#### Cookie Path Deviation
+
+The Architecture Brief specifies `Path=/api/auth/callback`. The implementation uses `Path=/`.
+
+**Rationale**: In the Hera CIAM deployment, the OAuth2 callback is handled by Site (`site/`), not Hera. The callback URL resolves to a different origin/path than `hera/src`. Because the cookie must be readable at the callback route — which is outside the `/api/auth/callback` path scope on the Hera process — the path is set to `/` to ensure the callback handler can read the verifier.
+
+**Do not narrow this to `/api/auth/callback`** without first confirming whether the callback route lives on the same origin and path as the Hera server. Narrowing the path would silently break token exchange by suppressing the cookie at the callback.
+
+#### Why `SameSite=Lax` not `Strict`
+
+The OAuth2 callback is a top-level GET navigation from the Hydra authorization server to the app's callback URL. `SameSite=Strict` suppresses cookies on cross-site requests — including this top-level redirect. The `code_verifier` would not be available at the callback and token exchange would fail. `Lax` is the correct value for this redirect pattern per RFC 6749 and OIDC flows.
+
+### `oauth_state_ciam` / `oauth_state_iam` Cookie Specification
+
+These cookies store the OAuth2 `state` parameter for CSRF protection. They are set by the Site app on the primary delegation path. `getStateCookieName()` in `hera/src/lib/auth.ts` derives the cookie name from the redirect URI path (`/callback/iam` -> `oauth_state_iam`, all others -> `oauth_state_ciam`).
+
+| Attribute | Value | Rationale |
+|-----------|-------|-----------|
+| Name | `oauth_state_ciam` or `oauth_state_iam` | Domain-scoped; matches the callback path |
+| `HttpOnly` | `true` | Prevents JavaScript access |
+| `Secure` | `true` in production; `false` in dev (HTTP localhost) | TLS enforcement |
+| `SameSite` | `Lax` | Required: the callback is a top-level cross-site GET redirect from Hydra |
+| `maxAge` | `600` (10 minutes) | Matches the authorization code lifetime |
+
+The state cookie is validated by the Site's callback handler (`/callback/ciam` or `/callback/iam`) and deleted after successful validation (`maxAge=0`).
+
+On the fallback path (direct Hydra redirect for non-standard clients), Hera does not set a state cookie. CSRF state validation is the operator's responsibility.
+
+`SameSite=None` is not used because it would require `Secure` (HTTPS) and allow cross-origin requests to send the cookie — wider than necessary.
+
+### Hydra Client Configuration
+
+The following Hydra clients have `require_pkce: true` set. Hydra rejects authorization requests from these clients that do not include a `code_challenge`:
+
+**CIAM Hydra** (port 3102/3103 dev):
+
+| Client ID | Application | Notes |
+|-----------|-------------|-------|
+| `hera-ciam-client` | Hera CIAM login UI | Must have `require_pkce: true` |
+| `site-ciam-client` | Olympus Site OAuth2 playground | Must have `require_pkce: true` |
+
+**IAM Hydra** (port 4102/4103 dev):
+
+| Client ID | Application | Notes |
+|-----------|-------------|-------|
+| `athena-iam-client` | Athena admin UI (IAM domain) | Must have `require_pkce: true` |
+| `pgadmin` | pgAdmin database admin | See "pgAdmin PKCE Deferral" below |
+
+**Excluded from PKCE requirement:**
+
+| Client Type | Reason |
+|------------|--------|
+| M2M `client_credentials` clients | `client_credentials` grant does not use authorization codes — PKCE does not apply |
+
+### pgAdmin PKCE Deferral
+
+pgAdmin PKCE enforcement (`require_pkce: true` on the `pgadmin` Hydra client) is deferred pending confirmation of the deployed pgAdmin version. pgAdmin 8.x supports PKCE in its OAuth2 client implementation. Earlier versions do not.
+
+Setting `require_pkce: true` on the `pgadmin` Hydra client without confirming pgAdmin version would break pgAdmin authentication immediately with no warning.
+
+**If pgAdmin version is confirmed as < 8.x**: a follow-on story must be created in the Ready column before this ticket closes. The pgAdmin authorization code flow remains without PKCE enforcement until that story ships.
+
+This residual gap is acknowledged: PKCE enforcement is complete for Hera CIAM and Athena admin flows. The pgAdmin client remains unprotected if version < 8.x.
+
+### Cross-Repo Ship Gate
+
+This feature spans three repos. The ship gate rule is:
+
+> This story is not complete until all four components are deployed and verified in the same release cycle.
+
+| Component | Repo | File |
+|-----------|------|------|
+| CIAM authorization code flow PKCE | `hera` | `src/lib/auth.ts` |
+| Athena admin authorization code flow PKCE | `athena` | `src/app/api/auth/login/route.ts` |
+| CIAM Hydra client config: `require_pkce: true` | `platform` | `dev/ciam-seed-dev.sh` + prod |
+| IAM Hydra client config: `require_pkce: true` | `platform` | `dev/iam-seed-dev.sh` + prod |
+
+**Deployment order** (safe rollout — apps before enforcement):
+1. Deploy Hera with PKCE implementation
+2. Deploy Athena with PKCE implementation
+3. Flip `require_pkce: true` on Hydra clients in platform
+
+During steps 1 and 2, both apps send PKCE but Hydra does not yet require it. This is the safe rollout: the attack surface narrows only after enforcement is activated. Steps 1, 2, and 3 must complete in the same release cycle — not across separate release windows.
+
+## Examples
+
+### Generating a `code_verifier` and `code_challenge` (TypeScript)
+
+```typescript
+import { webcrypto } from "node:crypto";
+
+// Generate code_verifier: 32 random bytes, base64url encoded (43 chars)
+const verifierBytes = new Uint8Array(32);
+webcrypto.getRandomValues(verifierBytes);
+const codeVerifier = btoa(String.fromCharCode(...verifierBytes))
+  .replace(/\+/g, "-")
+  .replace(/\//g, "_")
+  .replace(/=/g, "");
+
+// Derive code_challenge: SHA-256 of verifier, base64url encoded
+const challengeBytes = await webcrypto.subtle.digest(
+  "SHA-256",
+  new TextEncoder().encode(codeVerifier)
+);
+const codeChallenge = btoa(
+  String.fromCharCode(...new Uint8Array(challengeBytes))
+)
+  .replace(/\+/g, "-")
+  .replace(/\//g, "_")
+  .replace(/=/g, "");
+```
+
+### Verifying PKCE rejection (manual test)
+
+```bash
+# Obtain an authorization code (complete the login flow)
+# Then attempt to exchange it WITHOUT the code_verifier:
+
+curl -X POST http://localhost:3102/oauth2/token \
+  -d "grant_type=authorization_code" \
+  -d "client_id=hera-ciam-client" \
+  -d "code=<intercepted_code>" \
+  -d "redirect_uri=http://localhost:3000/api/auth/callback"
+# Expected: 400 {"error":"invalid_grant"}
+```
+
+## Edge Cases
+
+### Multiple concurrent login tabs
+
+When a user opens multiple login tabs simultaneously, each tab generates its own `code_verifier` and overwrites the `pkce_code_verifier` cookie (same name, `Path=/` — last write wins). The most recent tab's flow succeeds. Earlier tabs receive `400 invalid_grant` at token exchange because Hydra's stored `code_challenge` no longer matches any verifier in the browser.
+
+Expected behavior: earlier tabs show a login error; a page refresh initiates a new valid flow. This is documented behavior, not a defect.
+
+### Verifier cookie expires before flow completes
+
+The `pkce_code_verifier` cookie has `maxAge=600` (10 minutes). A user who begins the login flow and does not complete it within 10 minutes will find the cookie expired. The token exchange will fail with a missing verifier error. The user must restart the login flow.
+
+10 minutes is generous for a normal login flow. Do not shorten this value below the Hydra authorization code lifetime.
+
+### Hydra `require_pkce: true` activated before app changes deployed
+
+If the Hydra `require_pkce` flag is set before the app changes land, all authorization flows from those clients return `400 bad_request` immediately. Reverse by setting `require_pkce: false` on the affected Hydra clients and waiting for the app changes to deploy before re-enabling.
+
+## Security Considerations
+
+The C4 attack scenario (attacker intercepts authorization code and attempts exchange without `code_verifier`) is the definitive proof that PKCE enforcement is active. The happy-path login test alone does not verify enforcement — it only verifies the implementation does not break the flow.
+
+QA must verify both:
+1. Happy path: user logs in successfully via Hera CIAM and Athena admin flows
+2. Attack path: intercepted authorization code without `code_verifier` returns `400 invalid_grant` from Hydra
+
+A PASS on the happy path without the attack path test is not a valid security sign-off for this feature.
+
+## References
+
+- RFC 7636 — Proof Key for Code Exchange by OAuth Public Clients
+- RFC 9700 — OAuth 2.0 Security Best Current Practice
+- RFC 6749 Section 10.12 — Cross-Site Request Forgery (state parameter)
+- `hera/src/lib/auth.ts` — CIAM PKCE implementation, `getSiteLoginUrl()`, `getStateCookieName()`
+- `athena/src/app/api/auth/login/route.ts` — Athena admin PKCE implementation
+- hera#32 — Origin ticket (PKCE enforcement)
+- hera#46 — State cookie fix (delegation pattern)

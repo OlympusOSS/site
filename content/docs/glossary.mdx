@@ -1,0 +1,210 @@
+---
+title: Glossary
+description: Terms used throughout the Olympus documentation
+---
+
+This glossary defines the terms used across these docs. Where a term has both a generic identity-protocol meaning and a specific Olympus meaning, both are given.
+
+## A
+
+**AAL (Authenticator Assurance Level)** — A NIST 800-63B concept representing the strength of authentication. AAL1 is a single factor (password); AAL2 requires a second factor (TOTP, WebAuthn). Kratos surfaces the current session's AAL via `session.authenticator_assurance_level`.
+
+**ACR (Authentication Context Class Reference)** — An OIDC claim describing how a user was authenticated. Olympus emits `acr` values mirroring AAL.
+
+**Account linking** — Associating multiple identity credentials (e.g. a password and a Google OIDC identity) with the same Kratos identity record. See [Identity — Account Linking](/docs/identity/account-linking).
+
+**Admin API** — The server-side privileged API surface of Kratos (`:3101` / `:4101`) and Hydra (`:3103` / `:4103`). Bound only to localhost in production; never exposed publicly.
+
+**Athena** — The Olympus admin dashboard. One instance per CIAM/IAM domain. Next.js application. See [Repo Map](/docs/repo-map).
+
+**Audit log** — The `security_audit` table in the `olympus` database. Recorded events: login success, login failure, lockout, lockout release, password change, settings change. See [Security — Brute-Force Protection](/docs/security/brute-force).
+
+## B
+
+**Breached password check** — k-anonymity lookup against HaveIBeenPwned at registration and password change. See [Security — Breached Password](/docs/security/breached-password).
+
+**Brute-force protection** — Per-identifier login-attempt rate limiting that escalates to an account lockout on repeated failures. Implemented in the SDK. See [Security — Brute-Force](/docs/security/brute-force).
+
+## C
+
+**Caddy** — The reverse proxy that fronts Olympus. Terminates TLS, applies rate limits, sets security headers. See [Security — Caddy Supply Chain](/docs/security/caddy-supply-chain).
+
+**Canvas** — The Olympus design system. React + Tailwind components shared by Athena, Hera, and Site. Source-only npm package. See its standalone docs at [olympusoss.github.io/canvas](https://olympusoss.github.io/canvas/).
+
+**Captcha** — Bot-mitigation challenge applied to registration, login, and recovery flows. Olympus uses Cloudflare Turnstile. Disabled by default in dev. See [Security — Captcha Turnstile](/docs/security/captcha-turnstile).
+
+**CIAM (Customer Identity and Access Management)** — The customer-facing half of Olympus. Ports 3xxx.
+
+**Client (OAuth2)** — An application registered in Hydra that can request tokens. Two kinds: **public** clients (SPAs, mobile apps; cannot keep a secret; must use PKCE) and **confidential** clients (server-side apps; have a client secret).
+
+**Client credentials grant** — OAuth2 grant for server-to-server (M2M) calls where no human user is involved. See [Integrate — Client Credentials](/docs/integrate/oauth2-client-credentials).
+
+**Compose** — Podman Compose, the orchestrator Olympus runs on. Equivalent to Docker Compose. See [ADR 0010 — Podman over Docker](/docs/adrs/0010-podman-over-docker).
+
+**Consent challenge** — The Hydra-issued ID for an in-progress OAuth2 consent decision. Hera looks up the challenge and shows (or auto-grants) consent.
+
+**Cookie secret** — The HMAC key used by Hydra to sign session cookies. Rotatable. Listed in [Operate — Secrets Audit](/docs/operate/secrets-audit).
+
+**Courier** — Kratos's outbound message sender. Delivers verification emails, recovery codes, and notification emails. SMTP-based; can route to Resend, Postmark, Brevo, SMTP2GO, AWS SES, or any other SMTP relay.
+
+**Credential** — A single authentication factor for an identity. Kratos stores credentials by type: `password`, `oidc`, `totp`, `webauthn`, `lookup_secret`, `code`.
+
+**CSP (Content Security Policy)** — HTTP header restricting what resources a page can load. Both Athena and Hera ship hardened CSPs. See [Security — CSP Athena](/docs/security/csp-athena) and [Security — CSP Hera](/docs/security/csp-hera).
+
+## D
+
+**Daedalus** — The Olympus production deployment wizard. Tauri desktop app. Embeds an MCP server so Claude can drive it. See [Repo Map](/docs/repo-map).
+
+**DBA account** — A per-engineer database role mapped from an OIDC role claim. See [Security — pgAdmin DBA Accounts](/docs/security/pgadmin-dba-accounts).
+
+**DSN (Data Source Name)** — A connection string for a database. Kratos and Hydra both consume `dsn:` config fields.
+
+**Dual-domain architecture** — The Olympus pattern of running CIAM and IAM as fully separate Kratos+Hydra stacks. See [ADR 0001](/docs/adrs/0001-dual-domain-architecture).
+
+## E
+
+**Encryption key** — A 32-byte secret used by the SDK for AES-256-GCM encryption of sensitive settings values. Rotation procedure: see [Operate — Encryption Key Rotation](/docs/operate/encryption-key-rotation).
+
+**Encryption key blocklist** — A list of known-weak / known-public values the SDK refuses to accept as `ENCRYPTION_KEY`. See [Security — Encryption Key Blocklist](/docs/security/encryption-key-blocklist).
+
+## F
+
+**Flow (Kratos)** — A self-service flow: `login`, `registration`, `recovery`, `verification`, `settings`, `logout`. Each is a state machine. Hera renders the current state; the user submits to advance.
+
+**Flow expiry** — Each Kratos flow has a configured TTL (e.g. login flows expire after 1 hour). Expired flows must be re-initialized.
+
+## G
+
+**GHCR** — GitHub Container Registry. Olympus images are pushed to `ghcr.io/olympusoss/{athena,hera,site}`.
+
+## H
+
+**Hera** — The Olympus login/consent UI. One instance per domain. Next.js application. See [Repo Map](/docs/repo-map).
+
+**HKDF** — HMAC-based Key Derivation Function. The SDK uses HKDF-SHA256 to derive per-record encryption keys from the master `ENCRYPTION_KEY`. See [Security — Encryption at Rest](/docs/security/encryption-at-rest).
+
+**Hydra** — Ory Hydra, the OAuth2/OIDC server. One instance per CIAM/IAM domain.
+
+## I
+
+**IAM (Identity and Access Management)** — The employee-facing half of Olympus. Ports 4xxx.
+
+**Identifier** — The field on an identity used to log in. Typically `email`, but the schema can declare any trait as an identifier. Kratos credentials store the resolved identifier under `credentials.password.identifiers`.
+
+**Identity** — A Kratos record representing a user. Has a `traits` JSON object (matching the identity schema) and zero or more credentials.
+
+**Identity schema** — A JSON Schema (draft-07) describing the shape of an identity's `traits`. Olympus ships six schemas: CIAM default, CIAM customer, CIAM company, IAM admin (each in dev and prod variants).
+
+**ID token** — An OIDC token containing user claims. JWT-signed by Hydra. Returned alongside the access token in the OIDC flow.
+
+**Introspection** — The OAuth2 endpoint (`/oauth2/introspect`) that resolves an opaque access token to its claims.
+
+## J
+
+**JWK / JWKS** — JSON Web Key / JSON Web Key Set. Hydra publishes its signing keys at `/.well-known/jwks.json`.
+
+**JWT (JSON Web Token)** — A signed JSON token. Olympus uses JWTs for ID tokens; access tokens are opaque by default but can be configured as JWTs.
+
+## K
+
+**Kratos** — Ory Kratos, the identity management service. Handles the self-service flows for registration, login, recovery, verification, and settings.
+
+## L
+
+**Lockout** — A temporary or permanent block on a specific identifier's ability to log in, following repeated failed login attempts. Stored in the `lockouts` table. See [Security — Account Lockout](/docs/security/account-lockout).
+
+**Login challenge** — The Hydra-issued ID for an in-progress OAuth2 login. Hera looks it up to render the appropriate Kratos login flow.
+
+**Login flow** — The Kratos self-service flow for authentication.
+
+## M
+
+**M2M (Machine-to-Machine)** — Server-to-server OAuth2, using the `client_credentials` grant. Olympus supports M2M against Hydra. See [Integrate — Client Credentials](/docs/integrate/oauth2-client-credentials).
+
+**MCP (Model Context Protocol)** — The Anthropic-defined protocol for exposing tools to LLMs. Daedalus embeds an MCP server on `127.0.0.1:14210`. See [Internals — Daedalus MCP Server](/docs/internals/daedalus-mcp-server).
+
+**MFA (Multi-Factor Authentication)** — Authentication requiring more than one factor. Olympus supports TOTP and WebAuthn as second factors. See [Identity — MFA Policy](/docs/identity/mfa-policy).
+
+## N
+
+**Network topology** — The set of host-bound vs intranet-only ports in the Compose stack. See [Operate — Network Topology](/docs/operate/network-topology).
+
+## O
+
+**Octl** — The Olympus local-development CLI. `octl deploy` brings up the dev stack; `octl destroy` tears it down.
+
+**OFCL (Olympus Free Container License)** — The license under which Olympus is distributed. See [License](/docs/license).
+
+**OIDC (OpenID Connect)** — Identity layer on top of OAuth2. Provides the ID token and the `userinfo` endpoint.
+
+**Olympus** — This project.
+
+**Opaque token** — An access token that is not a JWT — just an unguessable string. Must be introspected to resolve claims. Hydra defaults to opaque access tokens.
+
+## P
+
+**Password hasher** — The algorithm used to hash passwords at rest. Kratos defaults to Argon2id; bcrypt is supported for migrations.
+
+**PKCE (Proof Key for Code Exchange)** — RFC 7636 extension to OAuth2 Authorization Code that prevents authorization-code interception attacks. **Mandatory for all public clients in Olympus.** See [Security — PKCE Enforcement](/docs/security/pkce-enforcement).
+
+**Platform** — The Olympus infrastructure repo. Compose configs, Ory configs, schemas, CI/CD.
+
+**Podman** — A daemonless OCI container engine, the runtime Olympus uses instead of Docker. See [ADR 0010](/docs/adrs/0010-podman-over-docker).
+
+**Postgres / PostgreSQL** — The database backing all of Olympus.
+
+**Public API** — The browser-facing API surface of Kratos and Hydra (the `:3100` / `:3102` / `:4100` / `:4102` ports).
+
+**Public client** — An OAuth2 client that cannot keep a secret (SPA, mobile). Required to use PKCE.
+
+## R
+
+**Recovery flow** — The Kratos self-service flow for resetting a forgotten password.
+
+**Recovery HMAC token** — The single-use, HMAC-signed code embedded in recovery emails. Deterministically invalidatable. See [ADR 0017](/docs/adrs/0017-recovery-hmac-token).
+
+**Reload API key** — The shared secret between Kratos and its schema-reload sidecar that authorizes live schema reloads. See [Operate — Reload API Key Rotation](/docs/operate/reload-api-key-rotation).
+
+**RP-initiated logout** — The OIDC pattern where the relying party (the app) initiates the logout flow via `/oauth2/sessions/logout`.
+
+## S
+
+**Scope** — An OAuth2 permission that an app requests during authorization. Hydra grants scopes through the consent flow.
+
+**SDK** — The `@olympusoss/sdk` npm package. Settings vault, encryption, brute-force tracking, location tracking.
+
+**Session (Kratos)** — A logged-in browser session. Stored in the `sessions` table of Kratos's database. Has an AAL.
+
+**Session signing key** — The HMAC-SHA256 key used by Athena to sign its session cookie. Separate from `ENCRYPTION_KEY`. See [Operate — Session Signing Key Rotation](/docs/operate/session-signing-key-rotation).
+
+**Settings flow** — The Kratos self-service flow for changing an identity's traits or credentials (e.g. changing email, changing password, enrolling TOTP).
+
+**Settings vault** — The key-value store in the `olympus` database, scoped per-domain. Managed by the SDK. Athena's settings page is a UI over it.
+
+**Site** — The brochure + OAuth2 playground + this docs site. Next.js + Fumadocs.
+
+## T
+
+**Token (OAuth2)** — A bearer credential issued by Hydra: access token (calls APIs), refresh token (gets new access tokens), ID token (identity assertion).
+
+**TOTP (Time-based One-Time Password)** — RFC 6238, used as a second factor in MFA. Olympus supports TOTP enrollment through the Kratos settings flow.
+
+**Trait** — A field on an identity, defined by the identity schema. Examples: `email`, `name.first`, `company.id`.
+
+**Turnstile** — Cloudflare's captcha product. Used by Olympus for bot mitigation.
+
+## V
+
+**Verification flow** — The Kratos self-service flow for confirming control of an identifier (typically email).
+
+**verify-full** — A PostgreSQL TLS mode that verifies both the certificate chain and the server hostname. Required in Olympus production. See [Deploy — Database SSL verify-full](/docs/deploy/database-ssl-verify-full).
+
+## W
+
+**WebAuthn** — The W3C/FIDO standard for cryptographic authenticators (security keys, passkeys). Olympus supports WebAuthn as a second factor. See [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn).
+
+**Wizard (Daedalus)** — The thirteen-page sequence Daedalus walks an operator through: Repository → Domain → Provider → Email → Database → Compute → Secrets → OAuth → Deploy → Health → Accounts → Applications → Destroy.
+
+## Z
+
+**Zero-downtime rotation** — A rotation procedure that keeps the system available throughout. The session signing key, encryption key, and reload API key all have zero-downtime rotation runbooks.

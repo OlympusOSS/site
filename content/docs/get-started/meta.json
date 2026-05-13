@@ -1,0 +1,16 @@
+{
+  "title": "Get Started",
+  "pages": [
+    "overview",
+    "prerequisites",
+    "quickstart-octl",
+    "quickstart-podman-compose",
+    "quickstart-daedalus",
+    "access-urls-and-credentials",
+    "concepts-ciam-vs-iam",
+    "concepts-identity-vs-oauth2",
+    "first-login",
+    "first-oauth-client",
+    "next-steps"
+  ]
+}

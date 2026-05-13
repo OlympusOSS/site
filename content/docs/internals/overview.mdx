@@ -1,0 +1,24 @@
+---
+title: Overview
+description: Orientation for the Internals section
+---
+
+This section is for **licensees inspecting the containers they are running.** Each subsection corresponds to one of the eight Olympus repos and documents the internals of that codebase: data flow, key abstractions, test strategy, and the rationale behind non-obvious design choices.
+
+The intent is that when you exec into a container and want to know what a specific log line means, or why a specific env var exists, or how an internal queue is sized — you find it here, not by guessing.
+
+## Sections
+
+- **Athena** — route map, service-layer adapter, middleware chain, feature modules, testing.
+- **Hera** — route map, Kratos integration, Hydra integration, analytics.
+- **SDK** — module breakdown, encryption format, connection pool.
+- **Platform** — compose layering, Caddy custom build, deploy pipeline, seed scripts.
+- **Site** — Fumadocs setup, OAuth2 playground internals.
+- **Octl** — stack bundle layout, podman detection, npmrc injection.
+- **Daedalus** — Tauri shell, MCP server, PTY pipeline, screenshot pipeline, secrets sanitizer, wizard state machine, external integrations.
+
+## Status
+
+This section is built out in **Phase 6** of the documentation plan. The page slugs are pre-registered in `meta.json` and overview pages exist; the deep content lands during Phase 6.
+
+For Phase 1 readers: the [existing per-repo READMEs on GitHub](https://github.com/OlympusOSS) are the current source of truth until these pages are filled in.

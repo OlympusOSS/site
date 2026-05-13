@@ -1,0 +1,32 @@
+{
+  "title": "ADRs",
+  "pages": [
+    "overview",
+    "0001-dual-domain-architecture",
+    "0002-kratos-hydra-over-keycloak",
+    "0003-source-only-licensing",
+    "0004-push-to-main-deployment",
+    "0005-fumadocs-over-mintlify",
+    "0006-aes-256-gcm-hkdf",
+    "0007-encryption-key-blocklist",
+    "0008-captcha-defaults-off",
+    "0009-caddy-over-nginx",
+    "0010-podman-over-docker",
+    "0011-json-schema-identity",
+    "0012-source-only-npm-packages",
+    "0013-postgres-sslmode-verify-full",
+    "0014-image-digest-pinning",
+    "0015-email-verification-prod-mandatory",
+    "0016-pgadmin-dba-role-mapping",
+    "0017-recovery-hmac-token",
+    "0018-reload-api-key-sidecar",
+    "0019-pkce-mandatory-public-clients",
+    "0020-vitest-as-test-stack",
+    "0021-xterm-secrets-sanitizer",
+    "0022-mcp-localhost-only",
+    "0023-tauri-over-electron",
+    "0024-bun-runtime",
+    "0025-octl-bundled-stack",
+    "0026-atomic-design-canvas"
+  ]
+}

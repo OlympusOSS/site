@@ -1,0 +1,50 @@
+---
+title: Quickstart with Daedalus
+description: Deploy Olympus to production in 30 minutes
+---
+
+Daedalus is the production deployment wizard. It walks you through the thirteen steps needed to take Olympus from "I have a domain name" to "real users can register and log in."
+
+## Install Daedalus
+
+Download the latest release from [github.com/OlympusOSS/daedalus/releases](https://github.com/OlympusOSS/daedalus/releases) (macOS only for now) and open the app.
+
+## What Daedalus does
+
+The wizard has thirteen pages, each producing real artifacts on its way to a live deployment:
+
+1. **Repository** — fork the `OlympusOSS/platform` repo, clone locally.
+2. **Domain** — choose your apex domain and three subdomains (CIAM, IAM, Site).
+3. **Provider** — pick a VPS provider: DigitalOcean, Hostinger, or direct SSH to existing hardware.
+4. **Email** — choose an email provider: Resend, Postmark, Brevo, SMTP2GO, AWS SES, or custom SMTP.
+5. **Database** — provision a managed Postgres (Neon) or self-host on the VPS.
+6. **Compute** — create the VPS, firewall, and SSH keys.
+7. **Secrets** — generate the cryptographic keys (session signing, encryption, cookie secrets, recovery HMAC).
+8. **OAuth** — register CIAM and IAM OAuth2 clients in Hydra.
+9. **Deploy** — push images to GHCR, deploy via SSH using `podman-compose`.
+10. **Health** — parallel health checks against every deployed service.
+11. **Accounts** — seed the initial admin identity in Kratos.
+12. **Applications** — register Athena, Hera, and Site as managed applications.
+13. **Destroy** — full teardown, when you need it.
+
+End-to-end, on a fresh setup, this takes about **30 minutes**. Most of the time is waiting for DNS propagation and the first TLS cert issuance.
+
+## What you'll need on hand
+
+Before starting:
+
+- Your **VPS provider API token** (DigitalOcean PAT or Hostinger API key)
+- **DNS edit access** for your apex domain
+- A **GitHub Personal Access Token** with `repo` and `workflow` scopes (Daedalus uses this to push to your fork and create GitHub Actions workflow runs)
+- An **email provider API key** (Resend, Postmark, etc.)
+
+See [Prerequisites](/docs/get-started/prerequisites#for-production-deployment-daedalus) for the full list.
+
+## MCP driving
+
+Daedalus embeds an MCP server on `127.0.0.1:14210`. This means Claude can drive the wizard the same way you can. See [Integrate — MCP with Daedalus](/docs/integrate/mcp-with-daedalus) and [ADR 0022 — MCP Localhost Only](/docs/adrs/0022-mcp-localhost-only).
+
+## Where next
+
+- [Deploy — overview](/docs/deploy/overview) — full deploy section, including non-Daedalus paths.
+- [Deploy — with the Daedalus wizard](/docs/deploy/with-daedalus-wizard) — page-by-page wizard reference.

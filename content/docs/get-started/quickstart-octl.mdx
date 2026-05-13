@@ -1,0 +1,59 @@
+---
+title: Quickstart with octl
+description: Local Olympus stack in one command
+---
+
+`octl` is the local-development CLI. One command starts every Olympus service in the correct order, runs migrations, seeds an admin identity, and prints access URLs.
+
+## Run it
+
+```bash
+npx @olympusoss/octl deploy
+```
+
+That's the whole command. It will:
+
+1. **Detect and install dependencies** — Podman, `podman-compose`, and `kubectl` via Homebrew on macOS if not present. (On Linux, install Podman yourself before running.)
+2. **Initialize and start the Podman machine** if one isn't running.
+3. **Build dev images** for Athena, Hera, and Site if they aren't cached.
+4. **Start services** in dependency order — Postgres → Kratos/Hydra migrations → Ory services → apps → seed.
+5. **Verify health** of every service.
+6. **Print access URLs and test credentials.**
+
+End-to-end, on a warm cache, this takes about 90 seconds.
+
+## What you get
+
+Eighteen running containers, exposed at:
+
+| URL | Service |
+| --- | --- |
+| [http://localhost:2000](http://localhost:2000) | Site (this docs page, brochure, OAuth2 playground) |
+| [http://localhost:3000](http://localhost:3000) | Hera CIAM (customer login UI) |
+| [http://localhost:3001](http://localhost:3001) | Athena CIAM (customer admin dashboard) |
+| [http://localhost:4000](http://localhost:4000) | Hera IAM (employee login UI) |
+| [http://localhost:4001](http://localhost:4001) | Athena IAM (employee admin dashboard) |
+| [http://localhost:5433](http://localhost:5433) | pgAdmin (SSO via IAM) |
+| [http://localhost:5434](http://localhost:5434) | MailSlurper (captured outbound email) |
+
+See [Access URLs and credentials](/docs/get-started/access-urls-and-credentials) for the full list including admin/public API ports.
+
+## Tearing down
+
+```bash
+npx @olympusoss/octl destroy
+```
+
+Stops every container, removes volumes, and removes the dev images. The Podman machine itself is left running.
+
+## What `octl deploy` doesn't do
+
+- It does not deploy to production. For production, use [Daedalus](/docs/get-started/quickstart-daedalus).
+- It does not configure email delivery. Outbound emails are captured by MailSlurper at [http://localhost:5434](http://localhost:5434).
+- It does not enable captcha. Turnstile is disabled in dev.
+
+## Where next
+
+- [Access URLs and credentials](/docs/get-started/access-urls-and-credentials) — log into Athena.
+- [First login](/docs/get-started/first-login) — walk through a real login flow.
+- [Quickstart with podman compose](/docs/get-started/quickstart-podman-compose) — what `octl deploy` actually does, expanded.

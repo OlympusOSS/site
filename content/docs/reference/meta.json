@@ -1,0 +1,22 @@
+{
+  "title": "Reference",
+  "pages": [
+    "overview",
+    "---APIs---",
+    "...api",
+    "api-athena-authentication",
+    "api-athena-errors",
+    "api-athena-pagination",
+    "api-athena-settings",
+    "api-sdk-settings",
+    "---Configuration---",
+    "...config",
+    "---Schemas---",
+    "...schemas",
+    "---Catalogs---",
+    "ports",
+    "env-vars",
+    "errors",
+    "settings-catalog"
+  ]
+}

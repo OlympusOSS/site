@@ -1,0 +1,46 @@
+---
+title: Next steps
+description: Where to go after Get Started
+---
+
+You have Olympus running. Now what?
+
+## If you want to deploy to production
+
+Skip ahead to [Deploy — Quickstart with Daedalus](/docs/get-started/quickstart-daedalus) and read the [Deploy section](/docs/deploy/overview). The Daedalus wizard handles VPS provisioning, DNS, TLS, secrets, and the first deploy.
+
+## If you want to integrate an app
+
+Read [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview) to pick the right grant, then follow the specific flow:
+
+- [Authorization Code](/docs/integrate/oauth2-authorization-code) — server-side web apps
+- [PKCE](/docs/integrate/oauth2-pkce) — SPAs, mobile, CLIs
+- [Client Credentials](/docs/integrate/oauth2-client-credentials) — server-to-server
+
+The [Cookbook](/docs/cookbook/overview) has language-specific token validation recipes (Go, Node, Python, Rust) and integrations for AWS, Grafana, ArgoCD, and pgAdmin.
+
+## If you want to operate the platform
+
+The [Operate section](/docs/operate/overview) is the runbook collection — every long-lived secret has a rotation procedure, every observability surface is documented, every locked-account scenario has a remediation page.
+
+Start with:
+
+- [Network Topology](/docs/operate/network-topology) — which ports must be firewalled.
+- [Secrets Audit](/docs/operate/secrets-audit) — quarterly inventory.
+- [Incident Response](/docs/operate/incident-response) — the on-call playbook.
+
+## If you want to understand the internals
+
+For licensees inspecting their containers, the [Internals section](/docs/internals/overview) documents the data flow, key abstractions, and test strategy of each repo. Start with [Develop — Inspecting Your Containers](/docs/develop/inspecting-your-containers).
+
+## If you want the deep reference
+
+[Reference](/docs/reference/overview) is the exhaustive catalog: every endpoint, every config field, every error, every environment variable. Most of it is generated directly from source so it never drifts.
+
+## If you're moving from another vendor
+
+[Migration](/docs/migration/overview) has guides for Auth0, Keycloak, Cognito, Okta, Firebase Auth, and Supabase Auth.
+
+## If something is broken
+
+[Troubleshooting](/docs/troubleshooting/overview) is organized by symptom and by error code. The top categories: `podman compose` failures, login loops, consent loops, email not sending, locked accounts, cookies not persisting cross-port.

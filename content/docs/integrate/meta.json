@@ -1,0 +1,18 @@
+{
+  "title": "Integrate",
+  "pages": [
+    "overview",
+    "oauth2-overview",
+    "oauth2-authorization-code",
+    "oauth2-pkce",
+    "oauth2-client-credentials",
+    "oauth2-refresh-tokens",
+    "oauth2-error-codes",
+    "oidc-discovery",
+    "oidc-userinfo",
+    "logout-rp-initiated",
+    "spa-integration",
+    "mobile-integration",
+    "mcp-with-daedalus"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "title": "APIs",
+  "pages": [
+    "overview",
+    "---Athena---",
+    "athena-overview",
+    "---SDK---",
+    "sdk-overview",
+    "---MCP---",
+    "mcp-overview",
+    "---Kratos---",
+    "kratos-deltas",
+    "---Hydra---",
+    "hydra-deltas"
+  ]
+}

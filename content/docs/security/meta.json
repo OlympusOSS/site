@@ -1,0 +1,26 @@
+{
+  "title": "Security",
+  "pages": [
+    "overview",
+    "threat-model",
+    "ciam-iam-isolation",
+    "encryption-at-rest",
+    "encryption-key-blocklist",
+    "session-cookies",
+    "csp-athena",
+    "csp-hera",
+    "security-headers",
+    "brute-force",
+    "account-lockout",
+    "breached-password",
+    "captcha-turnstile",
+    "rate-limiting",
+    "pkce-enforcement",
+    "email-verification",
+    "oidc-email-verified-trust",
+    "pgadmin-sso",
+    "pgadmin-dba-accounts",
+    "caddy-supply-chain",
+    "secrets-management"
+  ]
+}

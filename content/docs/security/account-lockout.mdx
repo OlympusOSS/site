@@ -1,0 +1,208 @@
+---
+title: Account Lockout
+description: Lockout policy applied by the Hera login UI
+---
+
+## Overview
+
+Hera enforces account lockout in `loginAction` by integrating with the brute-force protection module in `@olympusoss/sdk`. Failed login attempts are tracked per identifier in PostgreSQL. When the threshold is crossed, the account is locked and subsequent login attempts are rejected before Kratos is contacted. The security model is fail-open — a database outage does not lock users out.
+
+This feature was introduced in hera#26 as part of the cross-repo brute force protection cluster (platform#11 + hera#26 + athena#47).
+
+---
+
+## How It Works
+
+The integration follows a three-point pattern inside `loginAction` (`src/app/login/actions.ts`):
+
+```
+1. checkLockout(email)        ← BEFORE Kratos, BEFORE CAPTCHA
+2. submitLoginFlow(...)        ← Kratos credential verification
+   ├─ success → clearAttempts(email).catch(() => {})   [fire-and-forget]
+   └─ failure → recordFailedAttempt(email, clientIp)   [in catch block]
+```
+
+### Step-by-step
+
+1. **Lockout pre-check** — `checkLockout(email)` is called as the first async operation in `loginAction`, before CAPTCHA validation and before any Kratos call. If the account is locked, the action returns a user-facing error immediately and Kratos is never contacted.
+
+2. **Credential submission** — If the account is not locked, login proceeds to CAPTCHA (if enabled) and then to Kratos.
+
+3. **On Kratos failure** — The `catch` block calls `recordFailedAttempt(email, clientIp)`. The SDK increments the attempt count atomically. If the new count meets the threshold, the SDK creates a lockout row and returns `{ shouldLockout: true }`. Hera returns the appropriate user-facing message.
+
+4. **On Kratos success** — `clearAttempts(email).catch(() => {})` is called as fire-and-forget. A failure here does not block the login or throw an error.
+
+### Execution order
+
+```
+loginAction called
+  │
+  ├─ checkLockout(email)
+  │     locked: true  → return lockout message (Kratos never called)
+  │     locked: false → continue
+  │
+  ├─ [CAPTCHA check if enabled]
+  │
+  ├─ submitLoginFlow(email, password, loginChallenge)
+  │     throws on Kratos error
+  │       └─ catch: recordFailedAttempt(email, clientIp)
+  │                   shouldLockout: true  → return "too many failed attempts" message
+  │                   shouldLockout: false → return "Invalid email or password."
+  │
+  └─ success path:
+       clearAttempts(email).catch(() => {})   [fire-and-forget]
+       redirect to result.redirect_to
+```
+
+---
+
+## API / Technical Details
+
+### SDK functions used
+
+| Function | Call site | Fail behavior |
+|----------|-----------|---------------|
+| `checkLockout(identifier)` | Top of `loginAction`, before CAPTCHA | Fail-open: logs ERROR, returns `{ locked: false }` |
+| `recordFailedAttempt(identifier, ipAddress?)` | `catch` block in `loginAction` | Fail-open: logs ERROR, returns `{ shouldLockout: false, attemptCount: 0 }` |
+| `clearAttempts(identifier)` | Success path in `loginAction` | `.catch(() => {})` — errors logged at WARN, never re-thrown |
+
+Full SDK reference: `docs/project-knowledge/brute-force-integration.md`
+
+### IP address sourcing
+
+The client IP passed to `recordFailedAttempt` is sourced exclusively from the `x-real-ip` header:
+
+```typescript
+const clientIp = (await headers()).get("x-real-ip") ?? null;
+```
+
+`x-forwarded-for` is never used. It can be forged by the client and must not be used for security-sensitive operations. If `x-real-ip` is absent (e.g., direct access without a reverse proxy), `null` is passed. Lockout enforcement is not affected — attempts are still counted, but the audit log entry has no IP.
+
+### Lockout thresholds
+
+Thresholds are stored in the `ciam_settings` table (category `security`) and cached for 60 seconds. Defaults:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `security.brute_force.max_attempts` | `5` | Failed attempts within the window before lockout |
+| `security.brute_force.window_seconds` | `600` | Sliding window length (10 minutes) |
+| `security.brute_force.lockout_duration_seconds` | `900` | Lockout duration (15 minutes) |
+
+Change these via the Athena Settings UI or the settings API. Changes take effect within 60 seconds (one cache TTL cycle).
+
+### Environment variables
+
+No new environment variables are required in Hera. The SDK reads its own configuration from `DATABASE_URL`, `SETTINGS_TABLE`, and `ENCRYPTION_KEY` which are already set in the Hera container.
+
+---
+
+## User-Facing Messages
+
+Three distinct error states are surfaced to the user. None reveal the attempt count.
+
+| State | Message | When shown |
+|-------|---------|-----------|
+| Account locked with countdown | `"Account temporarily locked. Try again in N minute(s)."` | `checkLockout` returns `locked: true` with `lockedUntil` set |
+| Account locked without expiry | `"Account locked. Try again later."` | `checkLockout` returns `locked: true` with no `lockedUntil` (e.g., manual lock with no TTL) |
+| Threshold just crossed | `"Account temporarily locked due to too many failed attempts. Try again later."` | `recordFailedAttempt` returns `shouldLockout: true` |
+| Normal credential failure | `"Invalid email or password."` | Kratos rejects credentials and `shouldLockout: false` |
+
+The countdown uses `Math.ceil` so a sub-minute remainder always rounds up to 1. A user with 30 seconds remaining sees "Try again in 1 minute(s)." rather than "Try again in 0 minute(s)."
+
+Note: The P2 known issue of grammatically awkward singular ("1 minute(s)") is tracked in DX story DX-3. The inconsistency between the pre-check countdown and the "Try again later" message on the trigger path is tracked in DX-1 (requires SDK to return `lockedUntil` from `recordFailedAttempt`).
+
+---
+
+## The `demoLoginAction` Exclusion
+
+`demoLoginAction` does not call `checkLockout` or `recordFailedAttempt`. This is intentional.
+
+The demo path is gated by two runtime conditions that must both be true for the action to execute:
+
+- `process.env.NODE_ENV !== "production"` — the action is not available in production builds
+- `process.env.ALLOW_DEMO_ACCOUNTS === "true"` — must be explicitly enabled in the environment
+
+The Security Expert reviewed and accepted this exclusion (hera#26 security review). The gate prevents the demo path from running in production. Because demo accounts are only active in controlled non-production environments, the risk of a lockout bypass via this path was accepted.
+
+Consequence: if a demo account email matches a real user's email in Kratos, repeated failed demo login attempts for that identifier will not be tracked and will not trigger lockout. In practice, demo accounts use dedicated email addresses that do not exist in real identity records.
+
+If you are adding a new login path to Hera, use `loginAction` as the canonical reference — not `demoLoginAction`. Any path that submits real credentials against Kratos must follow the three-point integration pattern.
+
+---
+
+## Examples
+
+### Minimal integration (canonical pattern)
+
+```typescript
+import { checkLockout, recordFailedAttempt, clearAttempts } from "@olympusoss/sdk";
+import { headers } from "next/headers";
+
+export async function loginAction(formData: FormData) {
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+
+  // 1. Check lockout before anything else
+  const lockout = await checkLockout(email);
+  if (lockout.locked) {
+    if (lockout.lockedUntil) {
+      const minutes = Math.ceil((lockout.lockedUntil.getTime() - Date.now()) / 60_000);
+      return { error: `Account temporarily locked. Try again in ${minutes} minute(s).` };
+    }
+    return { error: "Account locked. Try again later." };
+  }
+
+  // 2. Get IP from trusted proxy header only
+  const clientIp = (await headers()).get("x-real-ip") ?? null;
+
+  try {
+    // 3. Submit to Kratos
+    const result = await submitLoginFlow(email, password, loginChallenge);
+
+    // 4a. Success — clear attempts (fire-and-forget)
+    clearAttempts(email).catch(() => {});
+    return redirect(result.redirect_to);
+  } catch (err) {
+    // 4b. Failure — record attempt; SDK handles lockout creation internally
+    const { shouldLockout } = await recordFailedAttempt(email, clientIp);
+    if (shouldLockout) {
+      return { error: "Account temporarily locked due to too many failed attempts. Try again later." };
+    }
+    return { error: "Invalid email or password." };
+  }
+}
+```
+
+### Reading the lockout state from the login form
+
+The lockout message is returned in `state.error` like any other login error. No changes to `login-form.tsx` are needed — the existing error display block renders all three error states without modification.
+
+---
+
+## Edge Cases
+
+| Scenario | Behavior |
+|----------|----------|
+| `checkLockout` throws (DB unavailable) | Fail-open: login proceeds to CAPTCHA and Kratos. Protection is degraded until DB recovers. No lockout message shown. |
+| `recordFailedAttempt` throws (DB unavailable) | Fail-open: attempt is not counted. Login returns "Invalid email or password." No crash. |
+| `clearAttempts` throws | Errors are swallowed by `.catch(() => {})`. Login is not affected. Stale attempt rows are cleaned up by the SDK's inline probabilistic cleanup on the next `recordFailedAttempt` call. |
+| Expired lockout row in DB | `checkLockout` returns `{ locked: false }` when `locked_until < NOW()`. Handled entirely inside the SDK. Hera sees no lockout. |
+| `lockedUntil` absent but `locked: true` | Returns "Account locked. Try again later." No countdown. This covers manual locks with no TTL and any future SDK state where expiry is not set. |
+| Identifier submitted in mixed case | The SDK normalizes identifiers to lowercase internally. `User@Example.COM` and `user@example.com` accumulate against the same lockout record. Pass the email as the user submitted it. |
+| No `x-real-ip` header (direct access without proxy) | `clientIp` is `null`. Attempt is still counted. Audit log entry has null IP. Lockout enforcement is unaffected. |
+| Two concurrent wrong-password requests arrive simultaneously | Both may pass `checkLockout` if neither has yet written a lockout row. `recordFailedAttempt` uses atomic SQL so only one lockout row is inserted. Neither response crashes. At least one returns the lockout message if the threshold is crossed. |
+| CAPTCHA failure after lockout check passes | `recordFailedAttempt` is not called for CAPTCHA failures — only for Kratos credential rejections in the `catch` block. |
+| `loginAction` called with missing `email`, `password`, or `login_challenge` | Early validation guard fires before `checkLockout` is called. No SDK calls are made. |
+| `EmailNotVerifiedError` thrown by Kratos | Redirect to `/verification` is issued. `recordFailedAttempt` is not called. An unverified email is not treated as a failed credential attempt. |
+
+---
+
+## Security Considerations
+
+- **Never reveal attempt count** — no message at any stage discloses how many attempts have been used or how many remain. The only permitted disclosure is lockout status and, when available, the remaining duration.
+- **Lockout check runs before Kratos** — this is required. Checking after submission would allow a locked account to probe Kratos indefinitely, consuming Ory resources and creating a timing side-channel.
+- **`recordFailedAttempt` has exactly one call site** — the `catch` block in `loginAction`. A second call site in the no-session branch was removed (DA fix C1, hera#26) because `submitLoginFlow` always throws on non-OK HTTP responses, making that branch unreachable on credential failure. Do not re-introduce a second call site.
+- **IP from `x-real-ip` only** — `x-forwarded-for` must not be used. It can be set by the client to any value and provides no security guarantee.
+- **Lockout is per-identifier, not per-IP** — an attacker rotating IPs will still accumulate against the identifier's attempt counter. IP is recorded for audit purposes only.
+- **Caddy per-IP rate limiting is the backstop** — the fail-open design accepts that a DB outage degrades lockout protection. Caddy's rate limiting (platform#22) provides a secondary defense that is not subject to DB availability.
+- **`demoLoginAction` exclusion** — see the dedicated section above. If demo accounts share the identifier namespace with real user accounts, this exclusion becomes a lockout bypass vector. The Security Expert's risk acceptance depends on demo accounts using isolated email addresses.

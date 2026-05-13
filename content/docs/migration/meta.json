@@ -1,0 +1,12 @@
+{
+  "title": "Migration",
+  "pages": [
+    "overview",
+    "from-auth0",
+    "from-keycloak",
+    "from-aws-cognito",
+    "from-okta",
+    "from-firebase-auth",
+    "from-supabase-auth"
+  ]
+}

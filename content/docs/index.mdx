@@ -1,23 +1,41 @@
 ---
 title: Olympus Documentation
-description: Self-hosted identity platform built on Ory Kratos and Hydra
+description: Self-hosted CIAM and IAM platform built on Ory Kratos and Hydra
 ---
 
-# Welcome to Olympus
+Welcome to the Olympus documentation.
 
-Olympus is a self-hosted identity platform that provides authentication and authorization for modern applications. Built on [Ory Kratos](https://www.ory.sh/kratos/) (identity management) and [Ory Hydra](https://www.ory.sh/hydra/) (OAuth2/OIDC), it gives you full control over your users' identity data with no vendor lock-in.
+Olympus is a **self-hosted identity platform** for modern applications. It combines [Ory Kratos](https://www.ory.sh/kratos/) (identity management) and [Ory Hydra](https://www.ory.sh/hydra/) (OAuth2/OIDC) into a dual-domain stack — one half for customer identity (CIAM), one half for employee identity (IAM) — with an admin dashboard ([Athena](https://github.com/OlympusOSS/athena)), a login UI ([Hera](https://github.com/OlympusOSS/hera)), a deployment wizard ([Daedalus](https://github.com/OlympusOSS/daedalus)), and a shared encryption/settings library ([SDK](https://github.com/OlympusOSS/sdk)).
 
-## Key Features
+## Where to start
 
-- **Dual-domain architecture** — separate CIAM (customer-facing) and IAM (employee-facing) domains with independent identity and OAuth2 services
-- **Full user lifecycle** — registration, login, account recovery, email verification, and profile management
-- **OAuth2 and OpenID Connect** — authorization code flow, client credentials, PKCE, and OIDC discovery
-- **Admin dashboard** — manage identities, sessions, OAuth2 clients, and schemas through Athena
-- **Self-hosted** — deploy anywhere with Podman Compose, your infrastructure, your rules
+| If you are… | Start here |
+| --- | --- |
+| Trying Olympus for the first time | [Quickstart with octl](/docs/get-started/quickstart-octl) |
+| Deploying to production | [Deploy with Daedalus](/docs/deploy/with-daedalus-wizard) |
+| Integrating an app against Olympus | [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview) |
+| Operating an existing deployment | [Operate — runbooks](/docs/operate/overview) |
+| Inspecting your container images | [Inspecting your containers](/docs/develop/inspecting-your-containers) |
+| Looking for the API reference | [Reference — APIs](/docs/reference/api/overview) |
 
-## Quick Links
+## How this site is organized
 
-- [Getting Started](/docs/getting-started) — deploy Olympus in 5 minutes
-- [Architecture](/docs/architecture) — understand the dual-domain design
-- [Authentication Guide](/docs/guides/authentication) — identity flows with Kratos
-- [OAuth2 Guide](/docs/guides/oauth2) — authorization flows with Hydra
+The docs follow the **lifecycle** of an Olympus deployment — get it running, deploy it, operate it, develop against it, integrate apps with it — with deep reference material at the end.
+
+- **Get Started** — try Olympus locally in five minutes.
+- **Deploy** — provision a production deployment, by hand or with the Daedalus wizard.
+- **Operate** — runbooks for the daily work of running an identity platform: rotate keys, unlock accounts, audit secrets, watch certificates.
+- **Develop** — workspace setup, contributor guides, testing strategy. Frames container inspection for licensees.
+- **Integrate** — OAuth2 and OIDC flows from the perspective of an application integrating with Olympus.
+- **Identity** — the identity model: schemas, flows, sessions, MFA, account linking.
+- **Security** — threat model, encryption, headers, captcha, breach checks, supply chain.
+- **Reference** — exhaustive API, configuration, schema, and catalog documentation. Most pages here are generated from source.
+- **Internals** — per-repo deep dives into how the code works. Useful when inspecting your containers under the [Olympus Free Container License](/docs/license).
+- **ADRs** — architecture decision records.
+- **Cookbook** — concrete recipes for common integrations.
+- **Migration** — guides for moving from Auth0, Keycloak, Cognito, Okta, Firebase, and Supabase.
+- **Troubleshooting** — diagnostics for known failure modes.
+
+## A note on scope
+
+Olympus is **eight Git repositories** working together. Most of these docs describe surfaces that span more than one repo. When a page is tightly bound to a single repo, it links to the relevant GitHub source line. See [Repo Map](/docs/repo-map) for the full inventory.

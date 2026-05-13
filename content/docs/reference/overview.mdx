@@ -1,0 +1,48 @@
+---
+title: Overview
+description: Orientation for the Reference section
+---
+
+The Reference section is the **exhaustive catalog** of every endpoint, every configuration field, every error, every environment variable in Olympus. **Most pages here are generated from source** — the surface a licensee can inspect (the image they pulled) and the surface this section documents are always in lock-step.
+
+## APIs
+
+- [APIs overview](/docs/reference/api/overview) — every HTTP / RPC surface.
+- [Athena API authentication](/docs/reference/api-athena-authentication) — session model, role checks, route classification.
+- [Athena API errors](/docs/reference/api-athena-errors) — error envelope catalog.
+- [Athena API pagination](/docs/reference/api-athena-pagination) — cursor and offset patterns.
+- [Athena settings API](/docs/reference/api-athena-settings) — endpoints over the settings vault.
+- [SDK settings API](/docs/reference/api-sdk-settings) — programmatic interface.
+
+## Configuration
+
+- [Configuration overview](/docs/reference/config/overview) — every config file, every field.
+
+## Schemas
+
+- [Identity schemas](/docs/reference/schemas/identity-schemas)
+- [Database schemas](/docs/reference/schemas/database-schemas)
+
+## Catalogs
+
+- [Ports](/docs/reference/ports) — every port, dev and prod.
+- [Env vars](/docs/reference/env-vars) — every environment variable across every container.
+- [Errors](/docs/reference/errors) — every error class emitted by the platform.
+- [Settings catalog](/docs/reference/settings-catalog) — every key in the settings vault.
+
+## Generation status
+
+| Section | Source of truth | Status |
+| --- | --- | --- |
+| Hydra API | `athena/openapi.json` (canonical Hydra spec) | generator in Phase 2 |
+| Kratos API | upstream Ory spec, pinned | generator in Phase 2 |
+| Athena API | `athena/src/app/api/**/route.ts` (AST) | generator in Phase 2 |
+| SDK API | `sdk/src/*.ts` (TypeDoc) | generator in Phase 2 |
+| MCP tools | `daedalus/src-tauri/src/mcp/tools.rs` | generator in Phase 2 |
+| Configuration | `platform/dev/**/kratos.yml`, `hydra.yml` | generator in Phase 4 |
+| Identity schemas | `platform/dev/**/identity.schema.json` | generator in Phase 4 |
+| Database tables | live `pg_dump --schema-only` in CI | generator in Phase 4 |
+| Compose services | `platform/{dev,prod}/compose*.yml` | generator in Phase 4 |
+| Caddyfile | `platform/prod/Caddyfile` | generator in Phase 4 |
+| Env vars | `grep process.env.` + curated overlay | generator in Phase 4 |
+| Errors | `grep 'throw new'` + curated overlay | generator in Phase 4 |
