@@ -1,0 +1,26 @@
+---
+title: "encryption_key_not_set"
+description: "ENCRYPTION_KEY env var is not set. — source: SDK"
+---
+
+# `encryption_key_not_set`
+
+**Source:** SDK
+
+**HTTP:** 500
+
+## Summary
+
+ENCRYPTION_KEY env var is not set.
+
+## When this fires
+
+Container startup — fatal.
+
+## Fix
+
+Set ENCRYPTION_KEY in deployment env. See [Troubleshooting — Encryption key startup](/docs/troubleshooting/encryption-key-startup-failure).
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "encryption_key_not_set" ../<repo>/src`.

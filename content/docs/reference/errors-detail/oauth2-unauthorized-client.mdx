@@ -1,0 +1,26 @@
+---
+title: "unauthorized_client"
+description: "Client not authorized to use this grant type. — source: Hydra (RFC 6749)"
+---
+
+# `unauthorized_client`
+
+**Source:** Hydra (RFC 6749)
+
+**HTTP:** 400
+
+## Summary
+
+Client not authorized to use this grant type.
+
+## When this fires
+
+Confidential client trying to use implicit flow, or public client trying client_credentials.
+
+## Fix
+
+Update the client's allowed grant types in Athena.
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "unauthorized_client" ../<repo>/src`.

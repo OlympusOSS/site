@@ -1,0 +1,31 @@
+---
+title: "Port 3101"
+description: "Kratos CIAM (admin) — Admin API"
+---
+
+# Port `3101` — Kratos CIAM (admin)
+
+**Role:** Admin API
+
+**Exposure:** host-bound (firewall to localhost)
+
+## Purpose
+
+Identity CRUD. MUST be firewalled from the internet.
+
+## Security
+
+**This port must be blocked at the host firewall** from the internet. Only Caddy (ports 80/443) is publicly reachable.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 3101 <vps-ip>
+# Expected: filtered / closed
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

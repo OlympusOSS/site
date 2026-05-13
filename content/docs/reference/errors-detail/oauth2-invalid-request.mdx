@@ -1,0 +1,32 @@
+---
+title: "invalid_request"
+description: "OAuth2 request is missing or has malformed parameters. — source: Hydra (RFC 6749)"
+---
+
+# `invalid_request`
+
+**Source:** Hydra (RFC 6749)
+
+**HTTP:** 400
+
+## Summary
+
+OAuth2 request is missing or has malformed parameters.
+
+## When this fires
+
+Common with bad authorize/token requests.
+
+## Common causes
+
+- Missing client_id
+- Missing redirect_uri
+- Missing PKCE challenge for public client
+
+## Fix
+
+Check the request parameters. See [Troubleshooting — pkce_required](/docs/troubleshooting/oauth2-pkce-required) for the PKCE case.
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "invalid_request" ../<repo>/src`.

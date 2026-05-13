@@ -1,0 +1,31 @@
+---
+title: "Port 4001"
+description: "Athena IAM — Admin dashboard"
+---
+
+# Port `4001` — Athena IAM
+
+**Role:** Admin dashboard
+
+**Exposure:** intranet via Caddy
+
+## Purpose
+
+Employee admin. Default operator entry point.
+
+## Security
+
+Public exposure is expected, but defense-in-depth via Caddy.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 4001 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

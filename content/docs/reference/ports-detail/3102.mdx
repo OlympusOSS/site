@@ -1,0 +1,31 @@
+---
+title: "Port 3102"
+description: "Hydra CIAM (public) — OAuth2 endpoint"
+---
+
+# Port `3102` — Hydra CIAM (public)
+
+**Role:** OAuth2 endpoint
+
+**Exposure:** host-bound (Caddy proxies)
+
+## Purpose
+
+/oauth2/auth, /oauth2/token, /.well-known/openid-configuration.
+
+## Security
+
+Public exposure is expected, but defense-in-depth via Caddy.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 3102 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

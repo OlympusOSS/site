@@ -1,0 +1,31 @@
+---
+title: Per-port reference
+description: "Every port across the Olympus Compose stack"
+---
+
+Olympus binds 18 ports in the dev stack. Each has its own page with role and exposure recommendation.
+
+## All ports
+
+| Port | Service | Scope |
+|------|---------|-------|
+| [`80`](./80) | Caddy | internet |
+| [`443`](./443) | Caddy | internet |
+| [`2000`](./2000) | Site | intranet via Caddy |
+| [`3000`](./3000) | Hera CIAM | intranet only |
+| [`3001`](./3001) | Athena CIAM | intranet via Caddy |
+| [`3100`](./3100) | Kratos CIAM (public) | host-bound (firewall to localhost in prod) |
+| [`3101`](./3101) | Kratos CIAM (admin) | host-bound (firewall to localhost) |
+| [`3102`](./3102) | Hydra CIAM (public) | host-bound (Caddy proxies) |
+| [`3103`](./3103) | Hydra CIAM (admin) | host-bound (firewall to localhost) |
+| [`4000`](./4000) | Hera IAM | intranet only |
+| [`4001`](./4001) | Athena IAM | intranet via Caddy |
+| [`4100`](./4100) | Kratos IAM (public) | host-bound |
+| [`4101`](./4101) | Kratos IAM (admin) | host-bound (firewall to localhost) |
+| [`4102`](./4102) | Hydra IAM (public) | host-bound |
+| [`4103`](./4103) | Hydra IAM (admin) | host-bound (firewall to localhost) |
+| [`5432`](./5432) | PostgreSQL | host-bound (firewall mandatory) |
+| [`5433`](./5433) | pgAdmin | intranet via Caddy + OIDC SSO |
+| [`5434`](./5434) | MailSlurper | dev only |
+
+See [Operate — Network topology](/docs/operate/network-topology) for the canonical reference.

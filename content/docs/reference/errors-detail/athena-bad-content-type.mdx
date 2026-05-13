@@ -1,0 +1,31 @@
+---
+title: "bad_content_type"
+description: "Mutation routes require `Content-Type: application/json`. — source: Athena"
+---
+
+# `bad_content_type`
+
+**Source:** Athena
+
+**HTTP:** 415
+
+## Summary
+
+Mutation routes require `Content-Type: application/json`.
+
+## When this fires
+
+POST/PUT/PATCH/DELETE on an admin route with wrong content type.
+
+## Common causes
+
+- Form submission instead of JSON
+- Missing Content-Type header
+
+## Fix
+
+Set Content-Type to application/json.
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "bad_content_type" ../<repo>/src`.

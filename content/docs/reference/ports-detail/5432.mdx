@@ -1,0 +1,31 @@
+---
+title: "Port 5432"
+description: "PostgreSQL — Database"
+---
+
+# Port `5432` — PostgreSQL
+
+**Role:** Database
+
+**Exposure:** host-bound (firewall mandatory)
+
+## Purpose
+
+Five Olympus databases. MUST be firewalled from internet. In prod, prefer managed Postgres.
+
+## Security
+
+**This port must be blocked at the host firewall** from the internet. Only Caddy (ports 80/443) is publicly reachable.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 5432 <vps-ip>
+# Expected: filtered / closed
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

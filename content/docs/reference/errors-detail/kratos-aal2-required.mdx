@@ -1,0 +1,26 @@
+---
+title: "session_aal2_required"
+description: "Session AAL is too low for the requested operation. — source: Kratos"
+---
+
+# `session_aal2_required`
+
+**Source:** Kratos
+
+**HTTP:** 403
+
+## Summary
+
+Session AAL is too low for the requested operation.
+
+## When this fires
+
+AAL1 session trying to perform a settings change that requires AAL2.
+
+## Fix
+
+Step up via `/self-service/login/browser?aal=aal2&refresh=true`. See [Troubleshooting — AAL too low](/docs/troubleshooting/kratos-session-aal-too-low).
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "session_aal2_required" ../<repo>/src`.

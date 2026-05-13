@@ -1,0 +1,34 @@
+---
+title: "NODE_TLS_REJECT_UNAUTHORIZED"
+description: "Environment variable used by: hera"
+---
+
+# `NODE_TLS_REJECT_UNAUTHORIZED`
+
+**Read by:** `hera`
+
+**Sensitive:** No — safe to log / share.
+
+**Required:** unspecified
+
+## Where it's read
+
+- **hera** — `grep -r "NODE_TLS_REJECT_UNAUTHORIZED" ../hera/src` for code locations
+
+## Setting it
+
+### Dev
+
+Set in your local `.env.dev` file (managed by `octl deploy`).
+
+### Prod
+
+```bash
+gh secret set NODE_TLS_REJECT_UNAUTHORIZED --body "<value>" -R OlympusOSS/platform
+gh workflow run deploy.yml
+```
+
+
+---
+
+*Generated from source by `scripts/gen/env-vars-per-var.mjs`.*

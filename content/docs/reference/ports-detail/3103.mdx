@@ -1,0 +1,31 @@
+---
+title: "Port 3103"
+description: "Hydra CIAM (admin) — OAuth2 admin"
+---
+
+# Port `3103` — Hydra CIAM (admin)
+
+**Role:** OAuth2 admin
+
+**Exposure:** host-bound (firewall to localhost)
+
+## Purpose
+
+OAuth2 client management, introspect. MUST be firewalled.
+
+## Security
+
+**This port must be blocked at the host firewall** from the internet. Only Caddy (ports 80/443) is publicly reachable.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 3103 <vps-ip>
+# Expected: filtered / closed
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

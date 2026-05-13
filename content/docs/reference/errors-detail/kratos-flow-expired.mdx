@@ -1,0 +1,26 @@
+---
+title: "self_service_flow_expired"
+description: "Self-service flow has exceeded its TTL. — source: Kratos"
+---
+
+# `self_service_flow_expired`
+
+**Source:** Kratos
+
+**HTTP:** 410
+
+## Summary
+
+Self-service flow has exceeded its TTL.
+
+## When this fires
+
+User took too long between flow init and submission.
+
+## Fix
+
+User starts over. See [Troubleshooting — Kratos flow expired](/docs/troubleshooting/kratos-flow-expired).
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "self_service_flow_expired" ../<repo>/src`.

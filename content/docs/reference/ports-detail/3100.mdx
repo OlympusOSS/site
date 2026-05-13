@@ -1,0 +1,31 @@
+---
+title: "Port 3100"
+description: "Kratos CIAM (public) — Self-service API"
+---
+
+# Port `3100` — Kratos CIAM (public)
+
+**Role:** Self-service API
+
+**Exposure:** host-bound (firewall to localhost in prod)
+
+## Purpose
+
+Browser-facing self-service flows. Restrict in prod firewall.
+
+## Security
+
+**This port must be blocked at the host firewall** from the internet. Only Caddy (ports 80/443) is publicly reachable.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 3100 <vps-ip>
+# Expected: filtered / closed
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

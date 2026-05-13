@@ -1,0 +1,26 @@
+---
+title: "unsupported_grant_type"
+description: "Grant type not supported by the server. — source: Hydra (RFC 6749)"
+---
+
+# `unsupported_grant_type`
+
+**Source:** Hydra (RFC 6749)
+
+**HTTP:** 400
+
+## Summary
+
+Grant type not supported by the server.
+
+## When this fires
+
+Most often: trying to use `password` grant (removed in Olympus per OAuth 2.1).
+
+## Fix
+
+Use Authorization Code instead.
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "unsupported_grant_type" ../<repo>/src`.

@@ -1,0 +1,61 @@
+---
+title: Identity traits
+description: "Every trait across all Olympus identity schemas (34 total)"
+---
+
+Each identity schema declares **traits** — fields stored on the identity (email, name, role, etc.). This page enumerates every trait across all schemas.
+
+## ciam-company
+
+| Trait | Type | Required |
+|-------|------|----------|
+| [`email`](./ciam-company-email) | `string` (email) | yes |
+| [`employee_id`](./ciam-company-employee_id) | `string` | yes |
+| [`first_name`](./ciam-company-first_name) | `string` | yes |
+| [`last_name`](./ciam-company-last_name) | `string` | yes |
+| [`department`](./ciam-company-department) | `string` | yes |
+| [`role`](./ciam-company-role) | `string` | yes |
+| [`status`](./ciam-company-status) | `string` | no |
+
+## ciam-customer
+
+| Trait | Type | Required |
+|-------|------|----------|
+| [`email`](./ciam-customer-email) | `string` (email) | yes |
+| [`customer_id`](./ciam-customer-customer_id) | `string` | yes |
+| [`first_name`](./ciam-customer-first_name) | `string` | yes |
+| [`last_name`](./ciam-customer-last_name) | `string` | yes |
+| [`phone`](./ciam-customer-phone) | `string` | no |
+| [`date_of_birth`](./ciam-customer-date_of_birth) | `string` (date) | no |
+| [`shipping_address.street`](./ciam-customer-shipping_address-street) | `string` | no |
+| [`shipping_address.city`](./ciam-customer-shipping_address-city) | `string` | no |
+| [`shipping_address.state`](./ciam-customer-shipping_address-state) | `string` | no |
+| [`shipping_address.postal_code`](./ciam-customer-shipping_address-postal_code) | `string` | no |
+| [`shipping_address.country`](./ciam-customer-shipping_address-country) | `string` | no |
+| [`preferences.newsletter`](./ciam-customer-preferences-newsletter) | `boolean` | no |
+| [`preferences.marketing_emails`](./ciam-customer-preferences-marketing_emails) | `boolean` | no |
+| [`preferences.preferred_language`](./ciam-customer-preferences-preferred_language) | `string` | no |
+| [`preferences.currency`](./ciam-customer-preferences-currency) | `string` | no |
+| [`loyalty_tier`](./ciam-customer-loyalty_tier) | `string` | no |
+| [`account_status`](./ciam-customer-account_status) | `string` | no |
+
+## ciam-default
+
+| Trait | Type | Required |
+|-------|------|----------|
+| [`username`](./ciam-default-username) | `string` | no |
+| [`email`](./ciam-default-email) | `string` (email) | yes |
+| [`first_name`](./ciam-default-first_name) | `string` | no |
+| [`last_name`](./ciam-default-last_name) | `string` | no |
+| [`phone`](./ciam-default-phone) | `string` | no |
+
+## iam-admin
+
+| Trait | Type | Required |
+|-------|------|----------|
+| [`email`](./iam-admin-email) | `string` (email) | yes |
+| [`name.first`](./iam-admin-name-first) | `string` | no |
+| [`name.last`](./iam-admin-name-last) | `string` | no |
+| [`role`](./iam-admin-role) | `string` | no |
+| [`roles`](./iam-admin-roles) | `array` | no |
+

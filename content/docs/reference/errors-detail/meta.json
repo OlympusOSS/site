@@ -1,0 +1,23 @@
+{
+  "title": "Error catalog",
+  "pages": [
+    "overview",
+    "athena-not-authenticated",
+    "athena-forbidden",
+    "athena-bad-content-type",
+    "oauth2-invalid-request",
+    "oauth2-invalid-client",
+    "oauth2-invalid-grant",
+    "oauth2-unauthorized-client",
+    "oauth2-unsupported-grant-type",
+    "oauth2-invalid-scope",
+    "oauth2-pkce-required",
+    "kratos-flow-expired",
+    "kratos-csrf-violation",
+    "kratos-aal2-required",
+    "kratos-invalid-credentials",
+    "sdk-encryption-key-not-set",
+    "sdk-encryption-key-blocklisted",
+    "sdk-cipher-decrypt-fail"
+  ]
+}

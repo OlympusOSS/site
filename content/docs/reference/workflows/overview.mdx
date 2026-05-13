@@ -1,0 +1,59 @@
+---
+title: CI Workflows
+description: "25 GitHub Actions workflows across the Olympus repos"
+---
+
+Olympus uses GitHub Actions for CI/CD. This page enumerates every workflow.
+
+## By repo
+
+### athena
+
+- [CD — Athena](./athena-cd) — `cd.yml`
+- [Claude Code](./athena-claude) — `claude.yml`
+- [CI — Athena](./athena-ci) — `ci.yml`
+
+### canvas
+
+- [Release — canvas](./canvas-release) — `release.yml`
+- [Deploy docs to GitHub Pages](./canvas-docs) — `docs.yml`
+- [CI — canvas](./canvas-ci) — `ci.yml`
+
+### daedalus
+
+- [CI — daedalus](./daedalus-ci) — `ci.yml`
+
+### hera
+
+- [CD — Hera](./hera-cd) — `cd.yml`
+- [Claude Code](./hera-claude) — `claude.yml`
+- [CI — Hera](./hera-ci) — `ci.yml`
+
+### octl
+
+- [Claude Code](./octl-claude) — `claude.yml`
+- [CI — octl](./octl-ci) — `ci.yml`
+
+### platform
+
+- [Verify image tags are pinned (no :latest)](./platform-verify-image-pins) — `verify-image-pins.yml`
+- [Deploy](./platform-deploy) — `deploy.yml`
+- [Verify email verification enforcement](./platform-verify-email-enforcement) — `verify-email-enforcement.yml`
+- [Build and push custom Caddy image](./platform-caddy-build) — `caddy-build.yml`
+- [Claude Code](./platform-claude) — `claude.yml`
+- [Certificate Expiry Check](./platform-cert-expiry-check) — `cert-expiry-check.yml`
+- [Verify production config has no sensitive value leaks](./platform-verify-prod-config) — `verify-prod-config.yml`
+
+### sdk
+
+- [Claude Code](./sdk-claude) — `claude.yml`
+- [CI — SDK](./sdk-ci) — `ci.yml`
+
+### site
+
+- [Release — Site](./site-release) — `release.yml`
+- [CD — Site](./site-cd) — `cd.yml`
+- [Claude Code](./site-claude) — `claude.yml`
+- [CI — Site](./site-ci) — `ci.yml`
+
+Total: 25 workflows.

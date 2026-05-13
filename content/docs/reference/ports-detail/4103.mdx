@@ -1,0 +1,31 @@
+---
+title: "Port 4103"
+description: "Hydra IAM (admin) — OAuth2 admin"
+---
+
+# Port `4103` — Hydra IAM (admin)
+
+**Role:** OAuth2 admin
+
+**Exposure:** host-bound (firewall to localhost)
+
+## Purpose
+
+Employee OAuth2 client management.
+
+## Security
+
+**This port must be blocked at the host firewall** from the internet. Only Caddy (ports 80/443) is publicly reachable.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 4103 <vps-ip>
+# Expected: filtered / closed
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

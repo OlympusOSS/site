@@ -1,0 +1,30 @@
+---
+title: "forbidden"
+description: "Session is valid but role is insufficient. — source: Athena"
+---
+
+# `forbidden`
+
+**Source:** Athena
+
+**HTTP:** 403
+
+## Summary
+
+Session is valid but role is insufficient.
+
+## When this fires
+
+An admin route required `role: admin` in the session payload.
+
+## Common causes
+
+- User logged in as customer, accessing admin route
+
+## Fix
+
+User must log in as an admin identity.
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "forbidden" ../<repo>/src`.

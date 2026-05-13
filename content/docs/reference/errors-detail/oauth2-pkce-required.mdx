@@ -1,0 +1,26 @@
+---
+title: "pkce_required"
+description: "PKCE is mandatory for this client. — source: Hydra (Olympus enforcement)"
+---
+
+# `pkce_required`
+
+**Source:** Hydra (Olympus enforcement)
+
+**HTTP:** 400
+
+## Summary
+
+PKCE is mandatory for this client.
+
+## When this fires
+
+Public client started a flow without `code_challenge`.
+
+## Fix
+
+See [Troubleshooting — PKCE required](/docs/troubleshooting/oauth2-pkce-required) for the diagnostic.
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "pkce_required" ../<repo>/src`.

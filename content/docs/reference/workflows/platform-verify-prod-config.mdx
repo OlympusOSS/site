@@ -1,0 +1,78 @@
+---
+title: "Verify production config has no sensitive value leaks"
+description: "CI workflow in platform/.github/workflows/verify-prod-config.yml"
+---
+
+# Verify production config has no sensitive value leaks
+
+**Repo:** `platform`
+
+**File:** [`platform/.github/workflows/verify-prod-config.yml`](https://github.com/OlympusOSS/platform/blob/main/.github/workflows/verify-prod-config.yml)
+
+**Triggers:** `push` (branches: main), `pull_request`, `workflow_dispatch`
+
+## Jobs
+
+- **`verify-prod-config`** — 8 steps, runs on `ubuntu-latest`
+
+### Job: `verify-prod-config`
+
+Runs on: `ubuntu-latest`
+
+Steps:
+
+- Checkout
+- Check for leak_sensitive_values in production configs
+- Check for placeholder/insecure secret strings in production configs
+- Check for private key files in tracked files (platform#53)
+- Check sslmode is verify-full in prod compose (platform#53)
+- Gate 6: Certificate file modification detection (platform#78)
+- Gate 7: openssl key/cert generation detection (platform#78)
+- Run gitleaks secrets scan on prod/ directory
+
+
+## Source
+
+```yaml
+name: Verify production config has no sensitive value leaks
+
+# Three regression gates for production Ory (Kratos + Hydra) configs.
+# Gates 1-2 grep only platform/prod/ — dev configs intentionally contain
+# placeholder and debug values and are excluded from these checks.
+# Gate 3 uses gitleaks to scan the full prod/ tree for broad secret patterns.
+#
+# Gate 1 — leak_sensitive_values (platform#25):
+#   Asserts that leak_sensitive_values: true is never present in production
+#   Kratos configs. When true, Kratos logs plaintext TOTP secrets, session
+#   tokens, and credentials into any log aggregation system.
+#
+#   Grep pattern: leak_sensitive_values:\s*true
+#   Handles YAML spacing variants. Does NOT false-positive on false or absent.
+#
+#   String-boolean note (Go yaml.v3):
+#   Ory Kratos is built with Go's yaml.v3. That parser does NOT coerce a
+#   quoted string "true" to boolean true — it treats it as a string type,
+#   which Kratos would not interpret as the boolean flag. The unquoted form
+#   (leak_sensitive_values: true) is the only form that activates the flag,
+#   and is the only form this regex needs to catch. The quoted-string bypass
+#   is inert. This closes the DA open question from the Architecture Review.
+#
+# Gate 2 — placeholder/insecure secret strings (platform#9):
+#   Asserts that known dev-placeholder and insecure-default strings are absent
+#   from all production Kratos and Hydra YAML configs. These strings indicate
+#   that a secret field was not replaced with a real value before deploying.
+#
+#   Patterns checked (case-insensitive):
+#     PLEASE-CHANGE-ME  — Ory default placeholder in generated configs
+#     change-me         — common dev placeholder variant
+#     insecure          — Ory and community convention for "not safe for prod"
+#
+#   Scope: prod/ciam-kratos/, prod/iam-kratos/, prod/ciam-hydra/, prod/iam-hydra/
+#   Only YAML files are checked to avoid false positives on JSON schemas or
+#   jsonnet files that may legitimately contain these string
+... (truncated; see source link above)
+```
+
+---
+
+*Generated from `platform/.github/workflows/verify-prod-config.yml` at build time.*

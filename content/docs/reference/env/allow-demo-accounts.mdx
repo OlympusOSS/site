@@ -1,0 +1,34 @@
+---
+title: "ALLOW_DEMO_ACCOUNTS"
+description: "Environment variable used by: hera"
+---
+
+# `ALLOW_DEMO_ACCOUNTS`
+
+**Read by:** `hera`
+
+**Sensitive:** No — safe to log / share.
+
+**Required:** unspecified
+
+## Where it's read
+
+- **hera** — `grep -r "ALLOW_DEMO_ACCOUNTS" ../hera/src` for code locations
+
+## Setting it
+
+### Dev
+
+Set in your local `.env.dev` file (managed by `octl deploy`).
+
+### Prod
+
+```bash
+gh secret set ALLOW_DEMO_ACCOUNTS --body "<value>" -R OlympusOSS/platform
+gh workflow run deploy.yml
+```
+
+
+---
+
+*Generated from source by `scripts/gen/env-vars-per-var.mjs`.*

@@ -1,0 +1,31 @@
+---
+title: "Port 4000"
+description: "Hera IAM — Employee login UI"
+---
+
+# Port `4000` — Hera IAM
+
+**Role:** Employee login UI
+
+**Exposure:** intranet only
+
+## Purpose
+
+Internal employee login. Same constraints as Hera CIAM.
+
+## Security
+
+Internal-only. No host binding in prod.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 4000 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

@@ -1,0 +1,31 @@
+---
+title: "Port 5433"
+description: "pgAdmin — DB admin UI"
+---
+
+# Port `5433` — pgAdmin
+
+**Role:** DB admin UI
+
+**Exposure:** intranet via Caddy + OIDC SSO
+
+## Purpose
+
+DB admin tool. Authenticates via IAM Hydra OIDC.
+
+## Security
+
+Public exposure is expected, but defense-in-depth via Caddy.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 5433 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

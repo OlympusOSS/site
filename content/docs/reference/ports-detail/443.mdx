@@ -1,0 +1,31 @@
+---
+title: "Port 443"
+description: "Caddy — HTTPS ingress"
+---
+
+# Port `443` — Caddy
+
+**Role:** HTTPS ingress
+
+**Exposure:** internet
+
+## Purpose
+
+TLS termination. The only port your users hit. Caddy reverse-proxies to internal services based on host header.
+
+## Security
+
+Public exposure is expected, but defense-in-depth via Caddy.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 443 <vps-ip>
+# Expected: open
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

@@ -1,0 +1,31 @@
+---
+title: "Port 4102"
+description: "Hydra IAM (public) — OAuth2 endpoint"
+---
+
+# Port `4102` — Hydra IAM (public)
+
+**Role:** OAuth2 endpoint
+
+**Exposure:** host-bound
+
+## Purpose
+
+Employee-facing OAuth2.
+
+## Security
+
+Public exposure is expected, but defense-in-depth via Caddy.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 4102 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

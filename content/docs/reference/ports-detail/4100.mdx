@@ -1,0 +1,31 @@
+---
+title: "Port 4100"
+description: "Kratos IAM (public) — Self-service API"
+---
+
+# Port `4100` — Kratos IAM (public)
+
+**Role:** Self-service API
+
+**Exposure:** host-bound
+
+## Purpose
+
+Employee self-service flows.
+
+## Security
+
+Public exposure is expected, but defense-in-depth via Caddy.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 4100 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

@@ -1,0 +1,51 @@
+---
+title: Error catalog (detail)
+description: "17 known error codes — Athena, Kratos, Hydra, SDK, OAuth2"
+---
+
+Every known error code emitted by Olympus and its components, with what causes it and how to fix.
+
+## By source
+
+### Athena
+
+| Code | HTTP | Summary |
+|------|------|---------|
+| [`not_authenticated`](./athena-not-authenticated) | 401 | Session cookie missing or invalid. |
+| [`forbidden`](./athena-forbidden) | 403 | Session is valid but role is insufficient. |
+| [`bad_content_type`](./athena-bad-content-type) | 415 | Mutation routes require `Content-Type: application/json`. |
+
+### Hydra (Olympus enforcement)
+
+| Code | HTTP | Summary |
+|------|------|---------|
+| [`pkce_required`](./oauth2-pkce-required) | 400 | PKCE is mandatory for this client. |
+
+### Hydra (RFC 6749)
+
+| Code | HTTP | Summary |
+|------|------|---------|
+| [`invalid_request`](./oauth2-invalid-request) | 400 | OAuth2 request is missing or has malformed parameters. |
+| [`invalid_client`](./oauth2-invalid-client) | 401 | Client authentication failed. |
+| [`invalid_grant`](./oauth2-invalid-grant) | 400 | Authorization grant is invalid, expired, revoked, or doesn't match the redirect_uri. |
+| [`unauthorized_client`](./oauth2-unauthorized-client) | 400 | Client not authorized to use this grant type. |
+| [`unsupported_grant_type`](./oauth2-unsupported-grant-type) | 400 | Grant type not supported by the server. |
+| [`invalid_scope`](./oauth2-invalid-scope) | 400 | Requested scope is invalid or unknown. |
+
+### Kratos
+
+| Code | HTTP | Summary |
+|------|------|---------|
+| [`self_service_flow_expired`](./kratos-flow-expired) | 410 | Self-service flow has exceeded its TTL. |
+| [`security_csrf_violation`](./kratos-csrf-violation) | 400 | CSRF token mismatch. |
+| [`session_aal2_required`](./kratos-aal2-required) | 403 | Session AAL is too low for the requested operation. |
+| [`invalid_credentials`](./kratos-invalid-credentials) | 400 | Login credentials are invalid. |
+
+### SDK
+
+| Code | HTTP | Summary |
+|------|------|---------|
+| [`encryption_key_not_set`](./sdk-encryption-key-not-set) | 500 | ENCRYPTION_KEY env var is not set. |
+| [`encryption_key_blocklisted`](./sdk-encryption-key-blocklisted) | 500 | ENCRYPTION_KEY is on the blocklist of known-weak values. |
+| [`cipher_decrypt_fail`](./sdk-cipher-decrypt-fail) | 500 | Decryption of an encrypted setting failed. |
+

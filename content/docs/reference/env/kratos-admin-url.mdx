@@ -1,0 +1,39 @@
+---
+title: "KRATOS_ADMIN_URL"
+description: "Internal URL for the Kratos admin API."
+---
+
+# `KRATOS_ADMIN_URL`
+
+**Read by:** `athena`, `hera`
+
+**Sensitive:** No — safe to log / share.
+
+**Required:** yes
+
+## Purpose
+
+Internal URL for the Kratos admin API.
+
+## Where it's read
+
+- **athena** — `grep -r "KRATOS_ADMIN_URL" ../athena/src` for code locations
+- **hera** — `grep -r "KRATOS_ADMIN_URL" ../hera/src` for code locations
+
+## Setting it
+
+### Dev
+
+Set in your local `.env.dev` file (managed by `octl deploy`).
+
+### Prod
+
+```bash
+gh secret set KRATOS_ADMIN_URL --body "<value>" -R OlympusOSS/platform
+gh workflow run deploy.yml
+```
+
+
+---
+
+*Generated from source by `scripts/gen/env-vars-per-var.mjs`.*

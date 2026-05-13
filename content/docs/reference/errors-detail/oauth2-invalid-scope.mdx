@@ -1,0 +1,26 @@
+---
+title: "invalid_scope"
+description: "Requested scope is invalid or unknown. — source: Hydra (RFC 6749)"
+---
+
+# `invalid_scope`
+
+**Source:** Hydra (RFC 6749)
+
+**HTTP:** 400
+
+## Summary
+
+Requested scope is invalid or unknown.
+
+## When this fires
+
+Client requested a scope not in its allowed scope list.
+
+## Fix
+
+Add the scope to the client's allowed scopes in Athena.
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "invalid_scope" ../<repo>/src`.

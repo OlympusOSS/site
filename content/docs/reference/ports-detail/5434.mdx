@@ -1,0 +1,31 @@
+---
+title: "Port 5434"
+description: "MailSlurper — Email capture (dev only)"
+---
+
+# Port `5434` — MailSlurper
+
+**Role:** Email capture (dev only)
+
+**Exposure:** dev only
+
+## Purpose
+
+Captures outbound email in dev. Not in prod.
+
+## Security
+
+Public exposure is expected, but defense-in-depth via Caddy.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 5434 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

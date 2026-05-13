@@ -1,0 +1,128 @@
+---
+title: "CI — daedalus"
+description: "CI workflow in daedalus/.github/workflows/ci.yml"
+---
+
+# CI — daedalus
+
+**Repo:** `daedalus`
+
+**File:** [`daedalus/.github/workflows/ci.yml`](https://github.com/OlympusOSS/daedalus/blob/main/.github/workflows/ci.yml)
+
+**Triggers:** `push` (branches: main), `pull_request`
+
+## Jobs
+
+- **`frontend`** — 8 steps, runs on `ubuntu-latest`
+- **`rust`** — 6 steps, runs on `ubuntu-latest`
+
+### Job: `frontend`
+
+Runs on: `ubuntu-latest`
+
+Steps:
+
+- actions/checkout@v6
+- oven-sh/setup-bun@v2
+- Configure npm for GitHub Packages
+- bun install --frozen-lockfile
+- Typecheck
+- Build web bundle
+- Tests + coverage (100/100/100/90 gate)
+- Snapshot coverage gate (100%)
+
+### Job: `rust`
+
+Runs on: `ubuntu-latest`
+
+Steps:
+
+- actions/checkout@v6
+- Install Rust toolchain
+- Install Tauri system deps
+- cargo fmt --check
+- cargo check
+- cargo clippy
+
+
+## Source
+
+```yaml
+name: CI — daedalus
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  frontend:
+    name: Frontend — build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Configure npm for GitHub Packages
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          echo "@olympusoss:registry=https://npm.pkg.github.com" >> .npmrc
+
+      - run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Build web bundle
+        run: bun run build
+
+      - name: Tests + coverage (100/100/100/90 gate)
+        run: bun run test:coverage
+
+      - name: Snapshot coverage gate (100%)
+        run: bun run snapshot-coverage
+
+  rust:
+    name: Rust — check + clippy + fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable
+          rustup component add clippy rustfmt
+
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: cargo fmt --check
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: cargo check
+        working-directory: src-tauri
+        run: cargo check --all-targets
+
+      # Clippy runs without '-D warnings' for now — a handful of dead-code
+      # warnings exist in screenshot.rs and mcp/tools.rs for future features.
+      # Tighten to '-D warnings' once those code paths are wired up or removed.
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets
+
+```
+
+---
+
+*Generated from `daedalus/.github/workflows/ci.yml` at build time.*

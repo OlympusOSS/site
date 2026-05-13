@@ -1,0 +1,31 @@
+---
+title: "Port 2000"
+description: "Site — Brochure, playground, docs"
+---
+
+# Port `2000` — Site
+
+**Role:** Brochure, playground, docs
+
+**Exposure:** intranet via Caddy
+
+## Purpose
+
+Dev: directly accessible at localhost:2000. Prod: behind Caddy as the apex domain.
+
+## Security
+
+Public exposure is expected, but defense-in-depth via Caddy.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 2000 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

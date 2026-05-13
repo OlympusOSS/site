@@ -1,0 +1,26 @@
+---
+title: "security_csrf_violation"
+description: "CSRF token mismatch. — source: Kratos"
+---
+
+# `security_csrf_violation`
+
+**Source:** Kratos
+
+**HTTP:** 400
+
+## Summary
+
+CSRF token mismatch.
+
+## When this fires
+
+Submission cookie's CSRF token doesn't match form token.
+
+## Fix
+
+See [Troubleshooting — CSRF violation](/docs/troubleshooting/kratos-csrf-violation).
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "security_csrf_violation" ../<repo>/src`.

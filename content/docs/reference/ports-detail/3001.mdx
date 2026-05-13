@@ -1,0 +1,31 @@
+---
+title: "Port 3001"
+description: "Athena CIAM — Admin dashboard"
+---
+
+# Port `3001` — Athena CIAM
+
+**Role:** Admin dashboard
+
+**Exposure:** intranet via Caddy
+
+## Purpose
+
+Manages CIAM identities. Accessed via Caddy proxy.
+
+## Security
+
+Public exposure is expected, but defense-in-depth via Caddy.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 3001 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

@@ -1,0 +1,31 @@
+---
+title: "invalid_client"
+description: "Client authentication failed. — source: Hydra (RFC 6749)"
+---
+
+# `invalid_client`
+
+**Source:** Hydra (RFC 6749)
+
+**HTTP:** 401
+
+## Summary
+
+Client authentication failed.
+
+## When this fires
+
+Token endpoint received wrong client credentials.
+
+## Common causes
+
+- Wrong client_id or client_secret
+- Client not registered
+
+## Fix
+
+Verify credentials in Athena → OAuth2 Clients.
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "invalid_client" ../<repo>/src`.

@@ -1,0 +1,26 @@
+---
+title: "encryption_key_blocklisted"
+description: "ENCRYPTION_KEY is on the blocklist of known-weak values. — source: SDK"
+---
+
+# `encryption_key_blocklisted`
+
+**Source:** SDK
+
+**HTTP:** 500
+
+## Summary
+
+ENCRYPTION_KEY is on the blocklist of known-weak values.
+
+## When this fires
+
+Container startup — fatal.
+
+## Fix
+
+Generate a strong key: `openssl rand -base64 32`. See [Security — Encryption key blocklist](/docs/security/encryption-key-blocklist).
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "encryption_key_blocklisted" ../<repo>/src`.

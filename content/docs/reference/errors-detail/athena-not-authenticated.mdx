@@ -1,0 +1,33 @@
+---
+title: "not_authenticated"
+description: "Session cookie missing or invalid. — source: Athena"
+---
+
+# `not_authenticated`
+
+**Source:** Athena
+
+**HTTP:** 401
+
+## Summary
+
+Session cookie missing or invalid.
+
+## When this fires
+
+Every admin route requires the `athena-session` cookie. Missing or invalid HMAC.
+
+## Common causes
+
+- No session cookie
+- Session expired
+- Cookie tampered
+- `SESSION_SIGNING_KEY` rotated incorrectly
+
+## Fix
+
+User re-authenticates. If keys were rotated incorrectly, see [Operate — Session signing key rotation](/docs/operate/session-signing-key-rotation).
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "not_authenticated" ../<repo>/src`.

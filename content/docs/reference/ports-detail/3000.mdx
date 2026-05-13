@@ -1,0 +1,31 @@
+---
+title: "Port 3000"
+description: "Hera CIAM — Login UI"
+---
+
+# Port `3000` — Hera CIAM
+
+**Role:** Login UI
+
+**Exposure:** intranet only
+
+## Purpose
+
+Customer-facing login pages. Must NOT be exposed to host interface in prod.
+
+## Security
+
+Internal-only. No host binding in prod.
+
+## Verify exposure
+
+```bash
+# From outside the VPS
+nmap -p 3000 <vps-ip>
+# Expected: depends on your firewall config
+```
+
+## Related
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Ports](/docs/reference/ports)

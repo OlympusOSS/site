@@ -1,0 +1,26 @@
+---
+title: "invalid_grant"
+description: "Authorization grant is invalid, expired, revoked, or doesn't match the redirect_uri. — source: Hydra (RFC 6749)"
+---
+
+# `invalid_grant`
+
+**Source:** Hydra (RFC 6749)
+
+**HTTP:** 400
+
+## Summary
+
+Authorization grant is invalid, expired, revoked, or doesn't match the redirect_uri.
+
+## When this fires
+
+Token exchange or refresh.
+
+## Fix
+
+See [Troubleshooting — OAuth2 invalid_grant](/docs/troubleshooting/oauth2-invalid-grant) for the full diagnostic.
+
+## Source code
+
+Generated from the platform's error catalog. To find emit sites: `grep -r "invalid_grant" ../<repo>/src`.
