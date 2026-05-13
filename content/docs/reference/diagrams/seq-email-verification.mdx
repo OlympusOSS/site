@@ -1,0 +1,46 @@
+---
+title: Email verification roundtrip
+description: User confirms control of their email address
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant Hera
+    participant Kratos
+    participant Courier as Kratos courier
+    participant SMTP as Email provider
+
+    Note over User,Hera: Trigger 1: post-registration hook
+    Hera->>Kratos: POST /self-service/verification (email)
+    Kratos->>Kratos: Generate HMAC-signed token
+    Kratos->>Courier: Queue verification email
+    Courier->>SMTP: SMTP send (with verification URL)
+    SMTP-->>User: Email delivered
+
+    User->>User: Click link in email
+    User->>Hera: GET /verification?flow=...&token=...
+    Hera->>Kratos: GET /self-service/verification/flows
+    Kratos->>Kratos: Verify HMAC, check expiry, check not-used
+    Kratos->>Kratos: Mark verifiable_addresses[email].verified=true
+    Kratos-->>Hera: Success
+    Hera-->>User: Verification confirmed page
+```
+
+## Token format
+
+The verification token is HMAC-signed with `secrets.cipher` from `kratos.yml`. See [ADR 0017 — Recovery HMAC token](/docs/adrs/0017-recovery-hmac-token) — same primitive.
+
+## TTL
+
+Default 1 hour. After expiry, user re-initiates the verification flow.
+
+## Olympus enforcement
+
+Production deployments enable `require_verified_address` hook on registration AND login. Unverified users cannot get a session — see [Security — Email verification](/docs/security/email-verification).
+
+## Where to learn more
+
+- [Identity — Flow verification](/docs/identity/flow-verification)
+- [Security — Email verification](/docs/security/email-verification)

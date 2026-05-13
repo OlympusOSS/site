@@ -1,0 +1,42 @@
+---
+title: Refresh token rotation
+description: Renew access token without re-authenticating
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App
+    participant Hydra
+    participant Storage as Token storage
+
+    Note over App: Access token about to expire
+    App->>Storage: Read current refresh_token (R1)
+    Storage-->>App: R1
+
+    App->>Hydra: POST /oauth2/token<br/>grant_type=refresh_token<br/>refresh_token=R1
+    Hydra->>Hydra: Verify R1 is active
+    Hydra->>Hydra: Mark R1 used (one-time)
+    Hydra-->>App: { access_token (new), refresh_token: R2, expires_in: 3600 }
+
+    App->>Storage: Replace R1 with R2
+    Storage-->>App: OK
+
+    Note over App: Next refresh uses R2
+    Note over App,Storage: If R1 is reused (attacker theft):
+    App->>Hydra: POST /oauth2/token with R1 again
+    Hydra->>Hydra: R1 already consumed — REVOKE entire chain
+    Hydra-->>App: 400 invalid_grant
+    Note over App: Force re-login
+```
+
+## Properties
+
+- **Refresh token rotation.** Hydra issues a new refresh on every refresh; old one dies.
+- **Reuse detection.** Hydra treats reuse of a consumed refresh token as evidence of theft; revokes the entire chain.
+- **30-day default lifetime.** Configurable. The *family* of refreshes lives 30 days from initial issuance.
+
+## Where to learn more
+
+- [Integrate — Refresh tokens](/docs/integrate/oauth2-refresh-tokens)
+- [Reference — OAuth2 grant: refresh-token](/docs/reference/grants/refresh-token)

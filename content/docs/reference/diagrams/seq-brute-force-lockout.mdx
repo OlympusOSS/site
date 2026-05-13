@@ -1,0 +1,63 @@
+---
+title: Brute-force lockout escalation
+description: How repeated failed logins escalate to a lockout
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Attacker
+    participant Hera
+    participant SDK as SDK brute-force module
+    participant Kratos
+    participant DB as olympus DB
+
+    Note over Attacker: Attempt 1
+    Attacker->>Hera: POST login (wrong password)
+    Hera->>SDK: isLockedOut("ciam", "victim@example.com")
+    SDK->>DB: SELECT FROM lockouts WHERE identifier=...
+    DB-->>SDK: No lockout
+    SDK-->>Hera: false
+    Hera->>Kratos: POST /self-service/login
+    Kratos-->>Hera: 400 invalid_credentials
+    Hera->>SDK: recordLoginAttempt("ciam", "victim@example.com", false)
+    SDK->>DB: INSERT INTO login_attempts
+    Hera-->>Attacker: "Invalid credentials"
+
+    Note over Attacker: Attempts 2-5 (similar)
+
+    Note over Attacker: Attempt 6 — threshold hit
+    Attacker->>Hera: POST login
+    Hera->>SDK: isLockedOut("ciam", "victim@example.com")
+    SDK->>DB: SELECT count(*) FROM login_attempts<br/>WHERE identifier=... AND created_at > NOW()-15min<br/>AND success=false
+    DB-->>SDK: 5 (threshold reached)
+    SDK->>DB: INSERT INTO lockouts<br/>(identifier, locked_until=NOW()+30min, reason='brute_force')
+    SDK->>DB: INSERT INTO security_audit<br/>(event_type='lockout.applied')
+    SDK-->>Hera: true (locked)
+    Hera-->>Attacker: 429 "Too many attempts"
+
+    Note over Attacker: Even with correct password, locked
+    Attacker->>Hera: POST login (correct password)
+    Hera->>SDK: isLockedOut
+    SDK-->>Hera: true
+    Hera-->>Attacker: 429
+
+    Note over Attacker: 30 minutes later, lockout expires
+    Attacker->>Hera: POST login
+    Hera->>SDK: isLockedOut → false
+    Kratos-->>Hera: 200 OK or fresh round
+```
+
+## Independent of Caddy rate limit
+
+The lockout is **per identifier**. The Caddy rate limit is **per IP**. Both fire independently. A distributed attack across many IPs hits the SDK lockout; a single-IP burst hits Caddy first.
+
+## Manual unlock
+
+Admins can unlock via Athena → Locked Accounts. See [Operate — Locked account unlock](/docs/operate/locked-account-unlock).
+
+## Where to learn more
+
+- [Security — Brute-force protection](/docs/security/brute-force)
+- [Security — Account lockout](/docs/security/account-lockout)
+- [Cookbook — Test brute-force locally](/docs/cookbook/test-brute-force-locally)

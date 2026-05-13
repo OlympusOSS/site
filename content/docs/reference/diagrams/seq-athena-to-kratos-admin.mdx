@@ -1,0 +1,52 @@
+---
+title: Athena → Kratos admin
+description: Internal admin API call chain
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Browser
+    participant Caddy
+    participant Athena
+    participant Kratos as Kratos admin API
+
+    Browser->>Caddy: GET /api/identities<br/>Cookie: athena-session=...
+    Caddy->>Athena: forward
+    Athena->>Athena: middleware.ts:<br/>verify HMAC on athena-session
+    alt Invalid HMAC
+        Athena-->>Caddy: 401 not_authenticated
+        Caddy-->>Browser: 401
+    end
+    Athena->>Athena: Check session.role === 'admin'
+    alt Not admin
+        Athena-->>Caddy: 403 forbidden
+        Caddy-->>Browser: 403
+    end
+
+    Note over Athena: Route handler runs
+    Athena->>Athena: services/kratos/identities.ts<br/>listIdentities(domain="ciam")
+    Athena->>Kratos: GET ciam-kratos:5001/admin/identities
+    Note over Kratos: No auth on admin port —<br/>network ACL only
+    Kratos->>Kratos: Query DB
+    Kratos-->>Athena: { identities: [...] }
+    Athena-->>Caddy: 200 + JSON
+    Caddy-->>Browser: 200
+```
+
+## Layers
+
+1. **Caddy** — TLS termination, basic rate-limit.
+2. **Athena middleware** — verifies session HMAC, checks role.
+3. **Service layer** — encapsulates the Kratos API call (testable in isolation).
+4. **Kratos admin API** — no auth — protected by network ACL only.
+
+## Why Kratos admin has no auth
+
+Kratos's admin port is on the **intranet network only** — never publicly exposed ([Operate — Network topology](/docs/operate/network-topology)). The network boundary is the auth. The host firewall blocks the port from the internet.
+
+## Where to learn more
+
+- [Reference — Athena API authentication](/docs/reference/api-athena-authentication)
+- [Internals — Athena middleware](/docs/internals/athena-middleware)
+- [Internals — Athena service layer](/docs/internals/athena-service-layer)

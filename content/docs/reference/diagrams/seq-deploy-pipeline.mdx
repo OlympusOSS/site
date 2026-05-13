@@ -1,0 +1,67 @@
+---
+title: Production deploy pipeline
+description: From `git push` to running containers
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Dev as Maintainer
+    participant GitHub
+    participant Actions as GitHub Actions
+    participant GHCR
+    participant VPS
+    participant Caddy
+    participant ACME as Let's Encrypt
+
+    Dev->>GitHub: git push origin main (platform repo)
+    GitHub->>Actions: Trigger deploy.yml
+
+    Actions->>Actions: Run verify-prod-config.yml gates<br/>(no leaked secrets, image pins, SSL config)
+
+    alt Gates fail
+        Actions-->>Dev: Workflow red, deploy abort
+    end
+
+    Actions->>Actions: Render .env.prod from GitHub Secrets
+    Actions->>VPS: scp compose.prod.yml + configs + .env.prod
+    Actions->>VPS: ssh: podman compose pull
+    VPS->>GHCR: Pull images by digest
+    GHCR-->>VPS: Images
+    Actions->>VPS: ssh: podman compose up -d
+
+    VPS->>VPS: Start containers in dep order:<br/>postgres → migrations → kratos/hydra → apps → caddy
+
+    Caddy->>ACME: Request cert (HTTP-01 or DNS-01)
+    ACME-->>Caddy: Cert issued
+    Caddy->>Caddy: Apply Caddyfile, start listening
+
+    Actions->>VPS: Poll healthchecks (up to 2 min)
+    VPS-->>Actions: All services healthy
+    Actions-->>Dev: ✓ Workflow green
+```
+
+## Gates before deploy
+
+The `verify-prod-config.yml` workflow enforces:
+- No literal secrets in compose / config files.
+- `sslmode=verify-full` in every DATABASE_URL.
+- All images digest-pinned (no `:latest` or floating tags).
+- Kratos `leak_sensitive_values: false`.
+- Email verification hook configured.
+
+A red gate stops the deploy.
+
+## End-to-end time
+
+~3 minutes for a normal deploy. First-time deploy with cert issuance: ~5 minutes.
+
+## Rollback
+
+Revert the compose digest, commit, push. Deploy workflow runs again, pulls the older images.
+
+## Where to learn more
+
+- [Internals — Platform deploy pipeline](/docs/internals/platform-deploy-pipeline)
+- [Deploy — First production deploy](/docs/deploy/first-production-deploy)
+- [ADR 0014 — Image digest pinning](/docs/adrs/0014-image-digest-pinning)

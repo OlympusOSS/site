@@ -1,0 +1,56 @@
+---
+title: MFA step-up to AAL2
+description: Escalating session AAL for sensitive operations
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant App
+    participant Kratos
+    participant Hera
+
+    User->>App: Try sensitive operation (e.g. delete account)
+    App->>App: Check session.authenticator_assurance_level
+    alt AAL == "aal2"
+        App->>App: Proceed
+        App-->>User: Success
+    else AAL == "aal1" (only password)
+        App-->>User: 302 to Hera /self-service/login/browser?aal=aal2&refresh=true
+
+        User->>Hera: GET /login?aal=aal2&refresh=true
+        Hera->>Kratos: GET /self-service/login/flows
+        Kratos->>Kratos: Existing session present but AAL=aal1
+        Kratos-->>Hera: Flow with only AAL2 methods (TOTP, WebAuthn)
+        Hera-->>User: Render second-factor challenge
+
+        User->>Hera: Submit TOTP code (or WebAuthn signature)
+        Hera->>Kratos: POST /self-service/login (method=totp)
+        Kratos->>Kratos: Validate
+        Kratos->>Kratos: Update session.authenticator_assurance_level = "aal2"
+        Kratos-->>Hera: 200 + session refreshed
+        Hera-->>User: 302 back to App (via return_to)
+
+        User->>App: Retry sensitive operation
+        App->>App: Check session — now aal2
+        App-->>User: Success
+    end
+```
+
+## Where AAL2 is required
+
+Kratos's default policy:
+- Changing password (settings flow)
+- Disenrolling MFA
+- Linking/unlinking last credential
+- Any operation marked `required_aal: aal2` in `kratos.yml`
+
+Your app can require AAL2 for its own sensitive operations following the pattern above.
+
+## Where to learn more
+
+- [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)
+- [Identity — MFA policy](/docs/identity/mfa-policy)
+- [Cookbook — Enforce step-up auth](/docs/cookbook/enforce-step-up-auth)
+- [Troubleshooting — Session AAL too low](/docs/troubleshooting/kratos-session-aal-too-low)

@@ -1,0 +1,56 @@
+---
+title: RP-initiated logout
+description: App-initiated end-of-session flow
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App
+    participant Browser
+    participant Hydra
+    participant Hera
+    participant Kratos
+
+    Note over App,Browser: User clicks "Log out"
+    App->>Browser: 302 to Hydra /oauth2/sessions/logout?id_token_hint=...&post_logout_redirect_uri=...
+
+    Browser->>Hydra: GET /oauth2/sessions/logout
+    Hydra->>Hydra: Validate id_token_hint matches a session
+    Hydra->>Hydra: Validate post_logout_redirect_uri allowlist
+
+    Hydra-->>Browser: 302 to Hera /logout?logout_challenge=...
+    Browser->>Hera: GET /logout
+    Hera->>Hydra: GET /admin/oauth2/auth/requests/logout
+    Hydra-->>Hera: Challenge details
+
+    alt Confirm prompt enabled
+        Hera-->>Browser: Render confirmation UI
+        Browser->>Hera: POST confirmed
+    else Auto-accept
+        Note over Hera: Skip the prompt
+    end
+
+    Hera->>Hydra: PUT /admin/oauth2/auth/requests/logout/accept
+    Hydra->>Kratos: DELETE /admin/sessions/<id> (revoke Kratos session)
+    Hydra->>Hydra: Clear Hydra login session
+    Hydra-->>Browser: 302 to post_logout_redirect_uri
+
+    Browser->>App: GET /logged-out
+    App-->>Browser: Render "you've logged out"
+```
+
+## What's revoked
+
+- **Kratos session** (browser cookie at the CIAM/IAM domain).
+- **Hydra login session** for the OAuth2 client.
+
+## What's NOT revoked (unless you explicitly revoke)
+
+- **Active access tokens** issued previously. They keep working until expiry.
+- **Refresh tokens.** Call `/oauth2/revoke` separately if needed.
+
+## Where to learn more
+
+- [Integrate — RP-initiated logout](/docs/integrate/logout-rp-initiated)
+- [Reference — Hydra accept logout request](/docs/reference/api/hydra/oauth2/acceptoauth2logoutrequest)

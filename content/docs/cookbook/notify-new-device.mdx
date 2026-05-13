@@ -1,0 +1,115 @@
+---
+title: Notify on new device sign-in
+description: Email user when their account is accessed from an unfamiliar device
+---
+
+"Someone just signed in from a new device" emails are useful security signal — users who didn't initiate the login take action (change password, revoke session).
+
+## Approach
+
+Track a fingerprint per device. On login, compare; if new, email.
+
+## Device fingerprint
+
+Use a stable-but-not-unique fingerprint:
+
+```ts
+function fingerprintRequest(req: Request): string {
+  const ua = req.headers.get("user-agent") ?? "";
+  const accept = req.headers.get("accept") ?? "";
+  const lang = req.headers.get("accept-language") ?? "";
+  // Hash these together
+  return crypto.createHash("sha256").update(`${ua}|${accept}|${lang}`).digest("hex");
+}
+```
+
+This gets you "the same browser + OS + language" without invasive client-side fingerprinting libraries. Reliability ~70-80%.
+
+For better accuracy, accept a small client-side library (FingerprintJS, similar) but understand the privacy implications.
+
+## Database
+
+```sql
+CREATE TABLE known_devices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  identity_id UUID NOT NULL,
+  fingerprint TEXT NOT NULL,
+  last_seen_at TIMESTAMPTZ NOT NULL,
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (identity_id, fingerprint)
+);
+```
+
+## Logic
+
+```ts
+async function trackDevice(identityId: string, req: Request) {
+  const fp = fingerprintRequest(req);
+  const existing = await db`
+    SELECT id FROM known_devices
+    WHERE identity_id = ${identityId} AND fingerprint = ${fp}
+  `.first();
+
+  if (existing) {
+    // Familiar device — just update last seen
+    await db`UPDATE known_devices SET last_seen_at = NOW() WHERE id = ${existing.id}`;
+    return { new: false };
+  }
+
+  // New device — record + email
+  await db`INSERT INTO known_devices (identity_id, fingerprint, last_seen_at) VALUES (${identityId}, ${fp}, NOW())`;
+  const identity = await kratosGetIdentity(identityId);
+  const ip = req.headers.get("x-real-ip");
+  const geo = await geoLookup(ip);
+  await sendSecurityEmail(identity.traits.email, {
+    type: "new_device",
+    userAgent: req.headers.get("user-agent"),
+    ip,
+    location: `${geo.city}, ${geo.country}`,
+    revokeUrl: `https://your-domain/settings/sessions`,
+  });
+  return { new: true };
+}
+```
+
+Wire as a Kratos hook on login completion (see [Cookbook — Custom Kratos webhook](/docs/cookbook/custom-kratos-webhook)).
+
+## Email template
+
+Plain HTML email:
+
+```html
+<p>Hi <strong>{{name}}</strong>,</p>
+<p>Your account was just accessed from a new device:</p>
+<ul>
+  <li>Time: {{time}}</li>
+  <li>Location: {{location}}</li>
+  <li>Browser: {{userAgent}}</li>
+</ul>
+<p>If this was you, no action needed.</p>
+<p>If not, <a href="{{revokeUrl}}">revoke this session immediately</a> and change your password.</p>
+```
+
+## False positives
+
+- **Browser updates** — UA changes; new fingerprint.
+- **Switching wifi vs cellular** — IP changes (only if you include IP in fingerprint).
+- **Private browsing modes** — fingerprint may differ.
+
+Acceptable rate ~5-10%. Users learn to expect the occasional alert.
+
+## Per-user opt-out
+
+Some users find these emails noisy. Add a setting:
+
+```sql
+ALTER TABLE user_preferences ADD COLUMN notify_new_device BOOLEAN NOT NULL DEFAULT true;
+```
+
+Toggle in your settings UI.
+
+## Related
+
+- [Cookbook — Detect impossible travel](/docs/cookbook/detect-impossible-travel)
+- [Security — Brute-force protection](/docs/security/brute-force)
+- [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)

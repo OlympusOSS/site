@@ -1,0 +1,108 @@
+---
+title: Load balancer in front of Olympus
+description: Run Olympus behind an external load balancer (HAProxy, AWS ALB, etc.)
+---
+
+For multi-host deployments (rare in Olympus — see [ADR 0001](/docs/adrs/0001-dual-domain-architecture)), or operators standardizing on a specific LB, here's how to integrate.
+
+## Why this is uncommon in Olympus
+
+Olympus is designed for **single-host** deployment. Caddy IS the front. Adding an external LB:
+- Adds a layer that does what Caddy already does.
+- Loses Caddy's automatic TLS.
+- Adds latency.
+
+Use cases where it makes sense:
+- You have an existing AWS ALB / GCP LB / HAProxy at your edge for non-Olympus traffic, and want Olympus to live behind it.
+- You're running multiple Olympus instances in active-passive HA (still single-instance at a time, but with failover).
+
+## Configuration
+
+### TLS
+
+Terminate TLS at the LB. Caddy listens on plain HTTP behind it.
+
+Caddyfile:
+
+```caddy
+{
+  auto_https off
+  servers {
+    trusted_proxies static <LB-IP-RANGE>
+  }
+}
+
+:80 {
+  bind 0.0.0.0
+  # Read X-Forwarded-Proto, X-Forwarded-For from LB
+  request_header X-Forwarded-Proto https
+}
+
+http://ciam.example.com {
+  reverse_proxy ciam-hera:3000
+}
+```
+
+The LB does HTTPS termination; Caddy thinks the request is HTTP but trusts the `X-Forwarded-*` headers.
+
+### Real IP
+
+Configure the LB to forward `X-Real-IP` / `X-Forwarded-For`. Caddy uses `trusted_proxies` to honor them.
+
+Otherwise Olympus's audit log shows the LB's IP for every user, defeating per-user lockout.
+
+### Health checks
+
+Configure the LB to probe `/.well-known/openid-configuration` on each Hydra. Returns 200 when healthy.
+
+For Caddy itself: `GET /healthz`.
+
+### Sticky sessions
+
+Olympus apps are **stateless**. No need for sticky sessions.
+
+## Per-LB configuration
+
+### AWS Application Load Balancer
+
+- Target group: TCP/IP on port 80 to your VPS.
+- Listener: HTTPS:443 → forward to target group.
+- ACM certificate for `*.example.com` or each subdomain.
+- `X-Forwarded-For` is added automatically.
+
+### HAProxy
+
+```
+frontend olympus_in
+  bind *:443 ssl crt /etc/haproxy/olympus.pem
+  http-request set-header X-Forwarded-Proto https
+  default_backend olympus_back
+
+backend olympus_back
+  server caddy 10.0.0.5:80 check
+```
+
+### GCP Cloud Load Balancing
+
+- Backend service: VM instance group containing the Olympus VPS.
+- URL map: route all paths to backend.
+- Target HTTPS proxy with managed SSL cert.
+
+### Cloudflare Load Balancer
+
+If using Cloudflare for DNS and load balancing, the LB sits at Cloudflare's edge. Caddy still runs on your origin behind it. See [Cookbook — Cloudflare in front](/docs/cookbook/cloudflare-in-front).
+
+## Multi-origin HA
+
+If you need active-active across multiple origins:
+- All origins must share the same Postgres (not per-origin DBs).
+- Hydra signing keys must be shared (or use JWT access tokens with JWKS).
+- Kratos session cookies will work as long as the cookie domain spans both origins.
+
+This is genuinely complex; Olympus is not optimized for it. Prefer active-passive failover instead.
+
+## Related
+
+- [Cookbook — Cloudflare in front](/docs/cookbook/cloudflare-in-front)
+- [Operate — Network topology](/docs/operate/network-topology)
+- [ADR 0001 — Dual-domain architecture](/docs/adrs/0001-dual-domain-architecture)

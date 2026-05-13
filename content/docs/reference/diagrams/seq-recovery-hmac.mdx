@@ -1,0 +1,57 @@
+---
+title: Password recovery with HMAC token
+description: Forgot-password flow using HMAC-signed recovery tokens
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant Hera
+    participant Kratos
+    participant SMTP
+
+    User->>Hera: "Forgot password" click
+    Hera->>Kratos: POST /self-service/recovery (email)
+    Kratos->>Kratos: Lookup identity by email
+    alt Identity exists
+        Kratos->>Kratos: Generate HMAC-signed recovery code<br/>(signed with secrets.cipher)
+        Kratos->>SMTP: Send recovery email with token URL
+    else Identity does not exist
+        Note over Kratos: Same response shape — no enumeration
+    end
+    Kratos-->>Hera: 200 "If your email is on file..."
+    Hera-->>User: "Check your email"
+
+    Note over User: Time passes, user opens email
+    User->>Hera: GET /recovery?flow=...&token=...
+    Hera->>Kratos: GET /self-service/recovery/flows
+    Kratos->>Kratos: Verify HMAC
+    Kratos->>Kratos: Check token not already used
+    Kratos->>Kratos: Check expiry
+    Kratos->>Kratos: Mark token used (one-time)
+    Kratos-->>Hera: Flow → password-change state
+    Hera-->>User: Show new-password form
+
+    User->>Hera: POST new password
+    Hera->>Hera: HIBP breach check (Olympus addition)
+    Hera->>Kratos: POST settings flow (method=password)
+    Kratos->>Kratos: Argon2id hash new password
+    Kratos->>Kratos: Mark identity active, grant session
+    Kratos-->>Hera: 200 + session cookie
+    Hera-->>User: Logged in, password changed
+```
+
+## Why HMAC, not random DB token
+
+Stateless validation — no DB lookup per token validate; HMAC verifies cryptographically. See [ADR 0017](/docs/adrs/0017-recovery-hmac-token).
+
+## Single-use enforcement
+
+Even though the HMAC is stateless, single-use IS stateful — Kratos records used tokens in the recovery flow's state. Replay attack returns "token already used."
+
+## Where to learn more
+
+- [Identity — Flow recovery](/docs/identity/flow-recovery)
+- [Security — Breached password](/docs/security/breached-password)
+- [ADR 0017 — Recovery HMAC token](/docs/adrs/0017-recovery-hmac-token)

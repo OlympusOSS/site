@@ -1,0 +1,50 @@
+---
+title: pgAdmin OIDC SSO
+description: How a DBA logs into pgAdmin via Olympus IAM
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant DBA
+    participant PgAdmin
+    participant IamHydra as IAM Hydra
+    participant IamHera as IAM Hera
+    participant IamKratos as IAM Kratos
+    participant Postgres
+
+    DBA->>PgAdmin: GET https://pgadmin.example.com
+    PgAdmin-->>DBA: Login page with "Login with Olympus"
+    DBA->>PgAdmin: Click "Login with Olympus"
+    PgAdmin->>IamHydra: 302 to /oauth2/auth?client_id=pgadmin&scope=openid+email+profile
+
+    Note over IamHydra: OIDC flow (see PKCE diagram)
+    IamHydra->>IamHera: Delegate login
+    IamHera->>IamKratos: Authenticate DBA
+    IamKratos-->>IamHera: Session
+    IamHera->>IamHydra: Accept login
+    IamHydra->>IamHera: Delegate consent (auto-skip)
+    IamHydra-->>PgAdmin: 302 to /oauth2/authorize callback with code
+
+    PgAdmin->>IamHydra: POST /oauth2/token (exchange code)
+    IamHydra-->>PgAdmin: { id_token, access_token }
+    PgAdmin->>PgAdmin: Decode id_token → traits.dba_role
+
+    PgAdmin->>Postgres: Connect as <dba_role> with cert auth
+    Postgres-->>PgAdmin: Connection OK
+    PgAdmin-->>DBA: Logged in as <dba_role>
+```
+
+## Role mapping
+
+The Kratos identity's `dba_role` trait (e.g. `olympus_readonly`, `olympus_app_admin`) becomes the Postgres role pgAdmin connects as. See [Security — pgAdmin DBA accounts](/docs/security/pgadmin-dba-accounts) and [ADR 0016](/docs/adrs/0016-pgadmin-dba-role-mapping).
+
+## Offboarding
+
+Deactivating the IAM identity → next pgAdmin login fails → DBA can't connect. See [Operate — pgAdmin DBA offboarding](/docs/operate/pgadmin-dba-offboarding).
+
+## Where to learn more
+
+- [Security — pgAdmin SSO](/docs/security/pgadmin-sso)
+- [Security — pgAdmin DBA accounts](/docs/security/pgadmin-dba-accounts)
+- [ADR 0016 — pgAdmin DBA role mapping](/docs/adrs/0016-pgadmin-dba-role-mapping)

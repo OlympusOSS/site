@@ -1,0 +1,42 @@
+---
+title: Sequence diagrams
+description: Mermaid sequence diagrams for every multi-service flow in Olympus
+---
+
+End-to-end sequence diagrams for the major Olympus flows. Each is a single Mermaid `sequenceDiagram` with explanatory notes.
+
+## OAuth2 flows
+
+- [Authorization Code + PKCE](./seq-authorization-code-pkce) — the main user-facing login flow.
+- [Client Credentials (M2M)](./seq-client-credentials) — server-to-server.
+- [Refresh token rotation](./seq-refresh-token).
+- [RP-initiated logout](./seq-rp-initiated-logout).
+
+## Identity flows
+
+- [Email verification roundtrip](./seq-email-verification).
+- [Password recovery with HMAC token](./seq-recovery-hmac).
+- [Social IdP linking](./seq-social-login-link).
+- [MFA step-up to AAL2](./seq-mfa-step-up).
+- [Brute-force lockout escalation](./seq-brute-force-lockout).
+
+## Internal service calls
+
+- [Athena → Kratos admin](./seq-athena-to-kratos-admin) — admin API auth chain.
+- [Caddy → backend routing](./seq-caddy-routing) — proxy decisions.
+
+## Operations
+
+- [Production deploy pipeline](./seq-deploy-pipeline) — git push to running containers.
+- [Encryption key rotation](./seq-secrets-rotation) — zero-downtime.
+
+## Integration
+
+- [pgAdmin OIDC SSO](./seq-pgadmin-sso) — DBA login via IAM.
+- [Claude-driven Daedalus deploy](./seq-mcp-driven-deploy) — agent driving the wizard.
+
+## How these render
+
+Mermaid is built into Fumadocs via a custom remark plugin (see [site/lib/remark-mermaid.mjs](https://github.com/OlympusOSS/site/blob/main/lib/remark-mermaid.mjs) and the [Mermaid component](https://github.com/OlympusOSS/site/blob/main/src/components/site/mermaid.tsx)).
+
+To add a new diagram: write the `sequenceDiagram` code in a `\`\`\`mermaid` fence in any MDX file. Same for `stateDiagram`, `graph TB`, etc.

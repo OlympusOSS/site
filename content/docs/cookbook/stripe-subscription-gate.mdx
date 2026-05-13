@@ -1,0 +1,132 @@
+---
+title: Stripe subscription gate
+description: Restrict access to features based on Stripe subscription status
+---
+
+You sell a SaaS with paid tiers. Login should succeed for everyone, but feature access depends on subscription. Here's how to wire that with Olympus.
+
+## Architecture
+
+```
+User logs in via Olympus (Hera/Kratos)
+  ↓ session granted
+User hits feature endpoint
+  ↓ your backend checks subscription
+  ↓ allow or redirect to /pricing
+```
+
+Olympus handles **authentication** (who they are). Your app handles **authorization** (what they can do).
+
+## Storing subscription state
+
+Two options:
+
+### A: Store in your app DB
+
+```sql
+CREATE TABLE user_subscriptions (
+  identity_id UUID PRIMARY KEY,
+  stripe_customer_id TEXT NOT NULL,
+  stripe_subscription_id TEXT,
+  plan TEXT NOT NULL,         -- 'free', 'pro', 'enterprise'
+  status TEXT NOT NULL,       -- 'active', 'past_due', 'canceled'
+  current_period_end TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+Synced via Stripe webhooks (see below).
+
+### B: Store as a Kratos trait
+
+```json
+"traits": {
+  "email": "...",
+  "subscription": {
+    "plan": "pro",
+    "stripe_customer_id": "cus_..."
+  }
+}
+```
+
+Kratos traits are returned in the ID token. Your app reads `id_token.subscription.plan` for gating.
+
+Trade-off: tying subscription to identity traits makes them mutable via Kratos's settings flow (which is wrong — users shouldn't edit their own subscription). Use approach A unless you want subscription claims in the ID token.
+
+## Wiring Stripe
+
+### Create Stripe customer on first paid signup
+
+```ts
+// When user clicks "Upgrade to Pro"
+const session = await stripe.checkout.sessions.create({
+  customer_email: user.email,
+  client_reference_id: user.identity_id,  // Critical: this is the Olympus identity_id
+  mode: "subscription",
+  line_items: [{ price: "price_xxx", quantity: 1 }],
+  success_url: "https://app.example.com/upgrade-success",
+  cancel_url: "https://app.example.com/pricing",
+});
+return Response.redirect(session.url!);
+```
+
+### Stripe webhook → your backend
+
+```ts
+// POST /api/stripe-webhook
+const event = stripe.webhooks.constructEvent(...);
+if (event.type === "customer.subscription.created" ||
+    event.type === "customer.subscription.updated") {
+  const sub = event.data.object;
+  const identityId = sub.metadata.identity_id;  // or look up via customer_id
+  await db`INSERT INTO user_subscriptions (
+    identity_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end
+  ) VALUES (${identityId}, ${sub.customer}, ${sub.id}, ${sub.items.data[0].price.lookup_key}, ${sub.status}, ${new Date(sub.current_period_end * 1000)})
+  ON CONFLICT (identity_id) DO UPDATE SET ...`;
+}
+```
+
+### Gate your feature endpoints
+
+```ts
+async function requirePlan(req: Request, minPlan: "pro" | "enterprise") {
+  const session = await getSession(req);
+  const sub = await db`SELECT * FROM user_subscriptions WHERE identity_id = ${session.identity_id}`.first();
+  if (!sub || sub.status !== "active") return Response.redirect("/pricing");
+
+  const planRank = { free: 0, pro: 1, enterprise: 2 };
+  if (planRank[sub.plan] < planRank[minPlan]) return Response.redirect("/pricing");
+}
+```
+
+## Edge cases
+
+- **Past-due**: subscription `status=past_due` — allow limited access, prompt to update payment.
+- **Cancellation mid-cycle**: status is `canceled` but `current_period_end` is in the future. Allow access until period end.
+- **Webhook delay**: Stripe webhook can lag by seconds. Build a "subscription pending" UI state for fresh checkouts.
+
+## Customer Portal
+
+Let users manage their subscription via Stripe's hosted Customer Portal:
+
+```ts
+const portal = await stripe.billingPortal.sessions.create({
+  customer: sub.stripe_customer_id,
+  return_url: "https://app.example.com/settings",
+});
+return Response.redirect(portal.url);
+```
+
+## Account deletion
+
+When deleting a user (see [Cookbook — Self-service account deletion](/docs/cookbook/self-service-account-deletion)), also cancel their Stripe subscription:
+
+```ts
+await stripe.subscriptions.cancel(sub.stripe_subscription_id);
+```
+
+## Related
+
+- [Cookbook — Validate access token (Node)](/docs/cookbook/validate-token-node)
+- [Cookbook — Add OAuth2 scope](/docs/cookbook/add-oauth2-scope)
+- [Cookbook — Self-service account deletion](/docs/cookbook/self-service-account-deletion)

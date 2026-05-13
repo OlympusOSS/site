@@ -1,0 +1,72 @@
+---
+title: Authorization Code + PKCE
+description: End-to-end OAuth2 Authorization Code + PKCE flow
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as Your app
+    participant Browser
+    participant Caddy
+    participant Hydra
+    participant Hera
+    participant Kratos
+
+    Note over App,Browser: User clicks "Log in"
+    App->>App: Generate codeVerifier, codeChallenge=SHA256(verifier)
+    App->>Browser: 302 to Hydra /oauth2/auth?code_challenge=...&state=...
+
+    Browser->>Caddy: GET /oauth2/auth?...
+    Caddy->>Hydra: forward
+    Hydra->>Hydra: Create login_challenge
+    Hydra-->>Browser: 302 to Hera /login?login_challenge=...
+
+    Browser->>Caddy: GET /login?login_challenge=...
+    Caddy->>Hera: forward
+    Hera->>Hydra: GET /admin/oauth2/auth/requests/login
+    Hydra-->>Hera: Challenge details
+    Hera->>Kratos: GET /sessions/whoami (browser cookie)
+    Kratos-->>Hera: 401 (no session)
+
+    Hera->>Kratos: GET /self-service/login/browser
+    Kratos-->>Hera: Flow with ui.nodes
+    Hera-->>Browser: Render login form
+
+    Browser->>Hera: POST email + password (+ CSRF + captcha)
+    Hera->>Kratos: POST /self-service/login (proxied)
+    Kratos->>Kratos: Verify password (Argon2id)
+    Kratos-->>Hera: Set session cookie + 200
+    Hera->>Hydra: PUT /admin/oauth2/auth/requests/login/accept
+    Hydra-->>Hera: redirect_to consent
+
+    Hera-->>Browser: 302 to /consent?consent_challenge=...
+    Browser->>Hera: GET /consent?consent_challenge=...
+    Hera->>Hydra: GET /admin/oauth2/auth/requests/consent
+    Hydra-->>Hera: Challenge + requested scopes
+    Hera->>Hera: Auto-accept (skip_consent flag) or render UI
+    Hera->>Hydra: PUT /admin/oauth2/auth/requests/consent/accept
+
+    Hydra-->>Browser: 302 to App /callback?code=...&state=...
+    Browser->>App: GET /callback?code=...
+    App->>App: Verify state matches
+    App->>Hydra: POST /oauth2/token with code_verifier
+    Hydra->>Hydra: Verify SHA256(verifier) == challenge
+    Hydra-->>App: { access_token, id_token, refresh_token }
+    App-->>Browser: 302 home (set session cookie)
+```
+
+## What's happening
+
+- **Step 1-3**: App initiates. PKCE pair generated client-side.
+- **Step 4-9**: Hydra delegates to Hera (no session yet). Hera renders login form via Kratos.
+- **Step 10-14**: User authenticates against Kratos. Kratos sets browser session cookie. Hera tells Hydra "this is identity X."
+- **Step 15-18**: Consent. Either auto-grant (first-party client) or render UI.
+- **Step 19-24**: Hydra issues code, app exchanges for tokens. PKCE verifier proves the original initiator.
+
+## Where this is wired
+
+- [Identity — Flow login](/docs/identity/flow-login) — the Kratos half.
+- [Integrate — OAuth2 PKCE](/docs/integrate/oauth2-pkce) — the integrator's perspective.
+- [Internals — Hera Hydra integration](/docs/internals/hera-hydra-integration) — how the consent challenge is handled.
+- [Security — PKCE enforcement](/docs/security/pkce-enforcement) — why PKCE is mandatory.

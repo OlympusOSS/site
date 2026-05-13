@@ -1,0 +1,54 @@
+---
+title: Social IdP linking
+description: Linking a Google/GitHub/etc. account to an existing password identity
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as User (logged in)
+    participant Hera
+    participant Kratos
+    participant IdP as Upstream IdP (Google, GitHub, ...)
+
+    Note over User: Already logged in with password
+    User->>Hera: Click "Link Google account" on settings page
+    Hera->>Kratos: GET /self-service/settings/browser
+    Kratos-->>Hera: Settings flow
+    Hera->>Kratos: POST /self-service/settings (method=oidc, link=google)
+    Kratos-->>Hera: 302 to IdP authorize URL
+
+    Hera-->>User: 302 to Google OAuth
+    User->>IdP: Sign in to Google
+    IdP-->>User: 302 back to Kratos /oidc-callback
+
+    User->>Kratos: GET /oidc-callback?code=...&state=...
+    Kratos->>IdP: POST /token (exchange code)
+    IdP-->>Kratos: { id_token, access_token }
+    Kratos->>Kratos: Decode id_token
+
+    alt Email matches existing identity
+        Note over Kratos: Pre-existing identity check
+        Kratos-->>Hera: 302 to /account-linking confirmation
+        Hera-->>User: "Link this Google to your existing account?"
+        User->>Hera: Confirm
+        Hera->>Kratos: POST confirmation
+    else New identity (no match)
+        Note over Kratos: Create new identity with OIDC credential
+    end
+
+    Kratos->>Kratos: Update identity.credentials.oidc with Google
+    Kratos-->>User: 200, return to settings page
+```
+
+## Critical security check
+
+If the OIDC `email` matches an existing identity's verified email, **do not auto-link**. The confirmation step prevents pre-linking attacks.
+
+See [Identity — Account linking](/docs/identity/account-linking) for the full security rationale.
+
+## Where to learn more
+
+- [Identity — Account linking](/docs/identity/account-linking)
+- [Identity — Social login](/docs/identity/social-login)
+- [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust)

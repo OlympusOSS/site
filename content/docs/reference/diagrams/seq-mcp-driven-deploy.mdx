@@ -1,0 +1,61 @@
+---
+title: Claude-driven Daedalus deploy via MCP
+description: How an agent drives the wizard end-to-end
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Claude
+    participant ClaudeMCP as Claude MCP client
+    participant DaedalusMCP as Daedalus MCP server<br/>(127.0.0.1:14210)
+    participant DaedalusUI as Daedalus webview
+    participant External as GitHub / DO / Neon APIs
+
+    Note over Claude: User: "Deploy Olympus to DigitalOcean..."
+
+    Claude->>ClaudeMCP: tools/call read_context
+    ClaudeMCP->>DaedalusMCP: JSON-RPC: read_context
+    DaedalusMCP->>DaedalusMCP: Read daedalus.json
+    DaedalusMCP-->>ClaudeMCP: { current_step: "welcome", ... }
+    ClaudeMCP-->>Claude: Context
+
+    Claude->>ClaudeMCP: tools/call navigate({path: "/repository"})
+    ClaudeMCP->>DaedalusMCP: navigate
+    DaedalusMCP->>DaedalusUI: emit event "navigate", path: /repository
+    DaedalusUI->>DaedalusUI: React Router pushes /repository
+    DaedalusMCP-->>ClaudeMCP: { ok: true }
+
+    Claude->>ClaudeMCP: tools/call screenshot
+    ClaudeMCP->>DaedalusMCP: screenshot
+    DaedalusMCP->>DaedalusMCP: ScreenCaptureKit capture
+    DaedalusMCP-->>ClaudeMCP: image/png base64
+    ClaudeMCP-->>Claude: Image content block
+
+    Note over Claude: Sees: Repository step asks for PAT.<br/>Asks user to paste it in Daedalus.
+
+    Note over Claude: User pastes PAT, says "done"
+
+    Claude->>ClaudeMCP: tools/call click({text: "Fork repository"})
+    ClaudeMCP->>DaedalusMCP: click
+    DaedalusMCP->>DaedalusUI: emit event "click", text: "Fork repository"
+    DaedalusUI->>DaedalusUI: Find button, dispatch click
+    DaedalusUI->>External: gh repo fork (via Daedalus backend)
+    External-->>DaedalusUI: Forked
+
+    Claude->>ClaudeMCP: tools/call terminal_read
+    ClaudeMCP->>DaedalusMCP: terminal_read
+    DaedalusMCP-->>ClaudeMCP: "Fork succeeded..."
+
+    Note over Claude: Continues through all 13 wizard steps.
+```
+
+## Localhost-only
+
+The MCP server binds to `127.0.0.1` only. Claude must run on the same machine. See [ADR 0022 — MCP localhost only](/docs/adrs/0022-mcp-localhost-only).
+
+## Where to learn more
+
+- [Integrate — MCP with Daedalus](/docs/integrate/mcp-with-daedalus)
+- [Cookbook — Deploy with Claude MCP](/docs/cookbook/deploy-with-claude-mcp)
+- [Internals — Daedalus MCP server](/docs/internals/daedalus-mcp-server)

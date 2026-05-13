@@ -1,0 +1,61 @@
+---
+title: Caddy → backend routing
+description: How Caddy decides which backend to proxy to
+---
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Browser
+    participant Caddy
+    participant CiamHera
+    participant CiamAthena
+    participant CiamHydra
+    participant IamHera
+    participant IamAthena
+
+    Note over Browser: User visits ciam.example.com/login
+    Browser->>Caddy: GET https://ciam.example.com/login
+
+    Caddy->>Caddy: Match host: ciam.example.com
+    Caddy->>Caddy: Apply: rate_limit, security headers, CSP
+    Caddy->>Caddy: Match path: /login → @hera
+    Caddy->>CiamHera: reverse_proxy http://ciam-hera:3000
+
+    CiamHera-->>Caddy: 200 + HTML
+    Caddy-->>Browser: 200 (with HSTS, X-Frame-Options, ...)
+
+    Note over Browser: Same domain, /admin path
+    Browser->>Caddy: GET https://ciam.example.com/admin/...
+    Caddy->>Caddy: Match host ciam.example.com, path /admin → @athena
+    Caddy->>CiamAthena: reverse_proxy http://ciam-athena:3001
+    CiamAthena-->>Caddy: 200
+    Caddy-->>Browser: 200
+
+    Note over Browser: OAuth2 token endpoint
+    Browser->>Caddy: POST https://ciam.example.com/oauth2/token
+    Caddy->>Caddy: Match path /oauth2/* → @hydra
+    Caddy->>CiamHydra: reverse_proxy http://ciam-hydra:3102
+    CiamHydra-->>Caddy: { tokens }
+    Caddy-->>Browser: 200
+
+    Note over Browser: Different domain
+    Browser->>Caddy: GET https://iam.example.com/login
+    Caddy->>Caddy: Different host block
+    Caddy->>IamHera: reverse_proxy http://iam-hera:4000
+```
+
+## Per-host blocks
+
+Each domain has its own Caddyfile block. Path matchers route within the block.
+
+## What Caddy DOES NOT route
+
+- **The admin API ports** (3101, 3103, 4101, 4103) — these are intranet-only; Caddy doesn't proxy to them.
+- **Postgres** (5432) — direct DB connection from app containers; not via Caddy.
+
+## Where to learn more
+
+- [Operate — Network topology](/docs/operate/network-topology)
+- [Reference — Caddyfile](/docs/reference/config/caddy/overview)
+- [Security — Caddy supply chain](/docs/security/caddy-supply-chain)

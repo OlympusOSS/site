@@ -1,0 +1,21 @@
+{
+  "title": "Sequence diagrams",
+  "pages": [
+    "overview",
+    "seq-authorization-code-pkce",
+    "seq-client-credentials",
+    "seq-refresh-token",
+    "seq-rp-initiated-logout",
+    "seq-email-verification",
+    "seq-recovery-hmac",
+    "seq-social-login-link",
+    "seq-mfa-step-up",
+    "seq-brute-force-lockout",
+    "seq-athena-to-kratos-admin",
+    "seq-caddy-routing",
+    "seq-deploy-pipeline",
+    "seq-secrets-rotation",
+    "seq-pgadmin-sso",
+    "seq-mcp-driven-deploy"
+  ]
+}

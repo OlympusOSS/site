@@ -1,0 +1,74 @@
+---
+title: Provider — Google Cloud (GCE)
+description: Deploy Olympus on a GCP Compute Engine VM
+---
+
+GCP isn't natively supported by Daedalus. Use the [Direct SSH](/docs/deploy/provider-direct-ssh) path or the manual deploy.
+
+## Compute Engine VM
+
+```bash
+gcloud compute instances create olympus-prod \
+  --zone=us-central1-a \
+  --machine-type=e2-medium \
+  --image-family=ubuntu-2204-lts \
+  --image-project=ubuntu-os-cloud \
+  --boot-disk-size=50GB \
+  --tags=http-server,https-server
+```
+
+`e2-medium` (2 vCPU, 4GB RAM) costs ~$25/month with sustained-use discount.
+
+## Firewall
+
+```bash
+gcloud compute firewall-rules create allow-https \
+  --allow tcp:443 \
+  --target-tags=https-server
+
+gcloud compute firewall-rules create allow-http \
+  --allow tcp:80 \
+  --target-tags=http-server
+
+gcloud compute firewall-rules create allow-ssh-from-me \
+  --allow tcp:22 \
+  --source-ranges=$(curl -s ifconfig.me)/32
+```
+
+Block everything else by default.
+
+## Cloud SQL (managed Postgres)
+
+Use Cloud SQL for Postgres if you want managed DB on GCP:
+
+```bash
+gcloud sql instances create olympus-db \
+  --database-version=POSTGRES_17 \
+  --tier=db-g1-small \
+  --region=us-central1
+```
+
+Configure `verify-full` SSL — see [Deploy — Database SSL verify-full](/docs/deploy/database-ssl-verify-full).
+
+## IAM service accounts
+
+For deployments managed via GitHub Actions to GCP, use a service account with the minimum permissions (Compute Instance Admin, Cloud SQL Client). Add the JSON key to GitHub Secrets as `GCP_SA_KEY`.
+
+## Cloud DNS
+
+GCP's Cloud DNS works for the Olympus subdomain records. Or use your existing DNS provider.
+
+## Cost estimate
+
+For ~1k MAU:
+- e2-medium VM: $25/mo
+- Cloud SQL db-g1-small: $13/mo
+- Egress (~10GB): ~$1
+- **Total: ~$40/mo**
+
+Cheaper than equivalent AWS; pricier than DigitalOcean.
+
+## Where next
+
+- [Deploy — Provider — Direct SSH](/docs/deploy/provider-direct-ssh)
+- [Deploy — Database SSL verify-full](/docs/deploy/database-ssl-verify-full)

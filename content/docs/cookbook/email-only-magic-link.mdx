@@ -1,0 +1,68 @@
+---
+title: Email-only / magic-link auth
+description: Passwordless login via email links
+---
+
+For products where typing passwords creates friction (newsletters, simple SaaS, one-off tools), magic-link auth is appealing: enter email → click link → logged in.
+
+Kratos doesn't ship a first-class "magic link" flow but you can repurpose the recovery flow.
+
+## Approach 1: Use recovery flow as login
+
+The recovery flow already sends a HMAC-signed link via email. After clicking, the user lands logged in with a session.
+
+Wire your "Log in" button to:
+1. `POST /self-service/recovery` with the user's email.
+2. Email arrives with a token URL.
+3. User clicks → `/recovery` page → token verified → session granted.
+
+The downside: users see "recover password" branding. Customize the email template and Hera's recovery page to call this "Sign in" — see [Cookbook — Custom email templates](/docs/cookbook/custom-email-templates).
+
+## Approach 2: Custom Kratos flow
+
+Implement a new method via Kratos's `code` strategy. Kratos has a built-in `code` flow that sends a 6-digit code via email instead of a clickable URL.
+
+Configure in `kratos.yml`:
+
+```yaml
+selfservice:
+  methods:
+    code:
+      enabled: true
+      passwordless_enabled: true
+```
+
+User enters email → receives 6-digit code → enters it → logged in. No password ever set.
+
+The `code` method's UX is more clearly "sign in," but the code-entry adds a step.
+
+## Approach 3: Fork Hera
+
+For a fully custom magic-link experience, fork Hera and implement the flow:
+1. POST to your own `/api/magic-link` endpoint with email.
+2. Your endpoint generates a HMAC-signed token, stores in Redis (or short-lived DB row).
+3. Sends email with link to `/api/magic-link/consume?token=...`.
+4. Consume endpoint validates, creates a Kratos session for the identity, redirects to `/`.
+
+Complex, but full UX control.
+
+## Security considerations
+
+Magic links and codes are equivalent to single-use passwords:
+- HMAC token must be unguessable (32+ bytes random).
+- TTL short (5-15 minutes).
+- Single-use enforced server-side.
+- Rate-limit per email (same as password attempts) — see [Security — Brute-force protection](/docs/security/brute-force).
+- Email security matters more — if the user's mailbox is compromised, so is the account.
+
+## When NOT to use magic links
+
+- High-security operations (banking, healthcare): require password + MFA.
+- B2B SSO: enterprises prefer SAML/OIDC.
+- Frequent re-auth flows: typing email + clicking is more friction than typing password.
+
+## Related
+
+- [Identity — Flow recovery](/docs/identity/flow-recovery) — the underlying primitive.
+- [Cookbook — Custom email templates](/docs/cookbook/custom-email-templates) — rebrand "recovery" as "sign-in."
+- [Security — Breached password](/docs/security/breached-password) — doesn't apply (no password!).
