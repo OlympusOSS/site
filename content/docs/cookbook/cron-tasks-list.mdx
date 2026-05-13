@@ -1,0 +1,195 @@
+---
+title: Recommended cron tasks for Olympus
+description: Periodic jobs to keep an Olympus deployment healthy
+---
+
+Olympus needs several periodic tasks. List them here so nothing is missed.
+
+## Daily
+
+### Backup database
+```bash
+0 3 * * * pg_dump olympus | gzip | aws s3 cp - s3://backups/olympus-$(date +%Y%m%d).sql.gz
+```
+
+### Kratos janitor (cleanup expired flows)
+```bash
+30 3 * * * podman exec ciam-kratos kratos janitor --keep-last 168h
+```
+
+### Hydra janitor (cleanup expired tokens)
+```bash
+0 4 * * * podman exec ciam-hydra hydra janitor --tokens postgres://...
+```
+
+### Anonymize old audit logs (90+ days)
+```bash
+0 5 * * * /usr/local/bin/anonymize-audit.sh
+```
+
+### Postgres VACUUM ANALYZE
+```bash
+0 5 * * * podman exec ciam-postgres vacuumdb -d olympus --analyze
+```
+
+## Weekly
+
+### Verify backups (test restore)
+```bash
+0 6 * * 0 /usr/local/bin/test-restore-backup.sh
+```
+
+Restore latest backup into a sandbox, verify it works.
+
+### Disposable email domain list refresh
+```bash
+0 7 * * 0 curl https://raw.githubusercontent.com/disposable/.../domains.txt > /etc/olympus/disposable.txt && podman restart ciam-kratos
+```
+
+### Pending invitation cleanup
+```bash
+0 8 * * 0 psql -c "DELETE FROM invitations WHERE expires_at < NOW() - INTERVAL '30 days'"
+```
+
+### Old session cleanup (Kratos handles via janitor, but for app-side sessions)
+```bash
+0 9 * * 0 psql -c "DELETE FROM app_sessions WHERE last_activity < NOW() - INTERVAL '30 days'"
+```
+
+## Monthly
+
+### Stale identity check (inactive 12 months)
+```bash
+0 0 1 * * /usr/local/bin/notify-inactive-users.sh
+```
+
+Email warning. Auto-deactivate after grace.
+
+### Rotate cookie secrets
+```bash
+0 1 1 * * /usr/local/bin/rotate-kratos-cookie.sh
+```
+
+90-day rotation.
+
+### Rotate Hydra system secret
+```bash
+0 2 1 * * /usr/local/bin/rotate-hydra-secret.sh
+```
+
+## Quarterly
+
+### Reissue OAuth2 client secrets
+Manual for high-stakes clients. Automated for routine.
+
+### TLS cert validity check
+```bash
+0 0 1 */3 * /usr/local/bin/check-cert-expiry.sh
+```
+
+Caddy auto-renews, but verify.
+
+### Run pen-test scripts / vulnerability scans
+```bash
+0 1 1 */3 * /usr/local/bin/run-security-scans.sh
+```
+
+## Annually
+
+### Audit log retention enforcement
+```bash
+0 0 1 1 * psql -c "DELETE FROM security_audit WHERE created_at < NOW() - INTERVAL '2 years' AND event_type NOT IN ('admin_action_critical')"
+```
+
+Drop very old audit data per retention policy.
+
+### Compliance evidence collection
+Manual. See [Compliance audit export](/docs/cookbook/compliance-audit-export).
+
+### Disaster recovery drill
+```bash
+# Document, don't automate
+```
+
+Schedule a date. Run the drill. Document gaps.
+
+## Health monitoring
+
+These should run on schedule but also alert on failure:
+
+```bash
+# Every minute
+* * * * * curl -fsS https://ciam.your-domain.com/health/ready || alert "Olympus health failed"
+
+# Every 5 min
+*/5 * * * * /usr/local/bin/smoke-test-login.sh || alert "Login smoke test failed"
+```
+
+## Monitoring the crons themselves
+
+Use a "dead man's switch":
+
+```bash
+# After successful cron
+curl https://uptime-kuma.your-domain.com/api/push/kratos-janitor
+```
+
+Uptime monitor expects ping per hour. No ping → alert.
+
+Or use [Cronitor](https://cronitor.io) / [Healthchecks.io](https://healthchecks.io):
+
+```bash
+30 3 * * * podman exec ciam-kratos kratos janitor --keep-last 168h && curl -fsS https://hc-ping.com/UUID
+```
+
+## Logging
+
+All cron output → centralized log:
+
+```bash
+30 3 * * * /usr/local/bin/cron-task.sh >> /var/log/olympus/cron.log 2>&1
+```
+
+Review weekly: any errors?
+
+## Order matters
+
+Some tasks depend on others:
+- Backup BEFORE janitor (so deleted data is in backup).
+- Anonymize BEFORE retention enforcement (so anonymized data isn't deleted).
+- Don't run heavy tasks during expected peak.
+
+```cron
+# Off-peak: 03:00-05:00 UTC (most regions sleep)
+0 3 * * * backup
+30 3 * * * janitor
+0 4 * * * vacuum
+```
+
+## Idempotency
+
+All tasks must be idempotent. Re-runs safe.
+
+```bash
+# Safe — only deletes already-expired
+DELETE FROM table WHERE expires_at < NOW();
+
+# Unsafe — counts wrong if run twice
+UPDATE counter SET value = value + 1;
+```
+
+## Documentation
+
+Document each cron in your operational runbook:
+- Purpose.
+- Failure consequence.
+- Recovery steps.
+- Owner.
+
+## Related
+
+- [Operate — Audit log retention](/docs/operate/audit-log-retention)
+- [Operate — Backup and restore](/docs/operate/backup-restore)
+- [Cookbook — Cron secret rotator](/docs/cookbook/cron-secret-rotator)
+- [Cookbook — Secrets rotation](/docs/cookbook/secrets-rotation)
+- [Cookbook — Health check monitoring](/docs/cookbook/health-check-monitoring)

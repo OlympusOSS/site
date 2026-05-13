@@ -1,0 +1,258 @@
+---
+title: Handle OAuth2 errors gracefully in apps
+description: User-friendly error messages for OAuth2 failures
+---
+
+OAuth2 errors return cryptic codes (`invalid_request`, `unauthorized_client`, `access_denied`). Your app should translate to user-friendly UX.
+
+## Error categories
+
+### User-actionable
+
+User can fix:
+- `access_denied`: user clicked "Deny" on consent screen.
+- `consent_required`: needs to re-consent (rare).
+- `login_required`: need to re-authenticate.
+
+UX: redirect back to login or show clear retry.
+
+### Misconfiguration
+
+You / dev fix:
+- `invalid_client`: wrong client_id / secret.
+- `invalid_redirect_uri`: misconfigured URI.
+- `invalid_grant`: code expired or already used.
+- `unauthorized_client`: client lacks grant type.
+
+UX: show "Configuration error. Contact support."
+
+### Server / transient
+
+Retry:
+- `server_error`: Hydra hiccup. Retry.
+- `temporarily_unavailable`: maintenance window.
+
+UX: "Try again in a moment."
+
+## Mapping
+
+```ts
+const errorMap = {
+  access_denied: { type: "user", message: "You denied access. Try again if needed." },
+  invalid_client: { type: "config", message: "We're having authentication trouble. Please contact support." },
+  invalid_redirect_uri: { type: "config", message: "Authentication misconfigured. Please contact support." },
+  invalid_grant: { type: "user", message: "Your sign-in expired. Please try again." },
+  login_required: { type: "user", message: "Please sign in again." },
+  server_error: { type: "transient", message: "Something went wrong. Please try again." },
+  default: { type: "unknown", message: "An unexpected error occurred." },
+};
+
+function userMessage(error: string) {
+  return errorMap[error]?.message ?? errorMap.default.message;
+}
+```
+
+## Display
+
+On callback page:
+
+```tsx
+// app/callback/page.tsx
+export default function Callback({ searchParams }) {
+  const { error, error_description } = searchParams;
+  
+  if (error) {
+    return (
+      <Layout>
+        <ErrorBox>
+          <h1>{userMessage(error)}</h1>
+          <p className="muted">Error code: {error}</p>
+          {process.env.NODE_ENV === "development" && (
+            <pre>{error_description}</pre>
+          )}
+          <Link href="/login">Try again</Link>
+          <Link href="/contact">Contact support</Link>
+        </ErrorBox>
+      </Layout>
+    );
+  }
+  
+  // Normal flow: exchange code for token
+}
+```
+
+User sees friendly message. Dev sees raw details.
+
+## Log technical details
+
+```ts
+if (error) {
+  logger.warn({ event: "oauth_callback_error", error, error_description, session_id });
+}
+```
+
+For investigation later. Customers' "I can't sign in" reports easier to triage.
+
+## Don't expose internal errors
+
+```tsx
+// BAD
+<pre>Stack trace: at OAuth2Provider.authorize line 42 ... </pre>
+
+// GOOD
+<p>Something went wrong. Please try again.</p>
+```
+
+Stack traces / internal messages leak architecture, can aid attackers.
+
+## User declined consent
+
+```ts
+if (error === "access_denied") {
+  // User explicitly said no. Don't retry.
+  return (
+    <p>
+      You denied access. If this was a mistake, <Link href="/login">sign in again</Link>.
+    </p>
+  );
+}
+```
+
+Different UX from generic error.
+
+## State mismatch
+
+If callback's `state` doesn't match what was sent:
+
+```ts
+const stateFromCallback = new URLSearchParams(window.location.search).get("state");
+const stateExpected = sessionStorage.getItem("auth_state");
+if (stateFromCallback !== stateExpected) {
+  return <Error>Possible CSRF. Please sign in again from the beginning.</Error>;
+}
+```
+
+Treat as security event:
+```ts
+audit({ event: "oauth_state_mismatch", ip: req.ip });
+```
+
+## Network errors during exchange
+
+```ts
+try {
+  const res = await fetch(`${HYDRA}/oauth2/token`, ...);
+  if (!res.ok) {
+    const body = await res.json();
+    handleOAuth2Error(body.error);
+    return;
+  }
+} catch (err) {
+  // Network error
+  showError("Couldn't reach authentication server. Please try again.");
+}
+```
+
+Don't expose URLs or internals.
+
+## Retry logic
+
+For transient errors, auto-retry once:
+
+```ts
+async function tryWithRetry() {
+  try { return await exchange(); }
+  catch (err) {
+    if (err.code === "server_error" || err.code === "temporarily_unavailable") {
+      await sleep(1000);
+      return exchange();
+    }
+    throw err;
+  }
+}
+```
+
+Don't loop infinitely — one retry max.
+
+## OAuth2 popup / new tab
+
+If you opened OAuth2 in a popup:
+
+```ts
+// Parent window
+window.addEventListener("message", (e) => {
+  if (e.origin !== EXPECTED_ORIGIN) return;
+  if (e.data.type === "auth_error") {
+    showError(e.data.error);
+  }
+});
+
+// Popup (on error)
+window.opener.postMessage({ type: "auth_error", error: errorCode }, "*");
+window.close();
+```
+
+Communicate to parent. Don't leave broken popup open.
+
+## Recoverable vs not
+
+```ts
+function isRecoverable(error: string) {
+  return ["server_error", "temporarily_unavailable", "login_required", "access_denied"].includes(error);
+}
+
+if (isRecoverable(error)) {
+  return <RetryButton />;
+} else {
+  return <ContactSupportButton />;
+}
+```
+
+Different CTAs for different errors.
+
+## Examples
+
+```
+✗ Bad:
+"Error: invalid_grant. Please contact support with reference: 0xDEADBEEF."
+
+✓ Good:
+"Your sign-in link expired. Please try again."
+
+Show 'invalid_grant' only if dev-mode.
+```
+
+```
+✗ Bad:
+"Error: Server returned 500 Internal Server Error"
+
+✓ Good:
+"Something went wrong. Please try again or contact support if this continues."
+```
+
+## Internationalization
+
+Don't hard-code English:
+
+```tsx
+const t = useTranslations("oauth_errors");
+<p>{t(error)}</p>
+```
+
+Translation file:
+```json
+{
+  "oauth_errors": {
+    "access_denied": "You declined access.",
+    "invalid_grant": "Your sign-in expired. Please try again.",
+    ...
+  }
+}
+```
+
+## Related
+
+- [Reference — OAuth2 error codes](/docs/integrate/oauth2-error-codes)
+- [Troubleshooting — OAuth2 invalid grant](/docs/troubleshooting/oauth2-invalid-grant)
+- [Troubleshooting — OAuth2 invalid client](/docs/troubleshooting/oauth2-invalid-client)
+- [Cookbook — Localize Hera UI](/docs/cookbook/localize-hera-ui)
