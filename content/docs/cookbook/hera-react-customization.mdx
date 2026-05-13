@@ -1,0 +1,274 @@
+---
+title: Customizing Hera's React components
+description: Adapt the login UI to your brand
+---
+
+Hera is a Next.js app you can deeply customize. Beyond branding (colors / logo), you can rewrite flows, add fields, replace components.
+
+## What's customizable
+
+- All UI strings (via i18n).
+- Theme (CSS variables).
+- Layout (modify pages).
+- Component logic (replace or extend).
+- Add new flows.
+- Add new fields.
+
+## Lightest: theme + logo
+
+Most apps need just this:
+
+```css
+/* hera/app/globals.css */
+@theme {
+  --color-primary: #4F46E5;
+  --color-primary-hover: #4338CA;
+  --color-background: #FFFFFF;
+  --color-text: #111827;
+  --font-sans: "Inter", sans-serif;
+}
+```
+
+Replace `public/logo.svg`. Done. 80% of apps stop here.
+
+## Medium: edit copy / layout
+
+```tsx
+// hera/app/login/page.tsx
+export default function Login() {
+  return (
+    <Layout>
+      <h1>Welcome back to {APP_NAME}</h1>
+      <p>Sign in to continue.</p>
+      <LoginForm />
+      <p>
+        New here? <Link href="/registration">Create an account</Link>
+      </p>
+    </Layout>
+  );
+}
+```
+
+Swap "Sign in" for "Welcome back," add custom marketing copy, etc.
+
+## Heavy: replace components
+
+Don't like default flow rendering? Build your own:
+
+```tsx
+// Original
+import { Flow } from "@olympusoss/hera/flow";
+<Flow flow={flow} />
+
+// Custom
+import { useFlow } from "@olympusoss/hera/flow";
+const { fields, action, csrfToken } = useFlow(flow);
+return (
+  <form action={action} method="POST">
+    <input name="csrf_token" value={csrfToken} hidden />
+    <Input name="identifier" label="Your email" />
+    <Input name="password" type="password" label="Password" />
+    <Button type="submit">Sign in</Button>
+  </form>
+);
+```
+
+You decide layout. Hera's hooks provide the data.
+
+## Adding fields
+
+Want to ask for phone at registration?
+
+```tsx
+// hera/app/registration/page.tsx
+const fields = [
+  ...defaultFields,
+  { name: "traits.phone", type: "tel", label: "Phone (optional)" },
+];
+```
+
+Also update identity schema:
+```json
+"phone": { "type": "string" }
+```
+
+Now phone is collected, stored in identity.
+
+## Adding flows
+
+E.g., a "magic link request" page (Hera has /recovery; you want a marketing landing):
+
+```tsx
+// hera/app/magic-link/page.tsx
+"use server";
+import { kratos } from "@/lib/kratos";
+
+async function requestMagicLink(formData: FormData) {
+  await kratos.createCodeAuthorityFlow({
+    email: formData.get("email"),
+  });
+  // ...
+}
+
+export default function MagicLink() {
+  return (
+    <Layout>
+      <h1>Sign in with email</h1>
+      <p>Enter your email; we'll send a one-time sign-in link.</p>
+      <form action={requestMagicLink}>
+        <input type="email" name="email" />
+        <button>Send link</button>
+      </form>
+    </Layout>
+  );
+}
+```
+
+## Fork vs override
+
+Two approaches:
+
+### Fork Hera
+
+Clone the repo, customize, host. Maximum flexibility.
+
+Trade-off: maintenance. When Hera updates, merge upstream.
+
+### Configure via env / settings
+
+For lightweight customizations, no fork needed:
+
+```bash
+HERA_THEME_PRIMARY=#FF5733
+HERA_LOGO_URL=https://your-domain.com/logo.svg
+HERA_APP_NAME="Your App"
+```
+
+Hera reads these at startup. Less powerful but no fork to maintain.
+
+## Per-tenant customization
+
+For multi-tenant white-label, customize per request based on host:
+
+```tsx
+// middleware.ts
+export async function middleware(req) {
+  const subdomain = req.nextUrl.hostname.split(".")[0];
+  const tenant = await getTenant(subdomain);
+  
+  const res = NextResponse.next();
+  res.headers.set("X-Tenant", JSON.stringify(tenant));
+  return res;
+}
+```
+
+```tsx
+// Layout
+const tenant = JSON.parse(headers().get("x-tenant"));
+return (
+  <html style={{ "--color-primary": tenant.primary_color }}>
+    <body>
+      <img src={tenant.logo_url} />
+      <h1>Sign in to {tenant.name}</h1>
+      ...
+    </body>
+  </html>
+);
+```
+
+Each tenant's domain shows their branding.
+
+## Re-using components
+
+If you want to embed login form INSIDE your app (not redirect):
+
+```tsx
+// your-app
+import { LoginForm } from "@olympusoss/sdk-react";
+
+<LoginForm 
+  onSuccess={() => router.push("/dashboard")}
+  showSocial 
+/>
+```
+
+See [SDK React component library](/docs/cookbook/sdk-react-component-library).
+
+## A/B testing variants
+
+Two login layouts:
+
+```tsx
+const variant = hashUserToBucket(visitorId, 2);
+return variant === "A" ? <LoginVariantA /> : <LoginVariantB />;
+```
+
+Measure conversion. Pick winner.
+
+## Localization
+
+Each language in `messages/<locale>/`:
+
+```json
+{
+  "login": {
+    "title": "Connecter",
+    "submit": "Se connecter",
+    "forgot": "Mot de passe oublié ?"
+  }
+}
+```
+
+Per-locale rendering.
+
+## CSS dark mode
+
+```css
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-background: #111827;
+    --color-text: #F9FAFB;
+  }
+}
+```
+
+Or toggle button:
+
+```tsx
+<button onClick={toggleDark}>🌓</button>
+```
+
+## Avoid
+
+### Custom JS that bypasses Kratos validation
+
+```tsx
+// BAD
+<input name="email" onSubmit={(e) => {
+  if (!isValidEmail(e.target.value)) {
+    submitToYourAPI();  // bypasses Kratos
+  }
+}} />
+```
+
+Always submit to Kratos. Let it validate.
+
+### Caching login responses
+
+Login responses are personalized. Don't cache:
+
+```http
+Cache-Control: no-store
+```
+
+### Embedding password fields in non-secure context
+
+Browser warnings, Chrome blocks. Always HTTPS for login.
+
+## Related
+
+- [Develop — Contribute to Hera](/docs/develop/contribute-to-hera)
+- [Cookbook — Customize Hera UI](/docs/cookbook/customize-hera-ui)
+- [Cookbook — Localize Hera UI](/docs/cookbook/localize-hera-ui)
+- [Cookbook — White-label SaaS customer](/docs/cookbook/whitelabel-saas-customer)
+- [Cookbook — SDK React component library](/docs/cookbook/sdk-react-component-library)

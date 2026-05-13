@@ -1,0 +1,272 @@
+---
+title: OpenTelemetry Collector setup
+description: Central pipeline for metrics, traces, logs
+---
+
+OpenTelemetry Collector is a vendor-neutral pipeline. Services push to it; it forwards to your backends (Datadog, Honeycomb, Jaeger, Grafana, etc.). Single configuration point.
+
+## Architecture
+
+```
+Kratos ─┐
+Hydra  ─┼─► OpenTelemetry Collector ─┬─► Honeycomb (traces)
+Hera   ─┘                            ├─► Datadog (metrics)
+                                     └─► Loki (logs)
+```
+
+Each service speaks OTLP. Collector translates.
+
+## Compose
+
+```yaml
+otel-collector:
+  image: otel/opentelemetry-collector-contrib:0.95.0
+  command: ["--config=/etc/otel.yaml"]
+  volumes:
+    - ./otel-collector-config.yaml:/etc/otel.yaml
+  ports:
+    - "4317:4317"  # gRPC OTLP
+    - "4318:4318"  # HTTP OTLP
+    - "8888:8888"  # Collector's own metrics
+```
+
+## Config
+
+```yaml
+# otel-collector-config.yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    send_batch_size: 1000
+    timeout: 10s
+  
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: production
+        action: insert
+  
+  tail_sampling:
+    decision_wait: 30s
+    policies:
+      - name: errors
+        type: status_code
+        status_code: { status_codes: [ERROR] }
+      - name: slow
+        type: latency
+        latency: { threshold_ms: 1000 }
+      - name: prob
+        type: probabilistic
+        probabilistic: { sampling_percentage: 10 }
+
+exporters:
+  otlphttp/honeycomb:
+    endpoint: api.honeycomb.io:443
+    headers:
+      x-honeycomb-team: ${HONEYCOMB_KEY}
+  
+  prometheus:
+    endpoint: 0.0.0.0:8889
+  
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource, tail_sampling]
+      exporters: [otlphttp/honeycomb]
+    
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [prometheus]
+    
+    logs:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [loki]
+```
+
+## Kratos / Hydra
+
+```yaml
+# kratos.yml
+tracing:
+  service_name: kratos
+  provider: otel
+  providers:
+    otlp:
+      server_url: otel-collector:4317
+      insecure: true
+  sampling:
+    sampling_ratio: 1.0  # collector samples after
+```
+
+`sampling_ratio: 1.0` here means Kratos sends ALL. Collector's `tail_sampling` decides what to keep.
+
+## Hera / Athena (Node)
+
+```ts
+// instrumentation.ts
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-grpc";
+import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-grpc";
+
+const sdk = new NodeSDK({
+  serviceName: "hera",
+  traceExporter: new OTLPTraceExporter({ url: "http://otel-collector:4317" }),
+  metricReader: new PeriodicExportingMetricReader({
+    exporter: new OTLPMetricExporter({ url: "http://otel-collector:4317" }),
+    exportIntervalMillis: 10000,
+  }),
+  logRecordProcessors: [
+    new BatchLogRecordProcessor(new OTLPLogExporter({ url: "http://otel-collector:4317" })),
+  ],
+  instrumentations: [getNodeAutoInstrumentations()],
+});
+
+sdk.start();
+```
+
+Send everything to collector.
+
+## Custom instrumentation
+
+For business metrics:
+
+```ts
+import { metrics } from "@opentelemetry/api";
+
+const meter = metrics.getMeter("hera-app");
+const loginCounter = meter.createCounter("user_logins", { description: "Login attempts" });
+
+loginCounter.add(1, { outcome: "success", method: "password" });
+```
+
+Counters, histograms, gauges — all supported.
+
+## Backend choices
+
+### Honeycomb
+Great for traces. Excellent UX. ~$100/mo at scale.
+
+### Datadog
+Best all-in-one but expensive. ~$$$.
+
+### Grafana Cloud
+Free tier. Hosted Prometheus + Loki + Tempo. ~$30/mo for moderate.
+
+### Self-hosted
+Tempo (traces) + Prometheus (metrics) + Loki (logs) + Grafana (viz). Cost: just hosting.
+
+For Olympus deployment, self-hosted is feasible if you have ops capacity.
+
+## Sampling strategies
+
+### Always sample errors
+
+```yaml
+- name: errors
+  type: status_code
+  status_code: { status_codes: [ERROR] }
+```
+
+Keep all error traces. Drop normal ones.
+
+### Sample by service
+
+```yaml
+- name: critical-services
+  type: string_attribute
+  string_attribute:
+    key: service.name
+    values: [kratos, hydra]
+```
+
+Keep 100% of Kratos / Hydra; sample others.
+
+### Probabilistic
+
+```yaml
+- name: rate
+  type: probabilistic
+  probabilistic: { sampling_percentage: 10 }
+```
+
+10% of normal traffic.
+
+## Performance
+
+Collector overhead: ~5% CPU at high volume.
+
+If overloaded: scale collector horizontally (multiple instances, load-balanced).
+
+## Logs structured
+
+For Hera / Athena logs to ship as structured:
+
+```ts
+import { logs, severitySeverity } from "@opentelemetry/api-logs";
+const logger = logs.getLogger("hera-app");
+
+logger.emit({
+  severityNumber: SeverityNumber.INFO,
+  body: "User logged in",
+  attributes: { user_id: "...", method: "password" },
+});
+```
+
+Loki / Datadog indexes attributes for fast filtering.
+
+## Drop noisy spans
+
+Don't trace every health check:
+
+```yaml
+processors:
+  filter/health:
+    error_mode: ignore
+    traces:
+      span:
+        - 'name == "/health/ready"'
+        - 'name == "/healthz"'
+```
+
+Reduces volume.
+
+## Real-time alerts
+
+Some backends alert on patterns:
+
+```yaml
+# Datadog Monitor
+alert: avg(last_5m):rate(error_rate) by service > 0.05
+```
+
+OTLP traces become alerts.
+
+## Test config
+
+```bash
+otel-collector --config=otel.yaml --dry-run
+```
+
+Validate before reload.
+
+## Related
+
+- [Cookbook — Observability tracing](/docs/cookbook/observability-tracing)
+- [Cookbook — Monitoring Grafana](/docs/cookbook/monitoring-grafana)
+- [Cookbook — Monitoring Honeycomb](/docs/cookbook/monitoring-honeycomb)
+- [Cookbook — Monitoring Datadog](/docs/cookbook/monitoring-datadog)
+- [Operate — Logs and observability](/docs/operate/logs-and-observability)
