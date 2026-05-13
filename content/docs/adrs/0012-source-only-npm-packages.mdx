@@ -1,0 +1,40 @@
+---
+title: "0012 — Source-only NPM packages"
+description: Why @olympusoss/sdk and @olympusoss/canvas ship as TypeScript source, not built bundles
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+`@olympusoss/sdk` and `@olympusoss/canvas` are npm packages consumed by Athena, Hera, and Site. The conventional pattern is to publish a built bundle (`dist/index.js`, `dist/index.d.ts`).
+
+## Alternatives
+
+- **Pre-built bundle** — fast install, opaque to consumers. Standard.
+- **Source-only** — `main: ./src/index.ts`, no build step on publish. Consumer's build pipeline (Bun, Next.js, etc.) transpiles.
+
+## Decision
+
+**Source-only.**
+
+Both packages ship `package.json` with `main: ./src/index.ts` and no `dist/`. Consumers tree-shake the actual source, get accurate types directly from declarations, and can debug into package source without source-maps.
+
+## Consequences
+
+- **Smaller built bundles in consumers.** Tree-shaking sees real exports, not aggregated bundle outputs.
+- **Accurate types.** No `.d.ts` ↔ source drift; the types ARE the source.
+- **Debuggability.** Stack traces and breakpoints land in real source. Useful when investigating a packaging issue inside a running container.
+- **Consumer build cost.** Athena/Hera/Site each compile the SDK source. Negligible for these small libraries.
+- **Constraint on syntax.** SDK and Canvas can use any TypeScript features the consumer build supports (currently Bun + Next.js / Webpack). No bleeding-edge syntax that would require a build pass not present in consumers.
+
+## Caveat: not a Bun workspace
+
+Olympus is **not** a Bun monorepo workspace. Each app reaches Canvas/SDK via published npm packages. For local development of Canvas/SDK with live reload into Athena, use `bun link`.
+
+## Related
+
+- [Develop — Package naming](/docs/develop/package-naming)
+- [Develop — Workspace setup](/docs/develop/workspace-setup)

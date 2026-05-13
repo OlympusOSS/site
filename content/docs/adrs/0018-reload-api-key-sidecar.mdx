@@ -1,0 +1,38 @@
+---
+title: "0018 — Reload API key sidecar"
+description: How Kratos identity-schema changes propagate to running services
+---
+
+**Status:** Accepted
+**Date:** 2026-03
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Olympus identity schemas live in `platform/prod/{ciam,iam}-kratos/identity.schema.json` (and similar). When you add a trait, you redeploy. But for **live schema reload** without restarting Kratos:
+
+- Kratos supports SIGHUP-triggered reload.
+- Sending SIGHUP requires shell access to the container process.
+
+We want operators to reload schemas through the Athena UI without granting them shell access.
+
+## Decision
+
+**A small "reload" sidecar runs in each Kratos pod. It accepts HTTP requests authenticated by a shared secret (`*_RELOAD_API_KEY`), and on receipt sends SIGHUP to the Kratos process.**
+
+```
+Athena → Caddy → /api/kratos-reload → reload-sidecar → SIGHUP → Kratos
+```
+
+The sidecar is a 50-line Bun script that listens on an internal port and validates the API key.
+
+## Consequences
+
+- **Schema reload is a button click.** Athena's Schemas page can trigger reload after edits.
+- **Shared secret to rotate.** `CIAM_RELOAD_API_KEY` and `IAM_RELOAD_API_KEY` join the [secrets inventory](/docs/security/secrets-management). Rotated quarterly per [Operate — Reload API Key Rotation](/docs/operate/reload-api-key-rotation).
+- **Tiny attack surface.** Sidecar accepts one operation (reload). No code paths to subvert.
+
+## Related
+
+- [Operate — Reload API Key Rotation](/docs/operate/reload-api-key-rotation)
+- [Security — Secrets Management](/docs/security/secrets-management)

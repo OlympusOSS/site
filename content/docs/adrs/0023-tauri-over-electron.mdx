@@ -1,0 +1,38 @@
+---
+title: "0023 — Tauri over Electron for Daedalus"
+description: Why Daedalus is a Tauri app rather than Electron
+---
+
+**Status:** Accepted
+**Date:** 2026-03
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Daedalus needs to be a native desktop app: persistent state, file-system access, native shell execution, native screenshots, system tray integration, app bundle distribution.
+
+## Alternatives
+
+| Framework | Pros | Cons |
+|---|---|---|
+| **Electron** | Mature, vast ecosystem, big community | ~100MB bundle baseline, ships its own Chromium, large attack surface, memory hungry. |
+| **Tauri** | Tiny binary (~10MB), uses OS webview, Rust backend with strong type safety, good security posture | Webview differs across OS versions, smaller community, Rust learning curve. |
+| **Wails** | Go backend, similar tiny-binary story | Less mature than Tauri. |
+| **Native (Swift / Kotlin)** | Maximum performance and platform fit | Per-platform implementations; high cost. |
+
+## Decision
+
+**Tauri.**
+
+## Consequences
+
+- **Small download.** Daedalus is ~10MB instead of 100MB+.
+- **Strong backend.** Rust catches errors at compile time that JS would catch at runtime.
+- **Native screenshots.** macOS `ScreenCaptureKit` integration is straightforward from Rust.
+- **OS-webview quirks.** Safari webview vs Chromium has subtle CSS rendering differences. Tested cross-version.
+- **Build complexity.** Rust + Bun + Vite + Tauri CLI all interact. CI script handles the orchestration.
+
+## Related
+
+- [Internals — Daedalus tauri shell](/docs/internals/daedalus-tauri-shell)
+- [Repo map](/docs/repo-map) — Daedalus.

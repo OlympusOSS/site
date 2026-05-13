@@ -1,0 +1,37 @@
+---
+title: "0004 — Push-to-main deployment"
+description: Why Olympus deploys on every push to main rather than via PR review gates
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Bobby is the sole maintainer and code author across all Olympus repos. PR workflows are an organizational pattern for **gating** changes — getting another set of eyes before merging. With one author, there are no other eyes.
+
+CI is the gate that matters: lint, typecheck, tests, prod-config verification, image-pin enforcement, secrets scan. CI runs on every push.
+
+## Decision
+
+**Commit directly to `main`. No PRs. CI is the gate.**
+
+This applies to every Olympus repo: site, athena, hera, platform, sdk, canvas, octl, daedalus.
+
+## Consequences
+
+- **Fast iteration.** A fix lands in seconds, not minutes.
+- **CI must be green for `main` to be deployable.** Red CI means rollback or fix-forward immediately.
+- **No "draft" or staging branches.** Use feature flags or unwired routes instead.
+- **External contributors still PR.** This ADR is about the maintainer's flow, not the contribution flow.
+
+## Related
+
+- [Develop — Release process](/docs/develop/release-process)
+- Memory: "Monitor GitHub builds until passing" — every push gets watched.
+
+## Revisit triggers
+
+- Olympus gains additional maintainers and needs review gates.
+- CI itself becomes unreliable.

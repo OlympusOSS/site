@@ -1,0 +1,40 @@
+---
+title: "0020 — Vitest as the default test stack"
+description: Why every Olympus repo uses Vitest as its primary test runner
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Olympus repos are TypeScript-first. The test ecosystem options:
+
+- **Jest** — battle-tested, widely known, slow startup, awkward ESM/TS config.
+- **Mocha + Chai** — old guard, lots of config.
+- **Node test runner** (`node:test`) — native, fast, but younger ecosystem.
+- **Bun test** — fast, native to Bun, but only works under Bun (not Node).
+- **Vitest** — modern, Vite-powered, fast, jest-compatible API, native ESM/TS.
+
+## Decision
+
+**Vitest** in every Olympus repo: athena, hera, site, canvas, sdk, octl.
+
+## Consequences
+
+- **Fast.** Test startup is 10× faster than Jest's, especially noticeable on large suites.
+- **Compatible.** `describe`/`it`/`expect` works exactly like Jest.
+- **Native ESM/TS.** No `babel` config, no `ts-jest`. Just point at `.ts` files.
+- **Watch mode is fast.** Re-runs affected tests on save.
+- **Coverage built-in** via `--coverage` (uses V8 by default).
+- **Single runner.** Same shape across every repo lowers cognitive load.
+
+## End-to-end testing
+
+For browser-based tests, Playwright complements Vitest. See [Develop — Testing strategy](/docs/develop/testing-strategy).
+
+## Related
+
+- [Develop — Testing strategy](/docs/develop/testing-strategy)
+- [Develop — Running tests](/docs/develop/running-tests)

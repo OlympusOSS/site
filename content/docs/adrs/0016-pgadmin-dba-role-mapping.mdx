@@ -1,0 +1,41 @@
+---
+title: "0016 — pgAdmin DBA role mapping via OIDC"
+description: Per-engineer Postgres database roles mapped from OIDC role claim
+---
+
+**Status:** Accepted
+**Date:** 2026-03
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Operators need to inspect/edit the production databases. The bad pattern is a shared `postgres` super-user with one credential everyone copies into pgAdmin. The good pattern is per-engineer database roles with least privilege.
+
+## Decision
+
+**pgAdmin authenticates via OIDC through IAM Hydra. The pgAdmin OIDC claims include a Kratos identity trait (`dba_role`) which maps to a per-engineer Postgres role.**
+
+The mapping is in [`platform/dev/iam-hydra/pgadmin-claims-mapper.jsonnet`](https://github.com/OlympusOSS/platform/blob/main/dev/iam-hydra/pgadmin-claims-mapper.jsonnet):
+
+```jsonnet
+local kratos = std.extVar('claims').identity.traits;
+{
+  username: kratos.email,
+  dba_role: kratos.dba_role  // e.g. "olympus_readonly", "olympus_app_admin"
+}
+```
+
+pgAdmin's OAuth2 integration picks up `dba_role` and connects to Postgres as that role.
+
+## Consequences
+
+- **Per-engineer auditability.** Postgres logs show which engineer ran which query.
+- **Least privilege.** Each role has only the grants it needs (read-only, app-admin, schema-admin).
+- **Offboarding is clean.** Disable the IAM identity → next pgAdmin login fails → DBA can't connect.
+- **Provisioning takes a step.** A new DBA needs both: an IAM identity with `dba_role` trait set, and a Postgres role created with matching grants.
+
+## Related
+
+- [Security — pgAdmin SSO](/docs/security/pgadmin-sso)
+- [Security — pgAdmin DBA Accounts](/docs/security/pgadmin-dba-accounts)
+- [Operate — pgAdmin DBA offboarding](/docs/operate/pgadmin-dba-offboarding)

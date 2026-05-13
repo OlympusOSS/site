@@ -1,0 +1,33 @@
+---
+title: "0025 — Octl bundles a stack/ directory"
+description: Why octl ships platform configs inside its npm package
+---
+
+**Status:** Accepted
+**Date:** 2026-03
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+`octl deploy` starts the full local Olympus stack. It needs `compose.dev.yml`, Kratos and Hydra configs, identity schemas, `init-db.sql`, seed scripts.
+
+Two options for sourcing these:
+
+- **Reference the `platform` repo.** Octl clones or downloads from GitHub. Always current, requires network.
+- **Bundle into octl's npm package.** Ship a `stack/` directory inside `@olympusoss/octl`. Single source.
+
+## Decision
+
+**Bundle.** `octl`'s npm package includes a `stack/` directory with the canonical dev configs.
+
+## Consequences
+
+- **`npx @olympusoss/octl deploy` works from any empty directory.** No `git clone platform` required first.
+- **Bundle size.** Octl's package is larger (~500KB) than it would be otherwise. Acceptable.
+- **Stack updates are octl releases.** When platform/dev config changes, the bundle in octl needs a corresponding update. CI synchronizes via a `pre-release` script that copies the latest configs from a pinned platform commit.
+- **Bundle drift risk.** If octl's bundled configs and the live platform repo diverge, dev environments may not match what's deployed via Daedalus. Tested by CI but worth periodic audit.
+
+## Related
+
+- [Get Started — Quickstart with octl](/docs/get-started/quickstart-octl)
+- [Internals — Octl stack bundle](/docs/internals/octl-stack-bundle)

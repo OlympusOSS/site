@@ -1,0 +1,52 @@
+---
+title: "0011 — JSON Schema identity model"
+description: Why Olympus uses Kratos's native JSON Schema rather than a custom DSL
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+The identity trait model needs to: validate at write time, drive UI generation, declare credentials/verification/recovery bindings.
+
+## Alternatives
+
+- **Custom DSL** — define our own format with our own validator. Maximum control, maximum maintenance burden.
+- **OpenAPI Schema** — leverage an existing standard. But OpenAPI's schema is for HTTP request/response — overkill and awkward for identity traits.
+- **JSON Schema (Kratos native)** — Kratos's native trait format. Standard, validated, with extension points for credential bindings.
+
+## Decision
+
+**JSON Schema (draft-07) using Kratos's native trait extension.**
+
+```json
+{
+  "$id": "https://schemas.olympus.app/customer.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email",
+      "ory.sh/kratos": {
+        "credentials": { "password": { "identifier": true } },
+        "verification": { "via": "email" }
+      }
+    }
+  }
+}
+```
+
+## Consequences
+
+- The schema is human-readable and machine-validatable.
+- Hera generates registration/settings UI directly from the schema via `@rjsf/core` (React JSON Schema Form). Adding a trait adds a form field automatically.
+- The `ory.sh/kratos` extension covers all our needs (identifiers, verification, recovery, MFA bindings).
+- Schema reload at runtime is supported by Kratos — see [Operate — Reload API Key Rotation](/docs/operate/reload-api-key-rotation).
+
+## Related
+
+- [Identity — Identity schemas](/docs/identity/identity-schemas)
+- [Reference — Identity schemas](/docs/reference/schemas/identity-schemas)

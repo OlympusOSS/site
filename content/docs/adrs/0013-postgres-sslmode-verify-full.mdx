@@ -1,0 +1,40 @@
+---
+title: "0013 — Postgres sslmode=verify-full mandatory in production"
+description: Why production Olympus requires the strictest Postgres TLS mode
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+PostgreSQL's `libpq` supports six `sslmode` values:
+
+| Mode | TLS used | Cert verified | Hostname verified |
+|---|---|---|---|
+| `disable` | no | — | — |
+| `allow` | sometimes | — | — |
+| `prefer` | sometimes | — | — |
+| `require` | yes | no | no |
+| `verify-ca` | yes | yes | no |
+| **`verify-full`** | yes | yes | yes |
+
+Only `verify-full` defends against MITM attacks where an attacker positioned between the app and Postgres presents their own cert.
+
+## Decision
+
+**Production Olympus requires `sslmode=verify-full`.** The platform's `verify-prod-config.yml` workflow asserts every `DATABASE_URL` includes `sslmode=verify-full`.
+
+## Consequences
+
+- **Defense against MITM.** A compromised network can't silently intercept Olympus ↔ Postgres traffic.
+- **CA bundle required.** Each app container needs the Postgres CA cert at `/etc/ssl/certs/postgres-ca.crt` (or wherever `libpq` reads). Distributed at deploy time.
+- **Self-hosted Postgres requires cert generation.** Daedalus's Database wizard handles this; manual deployments must produce the CA, server cert, and client trust bundle.
+- **Hostname must match cert SAN.** Connecting to `db.internal.example.com` requires that hostname in the cert's Subject Alternative Names.
+
+## Related
+
+- [Deploy — Database SSL verify-full](/docs/deploy/database-ssl-verify-full)
+- [Operate — Cert rotation](/docs/operate/cert-rotation)
+- [Security — Threat model](/docs/security/threat-model)

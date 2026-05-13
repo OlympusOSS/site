@@ -1,0 +1,45 @@
+---
+title: "0014 — Image pinning by digest in production"
+description: Why production compose files must reference images by sha256 digest, not tag
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+A compose file can reference images by:
+
+| Form | Example | Stability |
+|---|---|---|
+| Tag | `oryd/kratos:v1.x` | Mutable — tag can be reassigned |
+| Tag + digest | `oryd/kratos:v1.x@sha256:abc...` | Immutable; tag is informational |
+| Digest only | `oryd/kratos@sha256:abc...` | Immutable |
+
+A tag-only reference is vulnerable to:
+- Supply-chain attack via tag reassignment.
+- "Latest" surprises — `:latest` resolves differently over time.
+- Inconsistency between deploys.
+
+## Decision
+
+**Production `compose.prod.yml` must reference every image by digest.** Tags can be included for human readability but are not authoritative.
+
+The [`verify-image-pins.yml`](https://github.com/OlympusOSS/platform/blob/main/.github/workflows/verify-image-pins.yml) CI workflow fails the build if any image in `prod/compose.prod.yml` is referenced without `@sha256:...`.
+
+## Consequences
+
+- **Deploys are reproducible.** Re-running deploy.yml against the same compose ref produces the same images.
+- **Image updates are deliberate.** Bumping requires editing the digest, which means consciously evaluating the new image's changelog.
+- **Slightly verbose.** Compose files get ~70-char digest strings on every `image:` line.
+- **Dependabot helps.** Configured to bump digests on new Ory and other dependency releases (see `.github/dependabot.yml`).
+
+## Dev exception
+
+`compose.dev.yml` allows tag-only references for ergonomics (`oryd/kratos:v1.x` is fine in dev). The dev workflow doesn't run `verify-image-pins.yml`.
+
+## Related
+
+- [Security — Caddy Supply Chain](/docs/security/caddy-supply-chain) — applies the same pattern to the custom Caddy build.
+- [Develop — Release process](/docs/develop/release-process) — how digests get bumped.

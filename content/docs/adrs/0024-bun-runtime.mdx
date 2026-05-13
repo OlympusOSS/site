@@ -1,0 +1,40 @@
+---
+title: "0024 — Bun as runtime for app services"
+description: Why athena, hera, site (and octl) run on Bun rather than Node
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+The TypeScript-first Olympus apps (Athena, Hera, Site) and the CLI (Octl) need a JavaScript runtime.
+
+## Alternatives
+
+- **Node 20+** — ubiquitous, mature, widest module compatibility.
+- **Deno** — TypeScript-first, secure by default, smaller ecosystem.
+- **Bun** — TypeScript-first, fast startup, Node-compatible module resolution, modern primitives (`Bun.spawn`, `Bun.serve`, `Bun.password`).
+
+## Decision
+
+**Bun** for all app containers.
+
+## Consequences
+
+- **Fast startup.** Container cold start is ~200ms instead of ~600ms (Node). Compounds across the 12+ containers in a deploy.
+- **TypeScript without a compile step.** Bun runs `.ts` directly. No `tsc` build in the app images for app source (Next.js still bundles its own production build).
+- **Native modules are tested.** Bun's Node compatibility is excellent at this point; we've hit only minor edge cases.
+- **`bun install` is fast.** Per-repo install times are ~3× faster than `npm install`.
+- **Some Node-only modules occasionally need a workaround.** Documented per-repo when they arise.
+
+## Where Bun isn't used
+
+- **Octl ships as an npm package** consumed by `npx`. The runtime is whatever Node or Bun the user has. The code is Bun-compatible but invoked under either.
+- **GitHub Actions runners** use Node by default. Bun is installed via `oven-sh/setup-bun` in workflows that need it.
+
+## Related
+
+- [Develop — Workspace setup](/docs/develop/workspace-setup)
+- [Develop — Running tests](/docs/develop/running-tests)

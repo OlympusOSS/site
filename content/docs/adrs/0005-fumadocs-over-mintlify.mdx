@@ -1,0 +1,41 @@
+---
+title: "0005 — Fumadocs over Mintlify / Docusaurus / Nextra"
+description: Why the docs site uses Fumadocs
+---
+
+**Status:** Accepted
+**Date:** 2026-04
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Olympus needs a docs site that:
+1. Lives in the existing Next.js site repo (no separate framework).
+2. Renders MDX with code highlighting, Mermaid, callouts.
+3. Has navigation/search/dark mode.
+4. Is self-hosted.
+
+## Alternatives
+
+| Option | Verdict |
+|---|---|
+| **Mintlify** | Hosted SaaS. Pricing per-doc. Lock-in. ❌ |
+| **Docusaurus** | Separate React app, opinionated layout, hard to integrate with the brochure site. ❌ |
+| **Nextra** | Next.js-native; theme is opinionated. Active but smaller community. △ |
+| **Custom MDX rendering** | Most control but most upkeep. ❌ |
+| **Fumadocs** | Next.js-native; flexible theming; meta.json IA; good search; active development. ✓ |
+
+## Decision
+
+**Fumadocs.** Same Next.js app as the brochure and OAuth2 playground. Single deploy. Single domain. Search built in.
+
+## Consequences
+
+- One Next.js build for the entire Site repo.
+- Fumadocs's `meta.json` IA gives explicit ordering, separators, folder globs (`...folder`).
+- Mermaid via custom remark plugin (see [site/lib/remark-mermaid.mjs](https://github.com/OlympusOSS/site/blob/main/lib/remark-mermaid.mjs)).
+- Tracks Fumadocs upgrades; minor breaking changes per major version.
+
+## Related
+
+- [Internals — Site — Fumadocs](/docs/internals/site-fumadocs)

@@ -1,0 +1,39 @@
+---
+title: "0017 — Recovery HMAC token"
+description: Why recovery codes are HMAC-signed rather than stored as opaque database rows
+---
+
+**Status:** Accepted
+**Date:** 2026-02
+**Stakeholders:** Bobby Nannier (Ory Kratos design — Olympus uses the default)
+
+## Context
+
+When a user initiates password recovery, Kratos generates a recovery code and embeds it in an email URL. Options for representing this code:
+
+- **Opaque database row.** Generate a random code, write to DB, send via email. On click, look up by code; if found and not expired, allow recovery.
+- **HMAC-signed token.** Generate a token containing identity ID + expiry, HMAC-sign with a secret. Send via email. On click, verify HMAC; no DB lookup needed.
+
+## Decision
+
+**HMAC-signed tokens.** This is Ory Kratos's default. Olympus inherits it.
+
+The recovery token format:
+
+```
+<base64-url-encoded payload>.<base64-url-encoded HMAC>
+```
+
+Payload includes identity ID, flow ID, expiry. HMAC computed with `secrets.cipher` from `kratos.yml`.
+
+## Consequences
+
+- **Stateless validation.** No DB row to clean up after expiry.
+- **Cannot be revoked without rotating the cipher secret.** If a token is leaked before expiry, the only way to invalidate it is to rotate `secrets.cipher` (which invalidates all in-flight recovery tokens).
+- **Token is bound to the specific flow.** A token can't be reused across flows even if for the same identity.
+- **Single-use is enforced separately.** Kratos tracks "this flow's recovery code was used" in the DB; the HMAC alone doesn't prevent replay.
+
+## Related
+
+- [Identity — Flow recovery](/docs/identity/flow-recovery)
+- [Operate — Reload API key rotation](/docs/operate/reload-api-key-rotation) — when secrets like `cipher` rotate, this is the runbook.

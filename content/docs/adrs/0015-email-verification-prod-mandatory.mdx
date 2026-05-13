@@ -1,0 +1,36 @@
+---
+title: "0015 — Email verification mandatory in production"
+description: Why production Olympus enforces email verification before granting session access
+---
+
+**Status:** Accepted
+**Date:** 2026-03
+**Stakeholders:** Bobby Nannier
+
+## Context
+
+Email verification confirms the user controls the email they registered with. Without it:
+- An attacker can register accounts with someone else's email (the real owner gets a verification email they didn't expect; if they ignore it, the account is taken).
+- Recovery flows are weakened (you can recover an account by setting a new password if you have access to the registered email).
+- Bot-driven mass account creation is cheap.
+
+## Decision
+
+**Production deployments require email verification before granting session access.** Enforced by:
+1. The `require_verified_address` hook on the registration and login flows.
+2. The [`verify-email-enforcement.yml`](https://github.com/OlympusOSS/platform/blob/main/.github/workflows/verify-email-enforcement.yml) CI workflow asserts the hook is configured.
+
+A user who registers but doesn't verify cannot log in until verified. Their identity exists in `pending` state.
+
+## Consequences
+
+- **Some friction.** Users who type an email they can't access can't proceed.
+- **Email provider must be reliable.** Deliverability matters — see [Operate — Email Deliverability](/docs/operate/email-deliverability).
+- **Tighter cohort.** Every active identity is reachable via email.
+- **Dev exception.** Verification is optional in dev (`compose.dev.yml` doesn't enable the hook). MailSlurper captures the email so testing the flow is easy.
+
+## Related
+
+- [Security — Email verification](/docs/security/email-verification)
+- [Identity — Flow verification](/docs/identity/flow-verification)
+- [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust)
