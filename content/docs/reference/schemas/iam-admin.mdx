@@ -1,0 +1,94 @@
+---
+title: IAM Admin Identity Schema
+description: JSON Schema reference for the Admin Identity identity model
+---
+
+**Source:** `platform/dev/iam-kratos/admin-identity.schema.json`
+
+**Schema `$id`:** `https://schemas.olympus.dev/admin-identity.schema.json`
+
+## Fields
+
+| Field | Type | Format | Required | Ory bindings | Description |
+|-------|------|--------|----------|--------------|-------------|
+| `traits` | object | — | no | — | — |
+| `traits.email` | string | email | yes | password identifier, verifiable (email), recovery (email) | Email |
+| `traits.name` | object | — | no | — | — |
+| `traits.name.first` | string | — | no | — | First Name |
+| `traits.name.last` | string | — | no | — | Last Name |
+| `traits.role` | string | — | no | — | Role |
+| `traits.roles` | array | — | no | — | Access control roles for this identity (e.g. 'dba' grants pgAdmin access) |
+
+## Raw schema
+
+```json
+{
+  "$id": "https://schemas.olympus.dev/admin-identity.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Admin Identity",
+  "type": "object",
+  "properties": {
+    "traits": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "title": "Email",
+          "ory.sh/kratos": {
+            "credentials": {
+              "password": {
+                "identifier": true
+              }
+            },
+            "verification": {
+              "via": "email"
+            },
+            "recovery": {
+              "via": "email"
+            }
+          }
+        },
+        "name": {
+          "type": "object",
+          "properties": {
+            "first": {
+              "type": "string",
+              "title": "First Name"
+            },
+            "last": {
+              "type": "string",
+              "title": "Last Name"
+            }
+          }
+        },
+        "role": {
+          "type": "string",
+          "title": "Role",
+          "enum": [
+            "admin",
+            "viewer"
+          ],
+          "default": "viewer"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Access Control Roles",
+          "description": "Access control roles for this identity (e.g. 'dba' grants pgAdmin access)"
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
+```
+
+---
+
+*Generated from `../platform/dev/iam-kratos/admin-identity.schema.json` at build time.*

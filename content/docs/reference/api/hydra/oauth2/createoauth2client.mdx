@@ -1,0 +1,35 @@
+---
+title: "Create OAuth 2.0 Client"
+description: "Create a new OAuth 2.0 client. If you pass `client_secret` the secret is used, otherwise a random secret"
+---
+
+## `POST /admin/clients`
+
+Create a new OAuth 2.0 client. If you pass `client_secret` the secret is used, otherwise a random secret
+is generated. The secret is echoed in the response. It is not possible to retrieve it later on.
+
+**Operation ID:** `createOAuth2Client` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Request body
+
+OAuth 2.0 Client Request Body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `oAuth2Client` — see the [Ory Hydra API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 201 | oAuth2Client | `application/json` — object |
+| 400 | Bad Request Error Response | `application/json` — object |
+| default | Default Error Response | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

@@ -1,0 +1,29 @@
+---
+title: "Get OAuth 2.0 Session Logout Request"
+description: "Use this endpoint to fetch an Ory OAuth 2.0 logout request."
+---
+
+## `GET /admin/oauth2/auth/requests/logout`
+
+Use this endpoint to fetch an Ory OAuth 2.0 logout request.
+
+**Operation ID:** `getOAuth2LogoutRequest` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `logout_challenge` | string | yes |  |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | oAuth2LogoutRequest | `application/json` — object |
+| 410 | oAuth2RedirectTo | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

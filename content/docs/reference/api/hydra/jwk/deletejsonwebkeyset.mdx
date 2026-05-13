@@ -1,0 +1,30 @@
+---
+title: "Delete JSON Web Key Set"
+description: "Use this endpoint to delete a complete JSON Web Key Set and all the keys in that set."
+---
+
+## `DELETE /admin/keys/{set}`
+
+Use this endpoint to delete a complete JSON Web Key Set and all the keys in that set.
+
+A JSON Web Key (JWK) is a JavaScript Object Notation (JSON) data structure that represents a cryptographic key. A JWK Set is a JSON data structure that represents a set of JWKs. A JSON Web Key is identified by its set and key id. ORY Hydra uses this functionality to store cryptographic keys used for TLS and JSON Web Tokens (such as OpenID Connect ID tokens), and allows storing user-defined keys as well.
+
+**Operation ID:** `deleteJsonWebKeySet` &nbsp;&nbsp; **Tag:** jwk
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `set` | string | yes | The JSON Web Key Set |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

@@ -1,0 +1,40 @@
+---
+title: navigate
+description: "Navigate to a wizard step. Paths: /, /repository, /domain, /provider, /email, /database, /compute, /secrets, /oauth, /deploy, /health"
+---
+
+## MCP tool: `navigate`
+
+Navigate to a wizard step. Paths: /, /repository, /domain, /provider, /email, /database, /compute, /secrets, /oauth, /deploy, /health
+
+### Input schema
+
+```json
+{
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "The route path to navigate to" }
+                },
+                "required": ["path"]
+            }
+```
+
+### Calling this tool
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "navigate",
+    "arguments": { /* match input schema */ }
+  }
+}
+```
+
+Send to `http://127.0.0.1:14210` while Daedalus is running.
+
+---
+
+*Generated from `daedalus/src-tauri/src/mcp/tools.rs` at build time.*

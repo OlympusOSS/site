@@ -1,0 +1,40 @@
+---
+title: click
+description: "Click a button or element by its text content."
+---
+
+## MCP tool: `click`
+
+Click a button or element by its text content.
+
+### Input schema
+
+```json
+{
+                "type": "object",
+                "properties": {
+                    "text": { "type": "string", "description": "Text content of the element to click" },
+                    "selector": { "type": "string", "description": "CSS selector (alternative to text)" }
+                }
+            }
+```
+
+### Calling this tool
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "click",
+    "arguments": { /* match input schema */ }
+  }
+}
+```
+
+Send to `http://127.0.0.1:14210` while Daedalus is running.
+
+---
+
+*Generated from `daedalus/src-tauri/src/mcp/tools.rs` at build time.*

@@ -1,0 +1,33 @@
+---
+title: "Trust OAuth2 JWT Bearer Grant Type Issuer"
+description: "Use this endpoint to establish a trust relationship for a JWT issuer"
+---
+
+## `POST /admin/trust/grants/jwt-bearer/issuers`
+
+Use this endpoint to establish a trust relationship for a JWT issuer
+to perform JSON Web Token (JWT) Profile for OAuth 2.0 Client Authentication
+and Authorization Grants [RFC7523](https://datatracker.ietf.org/doc/html/rfc7523).
+
+**Operation ID:** `trustOAuth2JwtGrantIssuer` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `trustOAuth2JwtGrantIssuer` — see the [Ory Hydra API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 201 | trustedOAuth2JwtGrantIssuer | `application/json` — object |
+| default | genericError | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

@@ -1,0 +1,14 @@
+{
+  "title": "SDK",
+  "pages": [
+    "overview",
+    "blocklist",
+    "brute-force",
+    "cache",
+    "crypto",
+    "db",
+    "locations",
+    "migrate-encryption-key",
+    "settings"
+  ]
+}

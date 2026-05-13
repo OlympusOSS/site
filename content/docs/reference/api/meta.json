@@ -3,14 +3,12 @@
   "pages": [
     "overview",
     "---Athena---",
-    "athena-overview",
+    "...athena",
     "---SDK---",
-    "sdk-overview",
+    "...sdk",
     "---MCP---",
-    "mcp-overview",
-    "---Kratos---",
-    "kratos-deltas",
+    "...mcp",
     "---Hydra---",
-    "hydra-deltas"
+    "...hydra"
   ]
 }

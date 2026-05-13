@@ -1,0 +1,40 @@
+---
+title: athena-seed-dev
+description: Compose service `athena-seed-dev` — runtime configuration across dev and prod
+---
+
+Compose service **`athena-seed-dev`**.
+
+*Defined in **dev** only — not present in production.*
+
+
+### Dev (`compose.dev.yml`)
+
+**Image:** `docker.io/postgres:18-alpine`
+
+**Command:** `sh -c "apk add --no-cache curl > /dev/null 2>&1 && sh /iam-seed-dev.sh"`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `PGHOST` | `postgres` |
+| `PGUSER` | `postgres` |
+| `PGPASSWORD` | `secret` |
+| `PGDATABASE` | `olympus` |
+
+**Volumes:**
+- `{"type":"bind","source":"./iam-seed-dev.sh","target":"/iam-seed-dev.sh"}`
+
+**Depends on:** `postgres`, `iam-kratos`, `ciam-kratos`, `ciam-hydra`, `iam-hydra`
+
+**Restart policy:** `no`
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

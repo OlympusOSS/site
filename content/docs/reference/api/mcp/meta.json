@@ -1,0 +1,14 @@
+{
+  "title": "MCP",
+  "pages": [
+    "overview",
+    "screenshot",
+    "get_page",
+    "navigate",
+    "click",
+    "form_input",
+    "read_context",
+    "terminal_exec",
+    "terminal_read"
+  ]
+}

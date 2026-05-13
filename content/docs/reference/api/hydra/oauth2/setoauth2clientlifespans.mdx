@@ -1,0 +1,37 @@
+---
+title: "Set OAuth2 Client Token Lifespans"
+description: "Set lifespans of different token types issued for this OAuth 2.0 client. Does not modify other fields."
+---
+
+## `PUT /admin/clients/{id}/lifespans`
+
+Set lifespans of different token types issued for this OAuth 2.0 client. Does not modify other fields.
+
+**Operation ID:** `setOAuth2ClientLifespans` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | OAuth 2.0 Client ID |
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `oAuth2ClientTokenLifespans` — see the [Ory Hydra API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | oAuth2Client | `application/json` — object |
+| default | genericError | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

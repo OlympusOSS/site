@@ -1,0 +1,52 @@
+---
+title: seed
+description: Compose service `seed` — runtime configuration across dev and prod
+---
+
+Compose service **`seed`**.
+
+*Defined in **prod** only — not present in dev.*
+
+
+### Prod (`compose.prod.yml`)
+
+**Image:** `docker.io/curlimages/curl:8.19.0`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `IAM_KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
+| `CIAM_KRATOS_ADMIN_URL` | `http://ciam-kratos:5001` |
+| `CIAM_HYDRA_ADMIN_URL` | `http://ciam-hydra:5003` |
+| `IAM_HYDRA_ADMIN_URL` | `http://iam-hydra:7003` |
+| `ADMIN_EMAIL` | `${ADMIN_EMAIL}` |
+| `ADMIN_PASSWORD` | `${ADMIN_PASSWORD}` |
+| `CIAM_ATHENA_PUBLIC_URL` | `${CIAM_ATHENA_PUBLIC_URL}` |
+| `IAM_ATHENA_PUBLIC_URL` | `${IAM_ATHENA_PUBLIC_URL}` |
+| `ATHENA_CIAM_OAUTH_CLIENT_ID` | `${ATHENA_CIAM_OAUTH_CLIENT_ID}` |
+| `ATHENA_CIAM_OAUTH_CLIENT_SECRET` | `${ATHENA_CIAM_OAUTH_CLIENT_SECRET}` |
+| `ATHENA_IAM_OAUTH_CLIENT_ID` | `${ATHENA_IAM_OAUTH_CLIENT_ID}` |
+| `ATHENA_IAM_OAUTH_CLIENT_SECRET` | `${ATHENA_IAM_OAUTH_CLIENT_SECRET}` |
+| `SITE_PUBLIC_URL` | `${SITE_PUBLIC_URL}` |
+| `SITE_CIAM_CLIENT_ID` | `${SITE_CIAM_CLIENT_ID}` |
+| `SITE_CIAM_CLIENT_SECRET` | `${SITE_CIAM_CLIENT_SECRET}` |
+| `SITE_IAM_CLIENT_ID` | `${SITE_IAM_CLIENT_ID}` |
+| `SITE_IAM_CLIENT_SECRET` | `${SITE_IAM_CLIENT_SECRET}` |
+| `PGADMIN_PUBLIC_URL` | `${PGADMIN_PUBLIC_URL}` |
+| `PGADMIN_OAUTH_CLIENT_ID` | `${PGADMIN_OAUTH_CLIENT_ID}` |
+| `PGADMIN_OAUTH_CLIENT_SECRET` | `${PGADMIN_OAUTH_CLIENT_SECRET}` |
+
+**Volumes:**
+- `{"type":"bind","source":"./seed-prod.sh","target":"/seed-prod.sh"}`
+
+**Depends on:** `ciam-kratos`, `iam-kratos`, `ciam-hydra`, `iam-hydra`
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

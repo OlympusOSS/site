@@ -1,0 +1,97 @@
+---
+title: site
+description: Compose service `site` — runtime configuration across dev and prod
+---
+
+Compose service **`site`**.
+
+
+### Dev (`compose.dev.yml`)
+
+**Image:** `dev-site`
+
+**Build:** `{"context":"../../site","dockerfile":"Containerfile.dev","secrets":["npmrc"]}`
+
+**Command:** `sh -c cp /tmp/.npmrc /app/.npmrc 2>/dev/null; bun install 2>/dev/null; rm -f /app/.npmrc; bun run dev`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `CIAM_HYDRA_PUBLIC_URL` | `http://ciam-hydra:5002` |
+| `IAM_HYDRA_PUBLIC_URL` | `http://iam-hydra:7002` |
+| `CIAM_HYDRA_ADMIN_URL` | `http://ciam-hydra:5003` |
+| `IAM_HYDRA_ADMIN_URL` | `http://iam-hydra:7003` |
+| `CIAM_KRATOS_ADMIN_URL` | `http://ciam-kratos:5001` |
+| `IAM_KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:2000` |
+| `NEXT_PUBLIC_CIAM_ATHENA_URL` | `http://localhost:3001` |
+| `NEXT_PUBLIC_IAM_ATHENA_URL` | `http://localhost:4001` |
+| `WATCHPACK_POLLING` | `true` |
+
+**Volumes:**
+- `../../site:/app`
+- `/app/node_modules/.cache`
+- `/app/.next`
+- `./.npmrc:/tmp/.npmrc:ro`
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+### Prod (`compose.prod.yml`)
+
+**Image:** `ghcr.io/olympusoss/site:${SITE_IMAGE_TAG:-latest}`
+
+**Ports:**
+- `2000:3000`
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `NODE_ENV` | `production` |
+| `NEXT_PUBLIC_APP_URL` | `${SITE_PUBLIC_URL}` |
+| `NEXT_PUBLIC_CIAM_HYDRA_URL` | `${CIAM_HYDRA_PUBLIC_URL}` |
+| `NEXT_PUBLIC_IAM_HYDRA_URL` | `${IAM_HYDRA_PUBLIC_URL}` |
+| `NEXT_PUBLIC_CIAM_ATHENA_URL` | `${CIAM_ATHENA_PUBLIC_URL}` |
+| `NEXT_PUBLIC_IAM_ATHENA_URL` | `${IAM_ATHENA_PUBLIC_URL}` |
+| `CIAM_HYDRA_PUBLIC_URL` | `http://ciam-hydra:5002` |
+| `IAM_HYDRA_PUBLIC_URL` | `http://iam-hydra:7002` |
+| `CIAM_HYDRA_ADMIN_URL` | `http://ciam-hydra:5003` |
+| `IAM_HYDRA_ADMIN_URL` | `http://iam-hydra:7003` |
+| `CIAM_KRATOS_ADMIN_URL` | `http://ciam-kratos:5001` |
+| `IAM_KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
+| `CIAM_CLIENT_ID` | `${SITE_CIAM_CLIENT_ID}` |
+| `CIAM_CLIENT_SECRET` | `${SITE_CIAM_CLIENT_SECRET}` |
+| `IAM_CLIENT_ID` | `${SITE_IAM_CLIENT_ID}` |
+| `IAM_CLIENT_SECRET` | `${SITE_IAM_CLIENT_SECRET}` |
+
+**Depends on:** `ciam-hydra`, `iam-hydra`
+
+**Healthcheck:**
+
+```yaml
+{
+  "test": [
+    "CMD-SHELL",
+    "wget --spider --quiet http://localhost:3000/ || exit 1"
+  ],
+  "interval": "15s",
+  "timeout": "5s",
+  "start_period": "20s",
+  "retries": 3
+}
+```
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

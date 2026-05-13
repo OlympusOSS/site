@@ -1,0 +1,31 @@
+---
+title: "Introspect OAuth2 Access and Refresh Tokens"
+description: "The introspection endpoint allows to check if a token (both refresh and access) is active or not. An active token"
+---
+
+## `POST /admin/oauth2/introspect`
+
+The introspection endpoint allows to check if a token (both refresh and access) is active or not. An active token
+is neither expired nor revoked. If a token is active, additional information on the token will be included. You can
+set additional data for a token by setting `session.access_token` during the consent flow.
+
+**Operation ID:** `introspectOAuth2Token` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Request body
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+Type: object
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | introspectedOAuth2Token | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

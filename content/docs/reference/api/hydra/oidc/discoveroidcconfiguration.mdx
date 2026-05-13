@@ -1,0 +1,25 @@
+---
+title: "OpenID Connect Discovery"
+description: "A mechanism for an OpenID Connect Relying Party to discover the End-User's OpenID Provider and obtain information needed to interact with it, including its OAuth 2.0 endpoint locations."
+---
+
+## `GET /.well-known/openid-configuration`
+
+A mechanism for an OpenID Connect Relying Party to discover the End-User's OpenID Provider and obtain information needed to interact with it, including its OAuth 2.0 endpoint locations.
+
+Popular libraries for OpenID Connect clients include oidc-client-js (JavaScript), go-oidc (Golang), and others.
+For a full list of clients go here: https://openid.net/developers/certified/
+
+**Operation ID:** `discoverOidcConfiguration` &nbsp;&nbsp; **Tag:** oidc
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | oidcConfiguration | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

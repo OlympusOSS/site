@@ -1,0 +1,30 @@
+---
+title: "Retrieve a JSON Web Key Set"
+description: "This endpoint can be used to retrieve JWK Sets stored in ORY Hydra."
+---
+
+## `GET /admin/keys/{set}`
+
+This endpoint can be used to retrieve JWK Sets stored in ORY Hydra.
+
+A JSON Web Key (JWK) is a JavaScript Object Notation (JSON) data structure that represents a cryptographic key. A JWK Set is a JSON data structure that represents a set of JWKs. A JSON Web Key is identified by its set and key id. ORY Hydra uses this functionality to store cryptographic keys used for TLS and JSON Web Tokens (such as OpenID Connect ID tokens), and allows storing user-defined keys as well.
+
+**Operation ID:** `getJsonWebKeySet` &nbsp;&nbsp; **Tag:** jwk
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `set` | string | yes | JSON Web Key Set ID |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | jsonWebKeySet | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

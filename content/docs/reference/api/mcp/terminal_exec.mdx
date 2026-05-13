@@ -1,0 +1,40 @@
+---
+title: terminal_exec
+description: "Execute a command in the embedded terminal."
+---
+
+## MCP tool: `terminal_exec`
+
+Execute a command in the embedded terminal.
+
+### Input schema
+
+```json
+{
+                "type": "object",
+                "properties": {
+                    "command": { "type": "string", "description": "Command to execute" }
+                },
+                "required": ["command"]
+            }
+```
+
+### Calling this tool
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "terminal_exec",
+    "arguments": { /* match input schema */ }
+  }
+}
+```
+
+Send to `http://127.0.0.1:14210` while Daedalus is running.
+
+---
+
+*Generated from `daedalus/src-tauri/src/mcp/tools.rs` at build time.*

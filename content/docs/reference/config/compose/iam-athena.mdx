@@ -1,0 +1,128 @@
+---
+title: iam-athena
+description: Compose service `iam-athena` — runtime configuration across dev and prod
+---
+
+Compose service **`iam-athena`**.
+
+
+### Dev (`compose.dev.yml`)
+
+**Image:** `dev-athena`
+
+**Build:** `{"context":"../../athena","dockerfile":"Containerfile.dev","secrets":["npmrc"]}`
+
+**Command:** `sh -c cp /tmp/.npmrc /app/.npmrc 2>/dev/null; bun install 2>/dev/null; rm -f /app/.npmrc; bun run dev`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `NODE_ENV` | `development` |
+| `KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
+| `KRATOS_PUBLIC_URL` | `http://iam-kratos:7000` |
+| `HYDRA_PUBLIC_URL` | `http://iam-hydra:7002` |
+| `HYDRA_ADMIN_URL` | `http://iam-hydra:7003` |
+| `IAM_KRATOS_PUBLIC_URL` | `http://iam-kratos:7000` |
+| `IAM_KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
+| `NEXT_PUBLIC_IAM_HYDRA_PUBLIC_URL` | `http://localhost:4102` |
+| `IAM_HYDRA_PUBLIC_URL` | `http://iam-hydra:7002` |
+| `IAM_HYDRA_ADMIN_URL` | `http://iam-hydra:7003` |
+| `NEXT_PUBLIC_AUTH_HYDRA_URL` | `http://localhost:4102` |
+| `AUTH_HYDRA_URL` | `http://iam-hydra:7002` |
+| `AUTH_HYDRA_ADMIN_URL` | `http://iam-hydra:7003` |
+| `AUTH_KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
+| `OAUTH_CLIENT_ID` | `athena-iam-client` |
+| `OAUTH_CLIENT_SECRET` | `athena-iam-secret` |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:4001` |
+| `NEXT_PUBLIC_APP_INSTANCE` | `IAM` |
+| `WATCHPACK_POLLING` | `true` |
+| `APP_INSTANCE` | `IAM` |
+| `DEFAULT_CLIENT_ID` | `athena-iam-client` |
+| `CAPTCHA_ENABLED` | `false` |
+| `CAPTCHA_SITE_KEY` | `` |
+| `DATABASE_URL` | `postgres://postgres:secret@postgres:5432/olympus?sslmode` |
+| `SETTINGS_TABLE` | `iam_settings` |
+| `ENCRYPTION_KEY` | `dev-encryption-key-minimum-32-chars!!` |
+| `ATHENA_INTERNAL_URL` | `http://iam-athena:3000` |
+| `HERA_INTERNAL_URL` | `http://iam-hera:4000` |
+
+**Volumes:**
+- `../../athena:/app`
+- `/app/node_modules/.cache`
+- `/app/.next`
+- `./.npmrc:/tmp/.npmrc:ro`
+
+**Depends on:** `iam-kratos`, `iam-hydra`
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+### Prod (`compose.prod.yml`)
+
+**Image:** `ghcr.io/olympusoss/athena:${ATHENA_IMAGE_TAG:-latest}`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `NODE_ENV` | `production` |
+| `NEXT_PUBLIC_APP_INSTANCE` | `IAM` |
+| `APP_INSTANCE` | `IAM` |
+| `NEXT_PUBLIC_APP_URL` | `${IAM_ATHENA_PUBLIC_URL}` |
+| `KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
+| `KRATOS_PUBLIC_URL` | `http://iam-kratos:7000` |
+| `HYDRA_PUBLIC_URL` | `http://iam-hydra:7002` |
+| `HYDRA_ADMIN_URL` | `http://iam-hydra:7003` |
+| `IAM_KRATOS_PUBLIC_URL` | `http://iam-kratos:7000` |
+| `IAM_KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
+| `IAM_HYDRA_PUBLIC_URL` | `http://iam-hydra:7002` |
+| `IAM_HYDRA_ADMIN_URL` | `http://iam-hydra:7003` |
+| `NEXT_PUBLIC_IAM_HYDRA_PUBLIC_URL` | `${IAM_HYDRA_PUBLIC_URL}` |
+| `NEXT_PUBLIC_AUTH_HYDRA_URL` | `${IAM_HYDRA_PUBLIC_URL}` |
+| `AUTH_HYDRA_URL` | `http://iam-hydra:7002` |
+| `AUTH_HYDRA_ADMIN_URL` | `http://iam-hydra:7003` |
+| `AUTH_KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
+| `CAPTCHA_ENABLED` | `${IAM_CAPTCHA_ENABLED:-false}` |
+| `CAPTCHA_SITE_KEY` | `${IAM_CAPTCHA_SITE_KEY:-}` |
+| `DATABASE_URL` | `${PG_OLYMPUS_DSN}` |
+| `SETTINGS_TABLE` | `iam_settings` |
+| `ENCRYPTION_KEY` | `${ENCRYPTION_KEY}` |
+| `OAUTH_CLIENT_ID` | `${ATHENA_IAM_OAUTH_CLIENT_ID}` |
+| `OAUTH_CLIENT_SECRET` | `${ATHENA_IAM_OAUTH_CLIENT_SECRET}` |
+| `SESSION_SIGNING_KEY` | `${SESSION_SIGNING_KEY}` |
+| `ATHENA_INTERNAL_URL` | `http://iam-athena:3000` |
+| `HERA_INTERNAL_URL` | `http://iam-hera:4000` |
+
+**Volumes:**
+- `{"type":"bind","source":"./postgres/pg-ca.crt","target":"/etc/ssl/certs/pg-ca.crt","read_only":true}`
+
+**Depends on:** `iam-kratos`, `iam-hydra`
+
+**Healthcheck:**
+
+```yaml
+{
+  "test": [
+    "CMD-SHELL",
+    "wget --spider --quiet http://localhost:3000/api/health || exit 1"
+  ],
+  "interval": "15s",
+  "timeout": "5s",
+  "start_period": "30s",
+  "retries": 3
+}
+```
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

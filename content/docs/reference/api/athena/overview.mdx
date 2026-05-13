@@ -1,0 +1,51 @@
+---
+title: Athena API
+description: REST API exposed by the Athena admin dashboard
+---
+
+Athena exposes a REST API at `/api/*`. Every route is protected by a session cookie (see [Athena API Authentication](/docs/reference/api-athena-authentication)) — only `/api/health` and `/api/auth/**` are public.
+
+## Route inventory
+
+| Path | Methods |
+|------|---------|
+| [`/auth/callback`](./auth-callback) | `GET` |
+| [`/auth/login`](./auth-login) | `GET` |
+| [`/auth/logout`](./auth-logout) | `GET` |
+| [`/auth/session`](./auth-session) | `GET` |
+| [`/clients/m2m`](./clients-m2m) | `GET`, `POST` |
+| [`/clients/m2m/:id`](./clients-m2m-id) | `DELETE` |
+| [`/clients/m2m/:id/rotate-secret`](./clients-m2m-id-rotate-secret) | `POST` |
+| [`/config`](./config) | `GET` |
+| [`/connections/public`](./connections-public) | `GET` |
+| [`/connections/social`](./connections-social) | `GET`, `POST` |
+| [`/connections/social/:provider`](./connections-social-provider) | `DELETE`, `PATCH` |
+| [`/dashboard/layout`](./dashboard-layout) | `GET`, `PUT` |
+| [`/encrypt`](./encrypt) | `POST` |
+| [`/geo`](./geo) | `POST` |
+| [`/health`](./health) | `GET` |
+| [`/mfa/stats`](./mfa-stats) | `GET` |
+| [`/security/locked-accounts`](./security-locked-accounts) | `GET` |
+| [`/security/locked-accounts/unlock`](./security-locked-accounts-unlock) | `POST` |
+| [`/services/health`](./services-health) | `GET` |
+| [`/services/versions`](./services-versions) | `GET` |
+| [`/session-locations`](./session-locations) | `GET` |
+| [`/settings`](./settings) | `GET`, `POST` |
+| [`/settings/:key`](./settings-key) | `GET`, `DELETE` |
+| [`/settings/batch`](./settings-batch) | `POST` |
+
+## Total surface
+
+24 routes, 30 method handlers.
+
+## Authentication
+
+See [Athena API Authentication](/docs/reference/api-athena-authentication).
+
+## Errors
+
+See [Athena API Errors](/docs/reference/api-athena-errors).
+
+## Pagination
+
+See [Athena API Pagination](/docs/reference/api-athena-pagination).

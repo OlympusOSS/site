@@ -1,0 +1,47 @@
+---
+title: "Accept OAuth 2.0 Login Request"
+description: "When an authorization code, hybrid, or implicit OAuth 2.0 Flow is initiated, Ory asks the login provider"
+---
+
+## `PUT /admin/oauth2/auth/requests/login/accept`
+
+When an authorization code, hybrid, or implicit OAuth 2.0 Flow is initiated, Ory asks the login provider
+to authenticate the subject and then tell the Ory OAuth2 Service about it.
+
+The authentication challenge is appended to the login provider URL to which the subject's user-agent (browser) is redirected to. The login
+provider uses that challenge to fetch information on the OAuth2 request and then accept or reject the requested authentication process.
+
+This endpoint tells Ory that the subject has successfully authenticated and includes additional information such as
+the subject's ID and if Ory should remember the subject's subject agent for future authentication attempts by setting
+a cookie.
+
+The response contains a redirect URL which the login provider should redirect the user-agent to.
+
+**Operation ID:** `acceptOAuth2LoginRequest` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `login_challenge` | string | yes | OAuth 2.0 Login Request Challenge |
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `acceptOAuth2LoginRequest` — see the [Ory Hydra API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | oAuth2RedirectTo | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

@@ -1,0 +1,86 @@
+---
+title: brute-force
+description: "SDK module brute-force — exports and signatures"
+---
+
+**Source:** `sdk/src/brute-force.ts`
+
+For implementation details and inline JSDoc, see the source on GitHub: [`sdk/src/brute-force.ts`](https://github.com/OlympusOSS/sdk/blob/main/src/brute-force.ts).
+
+## Exports
+
+### `BruteForceConfig` (`interface`)
+
+```ts
+interface BruteForceConfig
+```
+
+### `LockoutState` (`interface`)
+
+```ts
+interface LockoutState
+```
+
+### `LockedAccount` (`interface`)
+
+```ts
+interface LockedAccount
+```
+
+### `LoginAttempt` (`interface`)
+
+```ts
+interface LoginAttempt
+```
+
+### `AuditLogEvent` (`interface`)
+
+```ts
+interface AuditLogEvent
+```
+
+### `getBruteForceConfig` (`function`)
+
+```ts
+function getBruteForceConfig ():
+```
+
+### `checkLockout` (`function`)
+
+```ts
+function checkLockout (identifier:
+```
+
+### `recordFailedAttempt` (`function`)
+
+```ts
+function recordFailedAttempt (
+```
+
+### `clearAttempts` (`function`)
+
+```ts
+function clearAttempts (identifier:
+```
+
+### `listLockedAccounts` (`function`)
+
+```ts
+function listLockedAccounts ():
+```
+
+### `unlockAccount` (`function`)
+
+```ts
+function unlockAccount (
+```
+
+### `appendAuditLog` (`function`)
+
+```ts
+function appendAuditLog (event:
+```
+
+---
+
+*Generated from `sdk/src/brute-force.ts` at build time.*

@@ -1,0 +1,59 @@
+---
+title: iam-hydra-migrate
+description: Compose service `iam-hydra-migrate` — runtime configuration across dev and prod
+---
+
+Compose service **`iam-hydra-migrate`**.
+
+
+### Dev (`compose.dev.yml`)
+
+**Image:** `docker.io/oryd/hydra:v26.2.0`
+
+**Command:** `migrate -c /etc/config/iam-hydra/hydra.yml sql up -e --yes`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `DSN` | `postgres://postgres:secret@postgres:5432/iam_hydra?sslmode` |
+
+**Volumes:**
+- `{"type":"bind","source":"./iam-hydra","target":"/etc/config/iam-hydra"}`
+
+**Depends on:** `postgres`
+
+**Restart policy:** `on-failure`
+
+**Networks:** `intranet`
+
+
+### Prod (`compose.prod.yml`)
+
+**Image:** `docker.io/oryd/hydra:v26.2.0`
+
+**Command:** `hydra migrate -c /etc/config/iam-hydra/hydra.yml sql up -e --yes`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `DSN` | `${PG_IAM_HYDRA_DSN}` |
+
+**Volumes:**
+- `{"type":"bind","source":"./check-secrets.sh","target":"/check-secrets.sh","read_only":true}`
+- `{"type":"bind","source":"./iam-hydra","target":"/etc/config/iam-hydra"}`
+- `{"type":"bind","source":"./postgres/pg-ca.crt","target":"/etc/ssl/certs/pg-ca.crt","read_only":true}`
+
+**Depends on:** `postgres`
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

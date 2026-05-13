@@ -1,0 +1,37 @@
+---
+title: "Revoke OAuth 2.0 Access or Refresh Token"
+description: "Revoking a token (both access and refresh) means that the tokens will be invalid. A revoked access token can no"
+---
+
+## `POST /oauth2/revoke`
+
+Revoking a token (both access and refresh) means that the tokens will be invalid. A revoked access token can no
+longer be used to make access requests, and a revoked refresh token can no longer be used to refresh an access token.
+Revoking a refresh token also invalidates the access token that was created with it. A token may only be revoked by
+the client the token was generated for.
+
+**Operation ID:** `revokeOAuth2Token` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Request body
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+Type: object
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| default | errorOAuth2 | `application/json` — object |
+
+#### Security
+
+- `basic`
+- `oauth2`
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

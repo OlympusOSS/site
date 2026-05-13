@@ -1,0 +1,31 @@
+---
+title: "Get an OAuth 2.0 Client"
+description: "Get an OAuth 2.0 client by its ID. This endpoint never returns the client secret."
+---
+
+## `GET /admin/clients/{id}`
+
+Get an OAuth 2.0 client by its ID. This endpoint never returns the client secret.
+
+OAuth 2.0 clients are used to perform OAuth 2.0 and OpenID Connect flows. Usually, OAuth 2.0 clients are
+generated for applications which want to consume your OAuth 2.0 or OpenID Connect capabilities.
+
+**Operation ID:** `getOAuth2Client` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | The id of the OAuth 2.0 Client. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | oAuth2Client | `application/json` — object |
+| default | Default Error Response | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

@@ -1,0 +1,30 @@
+---
+title: "List Trusted OAuth2 JWT Bearer Grant Type Issuers"
+description: "Use this endpoint to list all trusted JWT Bearer Grant Type Issuers."
+---
+
+## `GET /admin/trust/grants/jwt-bearer/issuers`
+
+Use this endpoint to list all trusted JWT Bearer Grant Type Issuers.
+
+**Operation ID:** `listTrustedOAuth2JwtGrantIssuers` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `MaxItems` | integer (int64) | no |  |
+| `DefaultItems` | integer (int64) | no |  |
+| `issuer` | string | no | If optional "issuer" is supplied, only jwt-bearer grants with this issuer will be returned. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | trustedOAuth2JwtGrantIssuers | `application/json` — array of object |
+| default | genericError | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

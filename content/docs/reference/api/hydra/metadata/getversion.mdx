@@ -1,0 +1,27 @@
+---
+title: "Return Running Software Version."
+description: "This endpoint returns the version of Ory Hydra."
+---
+
+## `GET /version`
+
+This endpoint returns the version of Ory Hydra.
+
+If the service supports TLS Edge Termination, this endpoint does not require the
+`X-Forwarded-Proto` header to be set.
+
+Be aware that if you are running multiple nodes of this service, the version will never
+refer to the cluster state, only to a single instance.
+
+**Operation ID:** `getVersion` &nbsp;&nbsp; **Tag:** metadata
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | Returns the Ory Hydra version. | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

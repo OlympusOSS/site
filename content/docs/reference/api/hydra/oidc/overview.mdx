@@ -1,0 +1,17 @@
+---
+title: oidc
+description: oidc endpoints in the Ory Hydra API (vunknown)
+---
+
+Endpoints in the **oidc** group of the Ory Hydra API.
+
+| Method | Path | Summary |
+|--------|------|---------|
+| `GET` | [`/.well-known/openid-configuration`](./discoveroidcconfiguration) | OpenID Connect Discovery |
+| `POST` | [`/credentials`](./createverifiablecredential) | Issues a Verifiable Credential |
+| `POST` | [`/oauth2/register`](./createoidcdynamicclient) | Register OAuth2 Client using OpenID Dynamic Client Registration |
+| `GET` | [`/oauth2/register/{id}`](./getoidcdynamicclient) | Get OAuth2 Client using OpenID Dynamic Client Registration |
+| `PUT` | [`/oauth2/register/{id}`](./setoidcdynamicclient) | Set OAuth2 Client using OpenID Dynamic Client Registration |
+| `DELETE` | [`/oauth2/register/{id}`](./deleteoidcdynamicclient) | Delete OAuth 2.0 Client using the OpenID Dynamic Client Registration Management Protocol |
+| `GET` | [`/oauth2/sessions/logout`](./revokeoidcsession) | OpenID Connect Front- and Back-channel Enabled Logout |
+| `GET` | [`/userinfo`](./getoidcuserinfo) | OpenID Connect Userinfo |

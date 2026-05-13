@@ -1,0 +1,31 @@
+---
+title: "Revoke OAuth 2.0 Consent Sessions of a Subject"
+description: "This endpoint revokes a subject's granted consent sessions and invalidates all"
+---
+
+## `DELETE /admin/oauth2/auth/sessions/consent`
+
+This endpoint revokes a subject's granted consent sessions and invalidates all
+associated OAuth 2.0 Access Tokens. You may also only revoke sessions for a specific OAuth 2.0 Client ID.
+
+**Operation ID:** `revokeOAuth2ConsentSessions` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `subject` | string | yes | OAuth 2.0 Consent Subject  The subject whose consent sessions should be deleted. |
+| `client` | string | no | OAuth 2.0 Client ID  If set, deletes only those consent sessions that have been granted to the specified OAuth 2.0 Client ID. |
+| `all` | boolean | no | Revoke All Consent Sessions  If set to `true` deletes all consent sessions by the Subject that have been granted. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

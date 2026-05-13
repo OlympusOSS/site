@@ -1,0 +1,30 @@
+{
+  "title": "Athena",
+  "pages": [
+    "overview",
+    "auth-callback",
+    "auth-login",
+    "auth-logout",
+    "auth-session",
+    "clients-m2m",
+    "clients-m2m-id",
+    "clients-m2m-id-rotate-secret",
+    "config",
+    "connections-public",
+    "connections-social",
+    "connections-social-provider",
+    "dashboard-layout",
+    "encrypt",
+    "geo",
+    "health",
+    "mfa-stats",
+    "security-locked-accounts",
+    "security-locked-accounts-unlock",
+    "services-health",
+    "services-versions",
+    "session-locations",
+    "settings",
+    "settings-batch",
+    "settings-key"
+  ]
+}

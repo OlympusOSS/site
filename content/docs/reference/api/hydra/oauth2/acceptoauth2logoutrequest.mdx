@@ -1,0 +1,30 @@
+---
+title: "Accept OAuth 2.0 Session Logout Request"
+description: "When a user or an application requests Ory OAuth 2.0 to remove the session state of a subject, this endpoint is used to confirm that logout request."
+---
+
+## `PUT /admin/oauth2/auth/requests/logout/accept`
+
+When a user or an application requests Ory OAuth 2.0 to remove the session state of a subject, this endpoint is used to confirm that logout request.
+
+The response contains a redirect URL which the consent provider should redirect the user-agent to.
+
+**Operation ID:** `acceptOAuth2LogoutRequest` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `logout_challenge` | string | yes | OAuth 2.0 Logout Request Challenge |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | oAuth2RedirectTo | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

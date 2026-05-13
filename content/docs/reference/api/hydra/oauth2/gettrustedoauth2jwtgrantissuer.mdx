@@ -1,0 +1,29 @@
+---
+title: "Get Trusted OAuth2 JWT Bearer Grant Type Issuer"
+description: "Use this endpoint to get a trusted JWT Bearer Grant Type Issuer. The ID is the one returned when you"
+---
+
+## `GET /admin/trust/grants/jwt-bearer/issuers/{id}`
+
+Use this endpoint to get a trusted JWT Bearer Grant Type Issuer. The ID is the one returned when you
+created the trust relationship.
+
+**Operation ID:** `getTrustedOAuth2JwtGrantIssuer` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | The id of the desired grant |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | trustedOAuth2JwtGrantIssuer | `application/json` — object |
+| default | genericError | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

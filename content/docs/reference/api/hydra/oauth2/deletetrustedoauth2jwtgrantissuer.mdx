@@ -1,0 +1,32 @@
+---
+title: "Delete Trusted OAuth2 JWT Bearer Grant Type Issuer"
+description: "Use this endpoint to delete trusted JWT Bearer Grant Type Issuer. The ID is the one returned when you"
+---
+
+## `DELETE /admin/trust/grants/jwt-bearer/issuers/{id}`
+
+Use this endpoint to delete trusted JWT Bearer Grant Type Issuer. The ID is the one returned when you
+created the trust relationship.
+
+Once deleted, the associated issuer will no longer be able to perform the JSON Web Token (JWT) Profile
+for OAuth 2.0 Client Authentication and Authorization Grant.
+
+**Operation ID:** `deleteTrustedOAuth2JwtGrantIssuer` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | The id of the desired grant |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| default | genericError | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

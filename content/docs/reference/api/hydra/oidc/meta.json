@@ -1,0 +1,14 @@
+{
+  "title": "oidc",
+  "pages": [
+    "overview",
+    "discoveroidcconfiguration",
+    "createverifiablecredential",
+    "createoidcdynamicclient",
+    "getoidcdynamicclient",
+    "setoidcdynamicclient",
+    "deleteoidcdynamicclient",
+    "revokeoidcsession",
+    "getoidcuserinfo"
+  ]
+}

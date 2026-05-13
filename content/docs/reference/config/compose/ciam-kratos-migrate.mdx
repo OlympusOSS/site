@@ -1,0 +1,59 @@
+---
+title: ciam-kratos-migrate
+description: Compose service `ciam-kratos-migrate` — runtime configuration across dev and prod
+---
+
+Compose service **`ciam-kratos-migrate`**.
+
+
+### Dev (`compose.dev.yml`)
+
+**Image:** `docker.io/oryd/kratos:v26.2.0`
+
+**Command:** `-c /etc/config/ciam-kratos/kratos.yml migrate sql -e --yes`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `DSN` | `postgres://postgres:secret@postgres:5432/ciam_kratos?sslmode` |
+
+**Volumes:**
+- `{"type":"bind","source":"./ciam-kratos","target":"/etc/config/ciam-kratos"}`
+
+**Depends on:** `postgres`
+
+**Restart policy:** `on-failure`
+
+**Networks:** `intranet`
+
+
+### Prod (`compose.prod.yml`)
+
+**Image:** `docker.io/oryd/kratos:v26.2.0`
+
+**Command:** `kratos -c /etc/config/ciam-kratos/kratos.yml migrate sql -e --yes`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `DSN` | `${PG_CIAM_KRATOS_DSN}` |
+
+**Volumes:**
+- `{"type":"bind","source":"./check-secrets.sh","target":"/check-secrets.sh","read_only":true}`
+- `{"type":"bind","source":"./ciam-kratos","target":"/etc/config/ciam-kratos"}`
+- `{"type":"bind","source":"./postgres/pg-ca.crt","target":"/etc/ssl/certs/pg-ca.crt","read_only":true}`
+
+**Depends on:** `postgres`
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

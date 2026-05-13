@@ -1,0 +1,31 @@
+---
+title: "OpenID Connect Userinfo"
+description: "This endpoint returns the payload of the ID Token, including `session.id_token` values, of"
+---
+
+## `GET /userinfo`
+
+This endpoint returns the payload of the ID Token, including `session.id_token` values, of
+the provided OAuth 2.0 Access Token's consent request.
+
+In the case of authentication error, a WWW-Authenticate header might be set in the response
+with more information about the error. See [the spec](https://datatracker.ietf.org/doc/html/rfc6750#section-3)
+for more details about header format.
+
+**Operation ID:** `getOidcUserInfo` &nbsp;&nbsp; **Tag:** oidc
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | oidcUserInfo | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+#### Security
+
+- `oauth2`
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

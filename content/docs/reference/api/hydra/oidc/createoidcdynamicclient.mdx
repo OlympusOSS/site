@@ -1,0 +1,44 @@
+---
+title: "Register OAuth2 Client using OpenID Dynamic Client Registration"
+description: "This endpoint behaves like the administrative counterpart (`createOAuth2Client`) but is capable of facing the"
+---
+
+## `POST /oauth2/register`
+
+This endpoint behaves like the administrative counterpart (`createOAuth2Client`) but is capable of facing the
+public internet directly and can be used in self-service. It implements the OpenID Connect
+Dynamic Client Registration Protocol. This feature needs to be enabled in the configuration. This endpoint
+is disabled by default. It can be enabled by an administrator.
+
+Please note that using this endpoint you are not able to choose the `client_secret` nor the `client_id` as those
+values will be server generated when specifying `token_endpoint_auth_method` as `client_secret_basic` or
+`client_secret_post`.
+
+The `client_secret` will be returned in the response and you will not be able to retrieve it later on.
+Write the secret down and keep it somewhere safe.
+
+**Operation ID:** `createOidcDynamicClient` &nbsp;&nbsp; **Tag:** oidc
+
+
+#### Request body
+
+Dynamic Client Registration Request Body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `oAuth2Client` — see the [Ory Hydra API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 201 | oAuth2Client | `application/json` — object |
+| 400 | Bad Request Error Response | `application/json` — object |
+| default | Default Error Response | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

@@ -1,0 +1,33 @@
+---
+title: "Delete OAuth 2.0 Client"
+description: "Delete an existing OAuth 2.0 Client by its ID."
+---
+
+## `DELETE /admin/clients/{id}`
+
+Delete an existing OAuth 2.0 Client by its ID.
+
+OAuth 2.0 clients are used to perform OAuth 2.0 and OpenID Connect flows. Usually, OAuth 2.0 clients are
+generated for applications which want to consume your OAuth 2.0 or OpenID Connect capabilities.
+
+Make sure that this endpoint is well protected and only callable by first-party components.
+
+**Operation ID:** `deleteOAuth2Client` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `id` | string | yes | The id of the OAuth 2.0 Client. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| default | genericError | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

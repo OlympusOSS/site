@@ -1,0 +1,71 @@
+---
+title: pgadmin
+description: Compose service `pgadmin` — runtime configuration across dev and prod
+---
+
+Compose service **`pgadmin`**.
+
+
+### Dev (`compose.dev.yml`)
+
+**Image:** `docker.io/dpage/pgadmin4:9.14.0`
+
+**Ports:** none (internal only)
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `PGADMIN_DEFAULT_EMAIL` | `admin@demo.user` |
+| `PGADMIN_DEFAULT_PASSWORD` | `admin123!` |
+| `PGADMIN_CONFIG_SERVER_MODE` | `True` |
+| `PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED` | `False` |
+| `PGPASSFILE` | `/pgpass` |
+
+**Volumes:**
+- `{"type":"bind","source":"./pgadmin-servers.json","target":"/pgadmin4/servers.json"}`
+- `{"type":"bind","source":"./pgadmin/config_local.py","target":"/pgadmin4/config_local.py"}`
+- `{"type":"bind","source":"./pgadmin/pgpass","target":"/pgpass"}`
+
+**Depends on:** `postgres`
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+### Prod (`compose.prod.yml`)
+
+**Image:** `docker.io/dpage/pgadmin4:9.14.0`
+
+**Ports:**
+- `5433:80`
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `PGADMIN_DEFAULT_EMAIL` | `${ADMIN_EMAIL}` |
+| `PGADMIN_DEFAULT_PASSWORD` | `unused` |
+| `PGADMIN_CONFIG_SERVER_MODE` | `True` |
+| `PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED` | `False` |
+| `PGADMIN_OAUTH_CLIENT_ID` | `${PGADMIN_OAUTH_CLIENT_ID}` |
+| `PGADMIN_OAUTH_CLIENT_SECRET` | `${PGADMIN_OAUTH_CLIENT_SECRET}` |
+| `IAM_HYDRA_PUBLIC_URL` | `${IAM_HYDRA_PUBLIC_URL}` |
+| `PGPASSFILE` | `/pgpass` |
+
+**Volumes:**
+- `{"type":"bind","source":"./pgadmin/config_local.py","target":"/pgadmin4/config_local.py"}`
+- `{"type":"bind","source":"./pgadmin-servers.json","target":"/pgadmin4/servers.json"}`
+- `{"type":"bind","source":"./pgadmin/pgpass","target":"/pgpass"}`
+
+**Depends on:** `postgres`, `iam-hydra`
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

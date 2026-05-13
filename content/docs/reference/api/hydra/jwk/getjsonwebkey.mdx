@@ -1,0 +1,29 @@
+---
+title: "Get JSON Web Key"
+description: "This endpoint returns a singular JSON Web Key contained in a set. It is identified by the set and the specific key ID (kid)."
+---
+
+## `GET /admin/keys/{set}/{kid}`
+
+This endpoint returns a singular JSON Web Key contained in a set. It is identified by the set and the specific key ID (kid).
+
+**Operation ID:** `getJsonWebKey` &nbsp;&nbsp; **Tag:** jwk
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `set` | string | yes | JSON Web Key Set ID |
+| `kid` | string | yes | JSON Web Key ID |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | jsonWebKeySet | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

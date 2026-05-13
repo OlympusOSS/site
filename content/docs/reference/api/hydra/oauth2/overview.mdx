@@ -1,0 +1,37 @@
+---
+title: oAuth2
+description: oAuth2 endpoints in the Ory Hydra API (vunknown)
+---
+
+Endpoints in the **oAuth2** group of the Ory Hydra API.
+
+| Method | Path | Summary |
+|--------|------|---------|
+| `GET` | [`/admin/clients`](./listoauth2clients) | List OAuth 2.0 Clients |
+| `POST` | [`/admin/clients`](./createoauth2client) | Create OAuth 2.0 Client |
+| `GET` | [`/admin/clients/{id}`](./getoauth2client) | Get an OAuth 2.0 Client |
+| `PUT` | [`/admin/clients/{id}`](./setoauth2client) | Set OAuth 2.0 Client |
+| `DELETE` | [`/admin/clients/{id}`](./deleteoauth2client) | Delete OAuth 2.0 Client |
+| `PATCH` | [`/admin/clients/{id}`](./patchoauth2client) | Patch OAuth 2.0 Client |
+| `PUT` | [`/admin/clients/{id}/lifespans`](./setoauth2clientlifespans) | Set OAuth2 Client Token Lifespans |
+| `GET` | [`/admin/oauth2/auth/requests/consent`](./getoauth2consentrequest) | Get OAuth 2.0 Consent Request |
+| `PUT` | [`/admin/oauth2/auth/requests/consent/accept`](./acceptoauth2consentrequest) | Accept OAuth 2.0 Consent Request |
+| `PUT` | [`/admin/oauth2/auth/requests/consent/reject`](./rejectoauth2consentrequest) | Reject OAuth 2.0 Consent Request |
+| `GET` | [`/admin/oauth2/auth/requests/login`](./getoauth2loginrequest) | Get OAuth 2.0 Login Request |
+| `PUT` | [`/admin/oauth2/auth/requests/login/accept`](./acceptoauth2loginrequest) | Accept OAuth 2.0 Login Request |
+| `PUT` | [`/admin/oauth2/auth/requests/login/reject`](./rejectoauth2loginrequest) | Reject OAuth 2.0 Login Request |
+| `GET` | [`/admin/oauth2/auth/requests/logout`](./getoauth2logoutrequest) | Get OAuth 2.0 Session Logout Request |
+| `PUT` | [`/admin/oauth2/auth/requests/logout/accept`](./acceptoauth2logoutrequest) | Accept OAuth 2.0 Session Logout Request |
+| `PUT` | [`/admin/oauth2/auth/requests/logout/reject`](./rejectoauth2logoutrequest) | Reject OAuth 2.0 Session Logout Request |
+| `GET` | [`/admin/oauth2/auth/sessions/consent`](./listoauth2consentsessions) | List OAuth 2.0 Consent Sessions of a Subject |
+| `DELETE` | [`/admin/oauth2/auth/sessions/consent`](./revokeoauth2consentsessions) | Revoke OAuth 2.0 Consent Sessions of a Subject |
+| `DELETE` | [`/admin/oauth2/auth/sessions/login`](./revokeoauth2loginsessions) | Revokes OAuth 2.0 Login Sessions by either a Subject or a SessionID |
+| `POST` | [`/admin/oauth2/introspect`](./introspectoauth2token) | Introspect OAuth2 Access and Refresh Tokens |
+| `DELETE` | [`/admin/oauth2/tokens`](./deleteoauth2token) | Delete OAuth 2.0 Access Tokens from specific OAuth 2.0 Client |
+| `GET` | [`/admin/trust/grants/jwt-bearer/issuers`](./listtrustedoauth2jwtgrantissuers) | List Trusted OAuth2 JWT Bearer Grant Type Issuers |
+| `POST` | [`/admin/trust/grants/jwt-bearer/issuers`](./trustoauth2jwtgrantissuer) | Trust OAuth2 JWT Bearer Grant Type Issuer |
+| `GET` | [`/admin/trust/grants/jwt-bearer/issuers/{id}`](./gettrustedoauth2jwtgrantissuer) | Get Trusted OAuth2 JWT Bearer Grant Type Issuer |
+| `DELETE` | [`/admin/trust/grants/jwt-bearer/issuers/{id}`](./deletetrustedoauth2jwtgrantissuer) | Delete Trusted OAuth2 JWT Bearer Grant Type Issuer |
+| `GET` | [`/oauth2/auth`](./oauth2authorize) | OAuth 2.0 Authorize Endpoint |
+| `POST` | [`/oauth2/revoke`](./revokeoauth2token) | Revoke OAuth 2.0 Access or Refresh Token |
+| `POST` | [`/oauth2/token`](./oauth2tokenexchange) | The OAuth 2.0 Token Endpoint |

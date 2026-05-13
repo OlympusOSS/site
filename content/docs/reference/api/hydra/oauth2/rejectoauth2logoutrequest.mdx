@@ -1,0 +1,31 @@
+---
+title: "Reject OAuth 2.0 Session Logout Request"
+description: "When a user or an application requests Ory OAuth 2.0 to remove the session state of a subject, this endpoint is used to deny that logout request."
+---
+
+## `PUT /admin/oauth2/auth/requests/logout/reject`
+
+When a user or an application requests Ory OAuth 2.0 to remove the session state of a subject, this endpoint is used to deny that logout request.
+No HTTP request body is required.
+
+The response is empty as the logout provider has to chose what action to perform next.
+
+**Operation ID:** `rejectOAuth2LogoutRequest` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `logout_challenge` | string | yes |  |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 204 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

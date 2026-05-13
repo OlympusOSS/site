@@ -1,0 +1,29 @@
+---
+title: "Check HTTP Server and Database Status"
+description: "This endpoint returns a HTTP 200 status code when Ory Hydra is up running and the environment dependencies (e.g."
+---
+
+## `GET /health/ready`
+
+This endpoint returns a HTTP 200 status code when Ory Hydra is up running and the environment dependencies (e.g.
+the database) are responsive as well.
+
+If the service supports TLS Edge Termination, this endpoint does not require the
+`X-Forwarded-Proto` header to be set.
+
+Be aware that if you are running multiple nodes of Ory Hydra, the health status will never
+refer to the cluster state, only to a single instance.
+
+**Operation ID:** `isReady` &nbsp;&nbsp; **Tag:** metadata
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | Ory Hydra is ready to accept requests. | `application/json` — object |
+| 503 | Ory Kratos is not yet ready to accept requests. | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

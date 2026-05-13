@@ -1,0 +1,72 @@
+---
+title: caddy
+description: Compose service `caddy` — runtime configuration across dev and prod
+---
+
+Compose service **`caddy`**.
+
+
+### Dev (`compose.dev.yml`)
+
+**Image:** `dev-caddy`
+
+**Build:** `{"context":"../caddy","dockerfile":"Containerfile"}`
+
+**Ports:**
+- `2000:2000`
+- `3000:3000`
+- `3001:3001`
+- `3102:3102`
+- `4000:4000`
+- `4001:4001`
+- `4102:4102`
+- `5433:5433`
+
+**Volumes:**
+- `{"type":"bind","source":"./Caddyfile","target":"/etc/caddy/Caddyfile"}`
+- `caddy_data:/data`
+- `caddy_config:/config`
+
+**Depends on:** `ciam-hera`, `ciam-hydra`, `ciam-athena`, `iam-hera`, `iam-hydra`, `iam-athena`, `site`, `pgadmin`
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+### Prod (`compose.prod.yml`)
+
+**Image:** `ghcr.io/olympusoss/caddy:latest`
+
+**Ports:**
+- `80:80`
+- `443:443`
+- `443:443/udp`
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `ACME_EMAIL` | `${SMTP_FROM_EMAIL}` |
+| `SITE_PUBLIC_URL` | `${SITE_PUBLIC_URL}` |
+| `CIAM_HERA_PUBLIC_URL` | `${CIAM_HERA_PUBLIC_URL}` |
+| `CIAM_HYDRA_PUBLIC_URL` | `${CIAM_HYDRA_PUBLIC_URL}` |
+| `CIAM_ATHENA_PUBLIC_URL` | `${CIAM_ATHENA_PUBLIC_URL}` |
+| `IAM_HERA_PUBLIC_URL` | `${IAM_HERA_PUBLIC_URL}` |
+| `IAM_HYDRA_PUBLIC_URL` | `${IAM_HYDRA_PUBLIC_URL}` |
+| `IAM_ATHENA_PUBLIC_URL` | `${IAM_ATHENA_PUBLIC_URL}` |
+| `PGADMIN_PUBLIC_URL` | `${PGADMIN_PUBLIC_URL}` |
+
+**Volumes:**
+- `{"type":"bind","source":"./Caddyfile","target":"/etc/caddy/Caddyfile"}`
+- `caddy_data:/data`
+- `caddy_config:/config`
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

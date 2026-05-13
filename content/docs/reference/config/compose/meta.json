@@ -1,0 +1,25 @@
+{
+  "title": "Compose Services",
+  "pages": [
+    "overview",
+    "athena-seed-dev",
+    "caddy",
+    "ciam-athena",
+    "ciam-hera",
+    "ciam-hydra",
+    "ciam-hydra-migrate",
+    "ciam-kratos",
+    "ciam-kratos-migrate",
+    "iam-athena",
+    "iam-hera",
+    "iam-hydra",
+    "iam-hydra-migrate",
+    "iam-kratos",
+    "iam-kratos-migrate",
+    "mailslurper",
+    "pgadmin",
+    "postgres",
+    "seed",
+    "site"
+  ]
+}

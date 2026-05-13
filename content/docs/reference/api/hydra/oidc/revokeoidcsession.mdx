@@ -1,0 +1,26 @@
+---
+title: "OpenID Connect Front- and Back-channel Enabled Logout"
+description: "This endpoint initiates and completes user logout at the Ory OAuth2 & OpenID provider and initiates OpenID Connect Front- / Back-channel logout:"
+---
+
+## `GET /oauth2/sessions/logout`
+
+This endpoint initiates and completes user logout at the Ory OAuth2 & OpenID provider and initiates OpenID Connect Front- / Back-channel logout:
+
+https://openid.net/specs/openid-connect-frontchannel-1_0.html
+https://openid.net/specs/openid-connect-backchannel-1_0.html
+
+Back-channel logout is performed asynchronously and does not affect logout flow.
+
+**Operation ID:** `revokeOidcSession` &nbsp;&nbsp; **Tag:** oidc
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 302 | Empty responses are sent when, for example, resources are deleted. The HTTP status code for empty responses is typically 204. | — |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

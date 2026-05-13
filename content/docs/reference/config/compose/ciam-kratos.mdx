@@ -1,0 +1,89 @@
+---
+title: ciam-kratos
+description: Compose service `ciam-kratos` — runtime configuration across dev and prod
+---
+
+Compose service **`ciam-kratos`**.
+
+
+### Dev (`compose.dev.yml`)
+
+**Image:** `docker.io/oryd/kratos:v26.2.0`
+
+**Command:** `serve -c /etc/config/ciam-kratos/kratos.yml --dev --watch-courier`
+
+**Ports:**
+- `3100:5000`
+- `3101:5001`
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `DSN` | `postgres://postgres:secret@postgres:5432/ciam_kratos?sslmode` |
+| `LOG_LEVEL` | `trace` |
+| `SERVE_PUBLIC_PORT` | `5000` |
+| `SERVE_ADMIN_PORT` | `5001` |
+
+**Volumes:**
+- `{"type":"bind","source":"./ciam-kratos","target":"/etc/config/ciam-kratos"}`
+
+**Depends on:** `ciam-kratos-migrate`
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+### Prod (`compose.prod.yml`)
+
+**Image:** `docker.io/oryd/kratos:v26.2.0`
+
+**Command:** `kratos serve -c /etc/config/ciam-kratos/kratos.yml --watch-courier`
+
+**Ports:**
+- `3100:5000`
+- `3101:5001`
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `DSN` | `${PG_CIAM_KRATOS_DSN}` |
+| `SERVE_PUBLIC_PORT` | `5000` |
+| `SERVE_ADMIN_PORT` | `5001` |
+| `SECRETS_COOKIE` | `${CIAM_KRATOS_SECRET_COOKIE}` |
+| `SECRETS_CIPHER` | `${CIAM_KRATOS_SECRET_CIPHER}` |
+| `SERVE_PUBLIC_CORS_ALLOWED_ORIGINS` | `${CIAM_CORS_ALLOWED_ORIGINS}` |
+| `SELFSERVICE_DEFAULT_BROWSER_RETURN_URL` | `${CIAM_HERA_PUBLIC_URL}/` |
+| `COURIER_SMTP_CONNECTION_URI` | `${SMTP_CONNECTION_URI}` |
+| `COURIER_SMTP_FROM_ADDRESS` | `${SMTP_FROM_EMAIL}` |
+
+**Volumes:**
+- `{"type":"bind","source":"./check-secrets.sh","target":"/check-secrets.sh","read_only":true}`
+- `{"type":"bind","source":"./ciam-kratos","target":"/etc/config/ciam-kratos"}`
+- `{"type":"bind","source":"./postgres/pg-ca.crt","target":"/etc/ssl/certs/pg-ca.crt","read_only":true}`
+
+**Healthcheck:**
+
+```yaml
+{
+  "test": [
+    "CMD-SHELL",
+    "wget --spider --quiet http://localhost:5000/health/ready || exit 1"
+  ],
+  "interval": "15s",
+  "timeout": "5s",
+  "start_period": "20s",
+  "retries": 3
+}
+```
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

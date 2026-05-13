@@ -1,0 +1,42 @@
+---
+title: form_input
+description: "Set a form field value by label text or CSS selector."
+---
+
+## MCP tool: `form_input`
+
+Set a form field value by label text or CSS selector.
+
+### Input schema
+
+```json
+{
+                "type": "object",
+                "properties": {
+                    "label": { "type": "string", "description": "Label text of the input field" },
+                    "selector": { "type": "string", "description": "CSS selector (alternative to label)" },
+                    "value": { "type": "string", "description": "Value to set" }
+                },
+                "required": ["value"]
+            }
+```
+
+### Calling this tool
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "form_input",
+    "arguments": { /* match input schema */ }
+  }
+}
+```
+
+Send to `http://127.0.0.1:14210` while Daedalus is running.
+
+---
+
+*Generated from `daedalus/src-tauri/src/mcp/tools.rs` at build time.*

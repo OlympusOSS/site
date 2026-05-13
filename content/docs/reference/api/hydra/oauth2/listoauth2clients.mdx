@@ -1,0 +1,32 @@
+---
+title: "List OAuth 2.0 Clients"
+description: "This endpoint lists all clients in the database, and never returns client secrets."
+---
+
+## `GET /admin/clients`
+
+This endpoint lists all clients in the database, and never returns client secrets.
+As a default it lists the first 100 clients.
+
+**Operation ID:** `listOAuth2Clients` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `page_size` | integer (int64) | no | Items per Page  This is the number of items per page to return. For details on pagination please head over to the [pagination documentation](https://www.ory.sh/docs/ecosystem/api-design#pagination). |
+| `page_token` | string | no | Next Page Token  The next page token. For details on pagination please head over to the [pagination documentation](https://www.ory.sh/docs/ecosystem/api-design#pagination). |
+| `client_name` | string | no | The name of the clients to filter by. |
+| `owner` | string | no | The owner of the clients to filter by. |
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | Paginated OAuth2 Client List Response | `application/json` — array of object |
+| default | Default Error Response | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

@@ -1,0 +1,51 @@
+---
+title: "Reject OAuth 2.0 Consent Request"
+description: "When an authorization code, hybrid, or implicit OAuth 2.0 Flow is initiated, Ory asks the login provider"
+---
+
+## `PUT /admin/oauth2/auth/requests/consent/reject`
+
+When an authorization code, hybrid, or implicit OAuth 2.0 Flow is initiated, Ory asks the login provider
+to authenticate the subject and then tell Ory now about it. If the subject authenticated, he/she must now be asked if
+the OAuth 2.0 Client which initiated the flow should be allowed to access the resources on the subject's behalf.
+
+The consent challenge is appended to the consent provider's URL to which the subject's user-agent (browser) is redirected to. The consent
+provider uses that challenge to fetch information on the OAuth2 request and then tells Ory if the subject accepted
+or rejected the request.
+
+This endpoint tells Ory that the subject has not authorized the OAuth 2.0 client to access resources on his/her behalf.
+The consent provider must include a reason why the consent was not granted.
+
+The response contains a redirect URL which the consent provider should redirect the user-agent to.
+
+The default consent provider is available via the Ory Managed Account Experience. To customize the consent provider, please
+head over to the OAuth 2.0 documentation.
+
+**Operation ID:** `rejectOAuth2ConsentRequest` &nbsp;&nbsp; **Tag:** oAuth2
+
+
+#### Query parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `consent_challenge` | string | yes | OAuth 2.0 Consent Request Challenge |
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `rejectOAuth2Request` — see the [Ory Hydra API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | oAuth2RedirectTo | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

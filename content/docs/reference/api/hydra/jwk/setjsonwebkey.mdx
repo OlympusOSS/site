@@ -1,0 +1,40 @@
+---
+title: "Set JSON Web Key"
+description: "Use this method if you do not want to let Hydra generate the JWKs for you, but instead save your own."
+---
+
+## `PUT /admin/keys/{set}/{kid}`
+
+Use this method if you do not want to let Hydra generate the JWKs for you, but instead save your own.
+
+A JSON Web Key (JWK) is a JavaScript Object Notation (JSON) data structure that represents a cryptographic key. A JWK Set is a JSON data structure that represents a set of JWKs. A JSON Web Key is identified by its set and key id. ORY Hydra uses this functionality to store cryptographic keys used for TLS and JSON Web Tokens (such as OpenID Connect ID tokens), and allows storing user-defined keys as well.
+
+**Operation ID:** `setJsonWebKey` &nbsp;&nbsp; **Tag:** jwk
+
+
+#### Path parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `set` | string | yes | The JSON Web Key Set ID |
+| `kid` | string | yes | JSON Web Key ID |
+
+#### Request body
+
+**Content-Type:** `application/json`
+
+Type: object
+
+Schema: `jsonWebKey` — see the [Ory Hydra API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+
+
+#### Responses
+
+| Status | Description | Body |
+|--------|-------------|------|
+| 200 | jsonWebKey | `application/json` — object |
+| default | errorOAuth2 | `application/json` — object |
+
+---
+
+*Generated from `../athena/openapi.json` at build time.*

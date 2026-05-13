@@ -1,0 +1,87 @@
+---
+title: ciam-hydra
+description: Compose service `ciam-hydra` — runtime configuration across dev and prod
+---
+
+Compose service **`ciam-hydra`**.
+
+
+### Dev (`compose.dev.yml`)
+
+**Image:** `docker.io/oryd/hydra:v26.2.0`
+
+**Command:** `serve -c /etc/config/ciam-hydra/hydra.yml all --dev`
+
+**Ports:**
+- `3103:5003`
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `DSN` | `postgres://postgres:secret@postgres:5432/ciam_hydra?sslmode` |
+| `SERVE_PUBLIC_PORT` | `5002` |
+| `SERVE_ADMIN_PORT` | `5003` |
+
+**Volumes:**
+- `{"type":"bind","source":"./ciam-hydra","target":"/etc/config/ciam-hydra"}`
+
+**Depends on:** `ciam-hydra-migrate`
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+### Prod (`compose.prod.yml`)
+
+**Image:** `docker.io/oryd/hydra:v26.2.0`
+
+**Command:** `hydra serve -c /etc/config/ciam-hydra/hydra.yml all`
+
+**Ports:**
+- `3102:5002`
+- `3103:5003`
+
+**Environment variables:**
+
+| Variable | Source |
+|----------|--------|
+| `DSN` | `${PG_CIAM_HYDRA_DSN}` |
+| `SERVE_PUBLIC_PORT` | `5002` |
+| `SERVE_ADMIN_PORT` | `5003` |
+| `URLS_SELF_ISSUER` | `${CIAM_HYDRA_PUBLIC_URL}` |
+| `URLS_CONSENT` | `${CIAM_HERA_PUBLIC_URL}/consent` |
+| `URLS_LOGIN` | `${CIAM_HERA_PUBLIC_URL}/login` |
+| `URLS_LOGOUT` | `${CIAM_HERA_PUBLIC_URL}/logout` |
+| `SECRETS_SYSTEM` | `${CIAM_HYDRA_SECRET_SYSTEM}` |
+| `OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT` | `${CIAM_HYDRA_PAIRWISE_SALT}` |
+
+**Volumes:**
+- `{"type":"bind","source":"./check-secrets.sh","target":"/check-secrets.sh","read_only":true}`
+- `{"type":"bind","source":"./ciam-hydra","target":"/etc/config/ciam-hydra"}`
+- `{"type":"bind","source":"./postgres/pg-ca.crt","target":"/etc/ssl/certs/pg-ca.crt","read_only":true}`
+
+**Healthcheck:**
+
+```yaml
+{
+  "test": [
+    "CMD-SHELL",
+    "wget --spider --quiet http://localhost:5002/health/ready || exit 1"
+  ],
+  "interval": "15s",
+  "timeout": "5s",
+  "start_period": "20s",
+  "retries": 3
+}
+```
+
+**Restart policy:** `unless-stopped`
+
+**Networks:** `intranet`
+
+
+---
+
+*Generated from `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml` at build time.*

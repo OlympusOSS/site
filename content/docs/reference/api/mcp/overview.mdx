@@ -1,0 +1,25 @@
+---
+title: Daedalus MCP
+description: JSON-RPC 2.0 tools exposed by the Daedalus deployment wizard
+---
+
+Daedalus embeds an MCP server on `127.0.0.1:14210` (HTTP / JSON-RPC 2.0). When Daedalus is running, Claude (or any MCP client) can call these tools to drive the deployment wizard programmatically.
+
+The server is **localhost-only** — see [ADR 0022 — MCP Localhost Only](/docs/adrs/0022-mcp-localhost-only).
+
+## Tools
+
+| Name | Description |
+|------|-------------|
+| [screenshot](./screenshot) | Capture the current Daedalus UI state. Returns structured text with page path, visible elements, but |
+| [get_page](./get_page) | Get the current page path and text content from the Daedalus webview. |
+| [navigate](./navigate) | Navigate to a wizard step. Paths: /, /repository, /domain, /provider, /email, /database, /compute, / |
+| [click](./click) | Click a button or element by its text content. |
+| [form_input](./form_input) | Set a form field value by label text or CSS selector. |
+| [read_context](./read_context) | Read the current Daedalus deployment context (daedalus.json). |
+| [terminal_exec](./terminal_exec) | Execute a command in the embedded terminal. |
+| [terminal_read](./terminal_read) | Read recent output from the embedded terminal. |
+
+## Total
+
+8 tools.
