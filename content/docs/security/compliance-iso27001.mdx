@@ -1,0 +1,85 @@
+---
+title: ISO 27001 compliance
+description: Information security management — Olympus's place in the ISMS
+---
+
+ISO/IEC 27001:2022 specifies an Information Security Management System (ISMS). Olympus's controls map to several Annex A controls.
+
+## Annex A control mapping (selected)
+
+### A.5 Organizational controls
+
+- **A.5.15 Access control** — Kratos identification; Athena RBAC.
+- **A.5.16 Identity management** — Identity lifecycle (registration → settings → deletion).
+- **A.5.17 Authentication information** — Argon2id hashing, HMAC signatures, AES-256 at rest.
+- **A.5.18 Access rights** — Role trait, OAuth2 scopes.
+- **A.5.23 Information security in cloud services** — Your VPS provider's certifications complement Olympus.
+
+### A.8 Technological controls
+
+- **A.8.3 Information access restriction** — middleware auth chain.
+- **A.8.5 Secure authentication** — MFA support, breach-check, brute-force protection.
+- **A.8.7 Protection against malware** — N/A directly for Olympus; container hardening at the OS level.
+- **A.8.9 Configuration management** — git-based, CI-gated.
+- **A.8.10 Information deletion** — DSR delete, anonymization.
+- **A.8.12 Data leakage prevention** — secrets sanitizer in Daedalus, log redaction.
+- **A.8.15 Logging** — audit log + observability.
+- **A.8.16 Monitoring activities** — anomaly detection, lockouts.
+- **A.8.17 Clock synchronization** — NTP on VPS.
+- **A.8.20 Network security** — Caddy ingress, intranet-only admin ports.
+- **A.8.23 Web filtering** — N/A (Olympus is the resource, not the filter).
+- **A.8.24 Use of cryptography** — AES-256-GCM, HKDF, Argon2id. Documented in ADRs.
+- **A.8.25-8.27 Secure development** — Source-only redistribution, version pinning, code review (push-to-main with CI gates).
+- **A.8.28 Secure coding** — Biome linter, TS strict, Vitest tests.
+
+## What ISO 27001 requires beyond technical
+
+A certified ISMS includes:
+- **Information security policy** (you write).
+- **Risk assessment** (you perform).
+- **Statement of Applicability** (mapping each Annex A control to your implementation).
+- **Internal audits** (recurring).
+- **Management reviews** (typically yearly).
+- **Continual improvement** (action plans for findings).
+
+Olympus is technology; the ISMS is organizational. Olympus accelerates the technical mapping; you still own the management system.
+
+## Useful artifacts from Olympus for an ISO audit
+
+- ADR 0001-0026 (architectural decisions).
+- Operate runbooks (operational procedures).
+- Security section (controls overview).
+- Audit log (evidence of monitoring).
+- CI workflow runs (evidence of change management).
+- Secrets audit cadence ([Operate](/docs/operate/secrets-audit)).
+
+## ISO 27001:2022 vs older versions
+
+The 2022 revision consolidated controls and added new ones for cloud, threat intelligence, configuration management. If your auditor is on the older version, expect different control numbers but similar substance.
+
+## Certification
+
+- **Certification body**: UKAS-accredited, ANAB-accredited, etc. — choose based on geography.
+- **Stage 1 audit**: documentation review.
+- **Stage 2 audit**: on-site or remote — control sampling, evidence inspection.
+- **Surveillance audits**: yearly for 3 years.
+- **Recertification**: every 3 years.
+
+Cost: $10k-50k+ depending on org size and scope.
+
+## Common findings
+
+In my experience, auditors flag:
+- Incomplete asset inventory.
+- Stale risk assessments.
+- Missing or untested business continuity plan.
+- Weak supplier management.
+
+Olympus's docs help on the first; the others are organizational.
+
+## Related
+
+- [Security — Compliance — SOC 2](/docs/security/compliance-soc2) — similar shape.
+- [Security — Compliance — GDPR](/docs/security/compliance-gdpr) — overlapping concerns.
+- [Security — Secrets management](/docs/security/secrets-management)
+- [ADRs](/docs/adrs/overview)

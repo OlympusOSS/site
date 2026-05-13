@@ -1,0 +1,136 @@
+---
+title: Actix Web (Rust) integration
+description: Authenticate Actix Web routes against Olympus
+---
+
+Actix Web + Olympus via middleware that introspects tokens.
+
+## Setup
+
+```toml
+[dependencies]
+actix-web = "4"
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+```
+
+## Middleware
+
+```rust
+use actix_web::{
+    body::EitherBody,
+    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
+    Error, HttpMessage,
+};
+use std::future::{ready, Ready};
+use std::pin::Pin;
+
+pub struct OlympusAuth;
+
+impl<S, B> Transform<S, ServiceRequest> for OlympusAuth
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<EitherBody<B>>;
+    type Error = Error;
+    type InitError = ();
+    type Transform = OlympusAuthMiddleware<S>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(OlympusAuthMiddleware { service }))
+    }
+}
+
+pub struct OlympusAuthMiddleware<S> {
+    service: S,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct TokenInfo {
+    active: bool,
+    sub: Option<String>,
+    scope: Option<String>,
+}
+
+impl<S, B> Service<ServiceRequest> for OlympusAuthMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<EitherBody<B>>;
+    type Error = Error;
+    type Future = Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    forward_ready!(service);
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let auth = req.headers().get("Authorization").cloned();
+        let svc = self.service.call(req);
+
+        Box::pin(async move {
+            // Extract bearer token
+            let Some(token) = auth
+                .and_then(|h| h.to_str().ok().map(String::from))
+                .and_then(|s| s.strip_prefix("Bearer ").map(String::from))
+            else {
+                // Return 401 (simplified)
+                unimplemented!()
+            };
+
+            // Introspect
+            let info: TokenInfo = reqwest::Client::new()
+                .post(format!("{}/admin/oauth2/introspect", std::env::var("OLYMPUS_ISSUER").unwrap()))
+                .basic_auth(
+                    std::env::var("HYDRA_ADMIN_USER").unwrap(),
+                    Some(std::env::var("HYDRA_ADMIN_PASS").unwrap()),
+                )
+                .form(&[("token", token.as_str())])
+                .send().await.unwrap()
+                .json().await.unwrap();
+
+            if !info.active {
+                unimplemented!() // Return 401
+            }
+
+            // Attach to request extensions
+            // req.extensions_mut().insert(info);
+            svc.await
+        })
+    }
+}
+```
+
+## Use in routes
+
+```rust
+use actix_web::{get, web, App, HttpServer};
+
+#[get("/api/widgets")]
+async fn list_widgets() -> impl actix_web::Responder {
+    "Hello from authenticated handler"
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| {
+        App::new()
+            .wrap(OlympusAuth)
+            .service(list_widgets)
+    })
+    .bind(("0.0.0.0", 8080))?
+    .run()
+    .await
+}
+```
+
+## JWT validation
+
+For JWT access tokens, use `jsonwebtoken` with JWKS — see [Cookbook — Validate access token (Rust)](/docs/cookbook/validate-token-rust).
+
+## Related
+
+- [Cookbook — Validate access token (Rust)](/docs/cookbook/validate-token-rust)
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)

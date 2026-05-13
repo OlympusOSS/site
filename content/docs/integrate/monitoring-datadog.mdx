@@ -1,0 +1,116 @@
+---
+title: Datadog integration
+description: Logs, metrics, traces, and APM with Datadog
+---
+
+Datadog covers the whole observability surface — logs, metrics, traces, APM, RUM, error tracking. For Olympus, it's a one-stop shop if you don't mind the cost.
+
+## Datadog agent
+
+Run the Datadog Agent as a container alongside Olympus:
+
+```yaml
+# compose.prod.yml addition
+datadog-agent:
+  image: gcr.io/datadoghq/agent:latest
+  pid: host
+  environment:
+    DD_API_KEY: ${DATADOG_API_KEY}
+    DD_SITE: datadoghq.com
+    DD_LOGS_ENABLED: "true"
+    DD_APM_ENABLED: "true"
+    DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+    DD_CONTAINER_EXCLUDE: "name:datadog-agent"
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - /proc/:/host/proc/:ro
+    - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+  ports:
+    - "127.0.0.1:8125:8125/udp"
+    - "127.0.0.1:8126:8126/tcp"
+```
+
+The agent auto-discovers containers and ships their logs.
+
+## App-side instrumentation
+
+For Node apps (Athena, Hera, Site):
+
+```bash
+bun add dd-trace
+```
+
+Load before any other imports:
+
+```ts
+import tracer from "dd-trace";
+tracer.init({
+  service: "athena",
+  env: process.env.NODE_ENV,
+  version: process.env.APP_VERSION,
+});
+```
+
+Auto-instruments HTTP, Postgres, fetch, etc.
+
+## Log pipelines
+
+In Datadog → Logs → Configuration → Pipelines, add an Olympus pipeline:
+
+```
+service:athena OR service:hera OR service:kratos OR service:hydra
+```
+
+Processors:
+- Parse JSON.
+- Reserved attribute mappings: `host`, `service`, `source`.
+- Pipeline-level redaction of `token`, `code`, `password` substrings.
+
+## Key dashboards
+
+1. **Auth funnel**: registration_started → registration_completed → login_success → mfa_enrolled.
+2. **Service health**: per-container CPU, memory, request latency p50/p95/p99.
+3. **Database**: Postgres slow queries, connection counts.
+4. **Security**: failed logins, lockouts, captcha challenges.
+
+## Synthetics
+
+Datadog Synthetics can run automated browser checks:
+
+- **Login flow check**: hit `/login`, submit creds, expect 200 on the post-login page.
+- **OAuth2 flow check**: complete a full Authorization Code + PKCE round-trip.
+
+Run every 5 minutes from multiple regions. Alert on failures.
+
+## RUM (Real User Monitoring)
+
+Datadog RUM in Hera shows user-visible perf:
+
+```html
+<script src="https://www.datadoghq-browser-agent.com/datadog-rum.js"></script>
+<script>
+DD_RUM.init({
+  applicationId: '...',
+  clientToken: '...',
+  site: 'datadoghq.com',
+  service: 'hera-ciam',
+});
+</script>
+```
+
+Don't enable on the registration / login pages without thinking about privacy — RUM captures URL paths, button clicks, etc.
+
+## Cost
+
+- Logs: $0.10/GB ingested.
+- Metrics: $15/host/month for the basic tier.
+- APM: $31/host/month.
+
+A 1-host Olympus deployment runs $50-100/mo in Datadog.
+
+## Related
+
+- [Operate — Logs and observability](/docs/operate/logs-and-observability)
+- [Integrate — Sentry integration](/docs/integrate/monitoring-sentry)
+- [Integrate — Honeycomb integration](/docs/integrate/monitoring-honeycomb)
+- [Cookbook — Analytics destination](/docs/cookbook/analytics-destination)

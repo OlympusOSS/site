@@ -1,0 +1,91 @@
+---
+title: HIPAA compliance
+description: Using Olympus in a HIPAA-regulated environment (healthcare)
+---
+
+The Health Insurance Portability and Accountability Act regulates protected health information (PHI) in the US healthcare system. If your app handles PHI, Olympus can be part of a HIPAA-compliant stack.
+
+## Where Olympus fits
+
+Olympus handles **authentication**, not PHI directly. But auth data linked to PHI is itself PHI under HIPAA. Treat the entire Olympus stack as a HIPAA system.
+
+## Required: Business Associate Agreement (BAA)
+
+If Olympus runs as a service for you (you're the operator, your customer is the covered entity), you and the covered entity must execute a BAA. The BAA:
+- Establishes your responsibilities as a Business Associate.
+- Commits to safeguards.
+- Specifies breach notification.
+
+Olympus's source-only license is not a substitute for a BAA between you and your customer.
+
+## Required: BAA with sub-processors
+
+Your sub-processors that handle PHI also need BAAs:
+- VPS provider: AWS, Azure, GCP, DigitalOcean, Hetzner — they all offer BAAs (some only on paid tiers).
+- Email provider: most don't sign BAAs (transactional auth emails technically include PHI if they reveal a patient identity). Use providers like Paubox or AWS SES (with BAA).
+- Postgres host: AWS RDS, Azure Database with BAA. Neon currently doesn't offer a BAA — avoid for HIPAA.
+
+## Technical safeguards
+
+HIPAA Security Rule §164.312:
+
+| Requirement | Olympus support |
+|---|---|
+| Access control | Kratos identifies, Athena role-checks. |
+| Audit controls | `security_audit` table — every login, settings change, admin action. |
+| Integrity controls | HMAC-signed sessions, ciphertext authentication via GCM. |
+| Person/entity authentication | Password + MFA (TOTP, WebAuthn). |
+| Transmission security | TLS in flight; Caddy enforces HTTPS. |
+| Encryption at rest | AES-256-GCM via SDK; managed Postgres encryption. |
+
+## Administrative safeguards
+
+§164.308: documented policies. You're responsible:
+- Security officer designation.
+- Risk analysis.
+- Workforce training.
+- Sanctions for non-compliance.
+- Incident response (Olympus's playbook helps but doesn't substitute for your policy).
+
+## Physical safeguards
+
+§164.310: VPS provider's data center is your physical access boundary. Choose providers with SOC 2 / HIPAA attestations.
+
+## Audit requirements
+
+- Audit log retention: minimum **6 years** under HIPAA. Configure your retention accordingly — see [Operate — Audit log retention](/docs/operate/audit-log-retention).
+- Audit events should include: who, when, what action, against what data.
+
+The `security_audit` table satisfies this for auth events. Your app-side audit (PHI access) is separate.
+
+## Breach notification
+
+If PHI is breached:
+- **60 days** to notify affected individuals.
+- HHS notification if >500 affected.
+- Media notification if >500 in one state/jurisdiction.
+
+Your incident response playbook ([Operate](/docs/operate/incident-response)) needs HIPAA-specific add-ons:
+- HIPAA-specific breach assessment (4-factor test).
+- Counsel involvement.
+- Reporting templates.
+
+## Auth-specific HIPAA concerns
+
+- **Session timeout**: automatic logoff per §164.312(a)(2)(iii). Configure `session.lifespan` in Kratos to ≤15 minutes for clinical environments.
+- **Unique user identification**: every user has a unique identity (Kratos UUID). ✓
+- **Emergency access**: HIPAA-required "break glass" access. Implement via a tracked admin override path.
+
+## What Olympus doesn't directly help with
+
+- Encrypting backups at rest (you must do this separately).
+- PHI in application data (your DB; not Olympus's concern).
+- BAA execution (legal, not technical).
+- Risk assessment documentation.
+
+## Related
+
+- [Operate — Incident response](/docs/operate/incident-response)
+- [Operate — Audit log retention](/docs/operate/audit-log-retention)
+- [Security — Compliance — SOC 2](/docs/security/compliance-soc2) — overlapping controls.
+- [Security — Threat model](/docs/security/threat-model)

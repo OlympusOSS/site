@@ -1,0 +1,97 @@
+---
+title: Authorization — ABAC
+description: Attribute-Based Access Control with Olympus
+---
+
+ABAC = decisions based on attributes of: subject (user), resource, action, environment. More flexible than RBAC; more complex.
+
+## Olympus's role
+
+Olympus provides **subject attributes** via Kratos identity traits + Hydra claims. The decision engine (your code, OPA, Cedar) is separate.
+
+## Subject attributes
+
+```json
+{
+  "sub": "01H8...",
+  "role": "operator",
+  "department": "engineering",
+  "office_country": "DE",
+  "clearance_level": 3,
+  "groups": ["engineers", "oncall"]
+}
+```
+
+All these flow from the identity schema's traits, through Hydra into the ID token.
+
+## Resource attributes
+
+Defined per-resource in your app:
+
+```json
+{
+  "id": "doc-123",
+  "owner_id": "01H7...",
+  "classification": "internal",
+  "department": "engineering"
+}
+```
+
+## Action attributes
+
+Often just a string: `read`, `write`, `delete`. Sometimes complex: `read.with-pii`, `read.metadata-only`.
+
+## Environment attributes
+
+- Time of day.
+- Source IP / network.
+- Recent auth strength (`acr`).
+- Detected risk score.
+
+## Decision example
+
+```ts
+function canAccess(subject, resource, action, env): boolean {
+  // Owners can do anything to their own resources
+  if (subject.sub === resource.owner_id) return true;
+
+  // Admins can read anything
+  if (subject.role === "admin" && action === "read") return true;
+
+  // Same-department write
+  if (subject.department === resource.department && action === "write") return true;
+
+  // Classified resources require clearance
+  if (resource.classification === "secret" && subject.clearance_level < 3) return false;
+
+  // Off-hours = read-only
+  if (env.hour < 8 || env.hour > 18) {
+    if (action !== "read") return false;
+  }
+
+  return false;
+}
+```
+
+## When ABAC code grows unwieldy
+
+10-20 rules is manageable in code. Above that, externalize to a **policy engine**:
+
+- **[OPA](https://www.openpolicyagent.org/)** — Rego-based policies, can be embedded as a sidecar or library.
+- **[Cedar](https://www.cedarpolicy.com/)** — AWS's policy language, similar shape.
+- **[Casbin](https://casbin.org/)** — multi-language policy engine.
+
+See [Security — Authorization — OPA integration](/docs/security/authz-opa).
+
+## Performance
+
+Each ABAC decision involves multiple attribute lookups. For high-throughput services:
+- Cache subject attributes (from ID token introspection).
+- Cache resource attributes (your DB).
+- Memoize decisions briefly.
+
+## Related
+
+- [Security — Authorization — RBAC](/docs/security/authz-rbac)
+- [Security — Authorization — OPA integration](/docs/security/authz-opa)
+- [Security — Authorization — Cedar integration](/docs/security/authz-cedar)

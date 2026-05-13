@@ -1,0 +1,86 @@
+---
+title: GDPR compliance
+description: How Olympus supports GDPR controls and the gaps you cover yourself
+---
+
+The EU General Data Protection Regulation governs how you handle personal data of EU residents. Olympus provides primitives; full compliance depends on your data handling beyond Olympus.
+
+## What Olympus provides
+
+| Control | How Olympus supports it |
+| --- | --- |
+| **Lawful basis (Art. 6)** | Consent is captured at registration. Your privacy policy + terms acceptance is in your app, not Olympus. |
+| **Right to access (Art. 15)** | DSR export via [Cookbook — GDPR DSR Export](/docs/cookbook/gdpr-dsr-export). |
+| **Right to erasure (Art. 17)** | [Cookbook — Self-service account deletion](/docs/cookbook/self-service-account-deletion). |
+| **Right to data portability (Art. 20)** | Same DSR export, JSON-formatted. |
+| **Right to rectification (Art. 16)** | Kratos settings flow — users update their own data. |
+| **Security (Art. 32)** | AES-256-GCM at rest, TLS in flight, MFA-able. |
+| **Breach notification (Art. 33-34)** | Audit log + observability — you detect; reporting is on you. |
+| **DPO records (Art. 30)** | Audit log captures access events; you maintain the registry. |
+| **Cross-border transfer (Art. 44+)** | Your provider/region choice. Olympus is self-hosted; you control location. |
+| **Data minimisation (Art. 5)** | You design the identity schema; only what you actually need. |
+
+## Data inventory
+
+Categorise Olympus's stored data:
+
+| Data | Sensitivity | Location |
+| --- | --- | --- |
+| Email | Identifier; PII | `kratos.identities`, `verifiable_addresses` |
+| Name | PII | `kratos.identities.traits` |
+| Password hash | Credential | `kratos.identity_credentials` (Argon2id) |
+| IP / geolocation | PII | `olympus.locations` |
+| Session token | Auth artefact | Browser cookie + `kratos.sessions` |
+| Audit events | PII (incl. identity_id) | `olympus.security_audit` |
+| OAuth2 client secret | Tenant secret | `hydra.oauth2_clients` (encrypted) |
+
+## DPA template
+
+If you process data on behalf of others (B2B SaaS), each customer is the controller; you're the processor. They want a DPA:
+
+- Standard Contractual Clauses for international transfers.
+- Sub-processor list (your VPS provider, email provider, error tracker).
+- Sub-processor change notification (Olympus → controller).
+- Audit rights.
+- Breach notification SLA (you → controller within 24-72 hours).
+
+## EU data residency
+
+For EU customers, host in an EU region:
+- DigitalOcean: AMS3, FRA1.
+- Hetzner: NBG1, FSN1, HEL1.
+- AWS: eu-central-1, eu-west-1.
+- Azure: West Europe.
+- Neon: configurable.
+
+Avoid US-hosted backups for EU PII. Use rclone to push backups to an EU bucket.
+
+## Cookie consent
+
+Olympus cookies (Kratos session, Hydra session, athena-session, csrf_token) are **strictly necessary** under GDPR's definition — no consent banner required for them.
+
+If you add analytics cookies (Google Analytics, Plausible, etc.) on your own pages, those need consent.
+
+## Audit log retention
+
+GDPR favors minimum-necessary retention. Recommended for Olympus's `security_audit`:
+
+- 12-13 months hot (covers a full SOC 2 audit cycle).
+- After that: anonymize (set `identity_id = NULL`) and archive.
+
+See [Operate — Audit log retention](/docs/operate/audit-log-retention).
+
+## Breach response
+
+If a breach affects EU residents:
+- **72 hours** to notify the supervisory authority.
+- **Without undue delay** to notify affected individuals if high risk.
+
+Your incident playbook ([Operate — Incident response](/docs/operate/incident-response)) should include the breach-notification step.
+
+## Related
+
+- [Cookbook — GDPR DSR export](/docs/cookbook/gdpr-dsr-export)
+- [Cookbook — Self-service account deletion](/docs/cookbook/self-service-account-deletion)
+- [Security — Threat model](/docs/security/threat-model)
+- [Operate — Audit log retention](/docs/operate/audit-log-retention)

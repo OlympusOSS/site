@@ -1,0 +1,99 @@
+---
+title: Authorization — RBAC
+description: Role-Based Access Control with Olympus
+---
+
+Role-Based Access Control: users have roles, roles grant permissions. Simple, well-understood, sufficient for most apps.
+
+## Olympus's RBAC primitive
+
+The identity schema declares a `role` trait:
+
+```json
+"role": {
+  "type": "string",
+  "enum": ["admin", "operator", "user"],
+  "default": "user"
+}
+```
+
+Hydra includes `role` in the ID token (as a custom claim). Your app reads it and enforces.
+
+## Defining permissions
+
+In your app code (not in Olympus):
+
+```ts
+const PERMISSIONS = {
+  admin: ["read", "write", "delete", "manage_users", "view_audit_log"],
+  operator: ["read", "write", "view_audit_log"],
+  user: ["read"],
+};
+
+function can(role: string, action: string): boolean {
+  return PERMISSIONS[role]?.includes(action) ?? false;
+}
+```
+
+## Per-route enforcement
+
+```ts
+async function handler(req: Request) {
+  const session = await getSession(req);
+  if (!can(session.role, "delete")) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+  // proceed with deletion
+}
+```
+
+## When RBAC isn't enough
+
+- **Resource-specific permissions**: "Alice can edit document X but not document Y." → ABAC or ReBAC.
+- **Dynamic permissions**: "Alice can edit document X only during business hours." → ABAC.
+- **Hierarchical**: "Manager of team X has all rights over team X members." → ReBAC.
+
+## Storing roles
+
+In Kratos identity traits. Athena lets admins assign roles via the identity edit UI.
+
+Alternative: store in your app DB and join on `identity_id`. Useful for many-roles-per-user or per-resource roles.
+
+## Role hierarchy
+
+For nested roles ("admin includes everything operator can"):
+
+```ts
+const ROLE_HIERARCHY: Record<string, string[]> = {
+  admin: ["operator", "user"],
+  operator: ["user"],
+  user: [],
+};
+
+function expandRoles(role: string): string[] {
+  return [role, ...(ROLE_HIERARCHY[role] || []).flatMap(expandRoles)];
+}
+
+function can(role: string, action: string): boolean {
+  return expandRoles(role).some(r => PERMISSIONS[r]?.includes(action));
+}
+```
+
+## Multi-role
+
+If users can have multiple roles:
+
+```json
+"roles": {
+  "type": "array",
+  "items": { "type": "string" }
+}
+```
+
+Check `roles.some(r => can(r, action))`.
+
+## Related
+
+- [Security — Authorization — ABAC](/docs/security/authz-abac)
+- [Security — Authorization — OPA integration](/docs/security/authz-opa)
+- [Cookbook — Map roles to scopes](/docs/cookbook/map-roles-to-scopes)

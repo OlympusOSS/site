@@ -1,0 +1,112 @@
+---
+title: SOC 2 compliance
+description: How Olympus's controls map to SOC 2 Trust Services Criteria
+---
+
+SOC 2 audits assess controls against five Trust Services Criteria (TSC). For most SaaS, **Security** is the only required category; Availability, Confidentiality, Processing Integrity, and Privacy are optional add-ons.
+
+## Mapping to TSC
+
+### CC6.1 — Logical access controls
+
+| Criterion sub-point | Olympus support |
+|---|---|
+| Identification & authentication | Kratos identifies; password / OIDC / MFA. |
+| Authorization | Athena role check; OAuth2 scopes. |
+| Encryption in transit | TLS everywhere; verify-full for Postgres. |
+| Encryption at rest | AES-256-GCM via SDK. |
+
+### CC6.2 — Logical access provisioning and removal
+
+- Onboarding: Athena's identity creation API.
+- Offboarding: `state: deactivated` or hard delete. See [Operate — pgAdmin DBA offboarding](/docs/operate/pgadmin-dba-offboarding) as a template.
+
+### CC6.3 — Network security
+
+- Firewall rules (host firewall + Caddy as ingress).
+- Network segmentation (CIAM/IAM isolation; intranet-only admin ports).
+- See [Operate — Network topology](/docs/operate/network-topology) and [Security — CIAM/IAM isolation](/docs/security/ciam-iam-isolation).
+
+### CC6.4-6.8 — Logical access maintenance
+
+- Quarterly access review: see [Operate — Secrets audit](/docs/operate/secrets-audit), apply same cadence to identity audit.
+- Privileged access (admin role) — every admin operation logged.
+
+### CC7.1 — System monitoring
+
+- Audit log (`security_audit` table) — see [Operate — Audit log retention](/docs/operate/audit-log-retention).
+- Health endpoints — see [Operate — Health endpoints](/docs/operate/health-endpoints).
+- External monitoring (uptime, cert expiry).
+
+### CC7.2 — Anomaly detection
+
+- Brute-force lockout (per-account).
+- Rate limiting (per-IP).
+- Captcha (bot mitigation).
+- Optional: impossible travel detection ([Cookbook](/docs/cookbook/detect-impossible-travel)).
+
+### CC7.3-7.4 — Incident response
+
+- Documented playbook: [Operate — Incident response](/docs/operate/incident-response).
+- Post-incident retros within 48h of Sev 1/2.
+
+### CC7.5 — Change management
+
+- Git-based change history.
+- CI gates (verify-prod-config, verify-image-pins) on every push.
+- Image digest pinning ([ADR 0014](/docs/adrs/0014-image-digest-pinning)).
+
+### CC8.1 — Backup and recovery
+
+- Postgres backups: [Operate — Backups (Postgres)](/docs/operate/backups-postgres).
+- Quarterly restore drills.
+
+### A1.1-A1.3 — Availability (optional)
+
+- Uptime monitoring via external service.
+- Multi-region considerations (Olympus is single-host by design; HA requires additional infrastructure).
+
+### C1.1-C1.2 — Confidentiality (optional)
+
+- Per-record encryption (HKDF-derived keys).
+- Encryption key rotation ([Operate](/docs/operate/encryption-key-rotation)).
+
+### P1.x — Privacy (optional, overlaps with GDPR/CCPA)
+
+- DSR export + deletion (cookbook recipes).
+- Minimum-necessary retention.
+
+## Evidence collection
+
+Auditors want **evidence**, not promises:
+
+- **Screenshots** of: Athena dashboard, network topology, firewall rules.
+- **Sample audit log entries** showing the controls firing.
+- **Runbook documents** (this site).
+- **CI workflow runs** showing gates passing.
+- **Penetration test reports** (annual, by a third party).
+
+## Pre-audit checklist
+
+Two months before the audit:
+
+- [ ] All secrets rotated within the past quarter ([Operate — Secrets audit](/docs/operate/secrets-audit)).
+- [ ] All admin identities reviewed (any still active for offboarded staff?).
+- [ ] Backup restore drill performed and documented.
+- [ ] Incident response runbook tested with a tabletop exercise.
+- [ ] All CI workflows green over the past 90 days.
+- [ ] Penetration test scheduled or completed.
+
+## Type 1 vs Type 2
+
+- **Type 1**: snapshot — controls exist on a specific date.
+- **Type 2**: period — controls operated effectively over 6-12 months. Most useful for buyers.
+
+Olympus supports both. Type 2 is more work because you need 6+ months of evidence.
+
+## Related
+
+- [Operate — Secrets audit](/docs/operate/secrets-audit)
+- [Operate — Incident response](/docs/operate/incident-response)
+- [Operate — Audit log retention](/docs/operate/audit-log-retention)
+- [Security — Threat model](/docs/security/threat-model)

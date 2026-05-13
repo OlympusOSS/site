@@ -1,0 +1,138 @@
+---
+title: Gin (Go) integration
+description: Authenticate Gin routes against Olympus
+---
+
+Gin + Olympus via middleware. Token introspection or JWT validation.
+
+## Middleware (opaque token)
+
+```go
+package main
+
+import (
+    "encoding/json"
+    "net/http"
+    "net/url"
+    "strings"
+
+    "github.com/gin-gonic/gin"
+)
+
+type TokenInfo struct {
+    Active bool   `json:"active"`
+    Sub    string `json:"sub"`
+    Scope  string `json:"scope"`
+}
+
+func OlympusAuth() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        auth := c.GetHeader("Authorization")
+        if !strings.HasPrefix(auth, "Bearer ") {
+            c.AbortWithStatusJSON(401, gin.H{"error": "missing_token"})
+            return
+        }
+        token := strings.TrimPrefix(auth, "Bearer ")
+
+        form := url.Values{}
+        form.Set("token", token)
+        req, _ := http.NewRequest("POST",
+            os.Getenv("OLYMPUS_ISSUER")+"/admin/oauth2/introspect",
+            strings.NewReader(form.Encode()))
+        req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+        req.SetBasicAuth(os.Getenv("HYDRA_ADMIN_USER"), os.Getenv("HYDRA_ADMIN_PASS"))
+
+        resp, err := http.DefaultClient.Do(req)
+        if err != nil {
+            c.AbortWithStatusJSON(500, gin.H{"error": "introspect_failed"})
+            return
+        }
+        defer resp.Body.Close()
+
+        var info TokenInfo
+        json.NewDecoder(resp.Body).Decode(&info)
+        if !info.Active {
+            c.AbortWithStatusJSON(401, gin.H{"error": "inactive_token"})
+            return
+        }
+
+        c.Set("user_sub", info.Sub)
+        c.Set("scopes", strings.Fields(info.Scope))
+        c.Next()
+    }
+}
+```
+
+## Wire up
+
+```go
+r := gin.Default()
+r.Use(OlympusAuth())
+
+r.GET("/api/widgets", func(c *gin.Context) {
+    userSub := c.GetString("user_sub")
+    scopes := c.GetStringSlice("scopes")
+    if !slices.Contains(scopes, "read:widgets") {
+        c.AbortWithStatusJSON(403, gin.H{"error": "insufficient_scope"})
+        return
+    }
+    c.JSON(200, gin.H{"user": userSub, "widgets": []string{}})
+})
+```
+
+## JWT validation (faster)
+
+For JWT access tokens, validate locally:
+
+```go
+import (
+    "github.com/coreos/go-oidc/v3/oidc"
+)
+
+func init() {
+    provider, _ := oidc.NewProvider(context.Background(), os.Getenv("OLYMPUS_ISSUER"))
+    verifier = provider.Verifier(&oidc.Config{ClientID: "your-audience"})
+}
+
+func JWTAuth() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        token := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
+        idToken, err := verifier.Verify(c.Request.Context(), token)
+        if err != nil {
+            c.AbortWithStatusJSON(401, gin.H{"error": err.Error()})
+            return
+        }
+        var claims struct {
+            Sub   string `json:"sub"`
+            Scope string `json:"scope"`
+        }
+        idToken.Claims(&claims)
+        c.Set("user_sub", claims.Sub)
+        c.Next()
+    }
+}
+```
+
+## Caching introspection results
+
+```go
+import "github.com/patrickmn/go-cache"
+
+var introspectCache = cache.New(30*time.Second, 60*time.Second)
+
+func cachedIntrospect(token string) (*TokenInfo, error) {
+    if info, ok := introspectCache.Get(token); ok {
+        return info.(*TokenInfo), nil
+    }
+    info, err := introspect(token)
+    if err == nil && info.Active {
+        introspectCache.Set(token, info, cache.DefaultExpiration)
+    }
+    return info, err
+}
+```
+
+## Related
+
+- [Cookbook — Validate access token (Go)](/docs/cookbook/validate-token-go)
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)
