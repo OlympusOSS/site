@@ -1,0 +1,94 @@
+---
+title: Encryption key blocklist
+description: Known-weak ENCRYPTION_KEY values the SDK refuses to accept
+---
+
+The Olympus SDK ships a blocklist of values that `ENCRYPTION_KEY` must NOT be. If `ENCRYPTION_KEY` matches anything on the list, the SDK refuses to start.
+
+The list lives in [`sdk/src/blocklist.ts`](https://github.com/OlympusOSS/sdk/blob/main/src/blocklist.ts).
+
+## Why a blocklist
+
+Most encryption-at-rest failures come from a weak key, not from a flaw in the algorithm. Common mistakes:
+- Leaving `.env.example`'s placeholder value (`changeme`, `replaceme`).
+- Using all zeros for "testing" and forgetting.
+- Copying a sample value from a tutorial.
+
+Each of these renders the encryption decorative — the data is "encrypted" but anyone with the public sample value can decrypt.
+
+The blocklist catches these mistakes at container startup, before they become a deployed-with-broken-encryption incident.
+
+## What's on the list
+
+The blocklist grows over time. As of recent versions:
+
+- Empty string and whitespace-only.
+- All-zero values: `0000000000000000000000000000000000000000`, base64 `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`, etc.
+- Repeating-character values: `1111...`, `aaaa...`.
+- Sample values from `.env.example` files in this repo's history.
+- Sample values from common tutorials and blog posts that recommend specific strings.
+
+## Adding to the blocklist
+
+If you discover a new common-mistake value in operator surveys:
+
+```ts
+// sdk/src/blocklist.ts
+export const BLOCKLIST = new Set([
+  // ...existing
+  "your_new_known_bad_value",
+]);
+```
+
+Bump SDK minor version (non-breaking — new values can't be set that previously worked).
+
+## Generating a valid key
+
+```bash
+openssl rand -base64 32
+```
+
+This produces ~44 characters of random base64-encoded bytes. Cryptographically random. Not on the blocklist (collision is mathematically impossible).
+
+Set as the env var:
+
+```bash
+ENCRYPTION_KEY=$(openssl rand -base64 32)
+```
+
+For production: store in GitHub Secrets via `gh secret set ENCRYPTION_KEY`.
+
+## What the SDK does on startup
+
+```ts
+import { BLOCKLIST } from "./blocklist";
+
+function validateEncryptionKey() {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) throw new Error("ENCRYPTION_KEY not set");
+  if (BLOCKLIST.has(key.trim())) {
+    throw new Error("ENCRYPTION_KEY is on the encryption-key blocklist");
+  }
+  // Also validate length, decode, etc.
+}
+```
+
+This runs at module import time in Athena, Hera, and Site containers. A blocklisted value crashes the container immediately, before any traffic is served.
+
+## Bypass for testing
+
+For SDK unit tests that need a deterministic key but don't actually persist:
+
+```bash
+NODE_ENV=test ENCRYPTION_KEY="test-key-for-unit-tests-only-bytes" bun test
+```
+
+The SDK's check honors `NODE_ENV=test` for certain test-only values. Don't use `test` in production — the blocklist gate doesn't fire there but the value is still weak.
+
+## Related
+
+- [ADR 0006 — AES-256-GCM + HKDF-SHA256](/docs/adrs/0006-aes-256-gcm-hkdf)
+- [ADR 0007 — Encryption key blocklist](/docs/adrs/0007-encryption-key-blocklist)
+- [Security — Encryption at rest](/docs/security/encryption-at-rest)
+- [Operate — Encryption key rotation](/docs/operate/encryption-key-rotation)
+- [Troubleshooting — Encryption key startup failure](/docs/troubleshooting/encryption-key-startup-failure)

@@ -1,0 +1,115 @@
+---
+title: Logs and observability
+description: Where Olympus logs, what to watch, where to forward
+---
+
+Olympus services log to stdout. Compose collects, and your supervisor (systemd unit, ship-to-CloudWatch agent, etc.) forwards.
+
+## What each service logs
+
+| Service | Format | Useful events |
+|---|---|---|
+| Kratos | JSON | flow init/complete, identity create/update, courier dispatch |
+| Hydra | JSON | client request, token issued, consent decision |
+| Athena | text + JSON (audit events) | auth chain decisions, API errors |
+| Hera | text | flow rendering, captcha verification, breach check |
+| Caddy | JSON | every request, ACME renewals, rate-limit hits |
+| Postgres | text | slow queries (if enabled), connection events |
+| SDK (in apps) | JSON via `process.stdout.write({type:"audit",...})` | brute-force events, settings changes |
+
+## Querying logs
+
+In dev or small prod:
+
+```bash
+podman compose -f compose.prod.yml logs -f --tail 100 ciam-kratos
+podman compose -f compose.prod.yml logs --since 1h iam-hydra | jq -c 'select(.level=="error")'
+```
+
+In larger prod, ship logs to a centralized store. Options:
+
+- **CloudWatch Logs** (AWS): `awslogs` Docker driver or fluent-bit sidecar.
+- **Loki + Grafana** (self-hosted): Promtail container reads `/var/log/containers` and ships to Loki.
+- **Datadog / Honeycomb / etc.** (SaaS): their agent runs as a container.
+
+## What to alert on
+
+Production alerts you should have:
+
+| Alert | Threshold |
+|---|---|
+| Any Caddy 5xx | > 1/min |
+| Kratos health/ready failing | 2 consecutive checks |
+| Hydra health/ready failing | 2 consecutive checks |
+| Postgres connection failures | > 5/min |
+| Lockouts applied | > 100/hour (signal of distributed attack) |
+| Email courier failed dispatches | > 10/hour (provider issue) |
+| Cert expiry | < 30 days |
+| Disk usage | > 80% |
+| `ENCRYPTION_KEY` rejected at startup | any (means a deploy went wrong) |
+
+## What NOT to alert on
+
+- Individual 401s / 403s — these are normal (someone typed wrong password).
+- Individual 4xx — your apps will emit these for normal user errors.
+- Brute-force lockouts on a single account — expected.
+
+## Log redaction
+
+Olympus log lines try to avoid PII, but be aware:
+- Kratos `leak_sensitive_values: false` in prod prevents Kratos from logging passwords / secrets. Verified by `verify-prod-config.yml`.
+- Hydra similar — but the introspection endpoint reveals scopes; log responses carefully.
+- Caddy's access log includes URLs, which may contain query strings with `code`, `state`, `id_token_hint`. Configure Caddy to strip these:
+
+```caddy
+log {
+  output stdout
+  format json {
+    # filter out sensitive query params
+  }
+}
+```
+
+The default Caddy log includes the full URI. For SOC 2 / GDPR conformance, sanitize.
+
+## Useful query examples
+
+### Failed logins from one IP
+
+```sql
+SELECT identity_id, COUNT(*)
+FROM security_audit
+WHERE event_type = 'login.failure'
+  AND source_ip = '203.0.113.42'
+  AND created_at > NOW() - INTERVAL '1 day'
+GROUP BY 1;
+```
+
+### Recent flow expirations (might indicate user friction)
+
+```bash
+podman compose logs ciam-kratos --since 1d \
+  | jq -c 'select(.message=="flow expired") | {flow_id: .flow_id, age_sec: .age_sec}'
+```
+
+### Slow Hydra responses
+
+```bash
+podman compose logs ciam-hydra --since 1d \
+  | jq -c 'select(.duration_ms > 500)'
+```
+
+## Retention
+
+Container logs locally: ~50MB rolling per service. Adequate for hot debugging.
+
+Shipped logs: retain per your compliance needs:
+- 7 days for ops debugging.
+- 90 days for security review.
+- 13 months for SOC 2 audit.
+
+## Related
+
+- [Operate — Audit log retention](/docs/operate/audit-log-retention)
+- [Operate — Health endpoints](/docs/operate/health-endpoints)
+- [Operate — Incident response](/docs/operate/incident-response)
