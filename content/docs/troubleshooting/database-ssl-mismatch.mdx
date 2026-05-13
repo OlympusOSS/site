@@ -1,0 +1,103 @@
+---
+title: Database SSL mismatch
+description: Apps can't connect to Postgres with TLS handshake errors
+---
+
+Kratos, Hydra, Athena, Hera, or Site can't connect to Postgres. Logs show:
+
+```
+TLS handshake failed: x509: certificate signed by unknown authority
+```
+
+or:
+
+```
+SSL connection failed: server certificate verification failed
+```
+
+or:
+
+```
+SSL is required by server but client requests sslmode=disable
+```
+
+These all indicate a mismatch between what the client expects and what the server provides.
+
+## Diagnostic
+
+### Connection string
+
+```bash
+ssh prod 'podman exec ciam-kratos sh -c "echo \$DSN"'
+```
+
+Look for `sslmode=` in the URL. Production Olympus requires `sslmode=verify-full` ([ADR 0013](/docs/adrs/0013-postgres-sslmode-verify-full)).
+
+### CA bundle inside the container
+
+```bash
+ssh prod 'podman exec ciam-kratos ls -la /etc/ssl/certs/'
+```
+
+The CA cert that signed your Postgres server cert must be reachable here. The path depends on the connection string:
+- `sslrootcert=/etc/ssl/certs/postgres-ca.crt` — Kratos looks here.
+
+### CA cert validity
+
+```bash
+ssh prod 'podman exec ciam-kratos openssl x509 -in /etc/ssl/certs/postgres-ca.crt -noout -dates'
+```
+
+If the CA cert has expired, every TLS handshake fails. Generate a new CA — see [Operate — Cert Rotation](/docs/operate/cert-rotation).
+
+### Server hostname vs cert
+
+```bash
+echo | openssl s_client -connect $POSTGRES_HOST:5432 -starttls postgres 2>/dev/null \
+  | openssl x509 -noout -text | grep -A1 "Subject Alternative Name"
+```
+
+`verify-full` checks the cert's SAN against the hostname in `DATABASE_URL`. Mismatch = handshake fail.
+
+If your `DATABASE_URL` uses `db.internal.example.com` but the cert was issued for `postgres.example.com`, change one to match.
+
+## Fixes
+
+### CA cert is wrong / missing
+
+Re-distribute. The CA cert should be baked into each app image at build time or mounted from a known location:
+
+```yaml
+volumes:
+  - /etc/ssl/certs/postgres-ca.crt:/etc/ssl/certs/postgres-ca.crt:ro
+```
+
+For Neon-managed Postgres, the CA is published — fetch and bundle:
+
+```bash
+curl https://neon.tech/ca.crt > postgres-ca.crt
+```
+
+### Cert is expired
+
+Generate new CA + server cert, deploy to Postgres, redeploy apps with the new CA bundle. See [Operate — Cert Rotation](/docs/operate/cert-rotation).
+
+### `sslmode=verify-full` vs server cert hostname mismatch
+
+Either:
+- Regenerate the server cert with a SAN matching the hostname your apps use.
+- Or change the hostname in `DATABASE_URL` to match the cert's SAN.
+
+The first is correct; the second is a workaround.
+
+### Server requires SSL but client uses `disable`
+
+Production should never use `sslmode=disable`. Update `DATABASE_URL` to `sslmode=verify-full` and ensure CA is in place.
+
+The `verify-prod-config.yml` CI workflow catches this for production deployments — if it slipped through, your deploy bypassed CI.
+
+## Related
+
+- [Deploy — Database SSL verify-full](/docs/deploy/database-ssl-verify-full)
+- [Operate — Cert rotation](/docs/operate/cert-rotation)
+- [ADR 0013 — Postgres sslmode=verify-full](/docs/adrs/0013-postgres-sslmode-verify-full)

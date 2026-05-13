@@ -1,0 +1,154 @@
+---
+title: From Keycloak
+description: Migrating an existing Keycloak realm to Olympus
+---
+
+This guide moves a Keycloak realm to a self-hosted Olympus deployment.
+
+## Concept mapping
+
+| Keycloak | Olympus |
+| --- | --- |
+| Realm | CIAM or IAM domain (Olympus has two per deployment) |
+| User | Kratos identity |
+| User attributes | Identity `traits` |
+| Required actions (VERIFY_EMAIL, etc.) | Kratos flow hooks / states |
+| Client | Hydra OAuth2 client |
+| Role | Identity trait (`role: "admin"`) — Olympus doesn't have a separate role table |
+| Group | Identity trait (array of group names) |
+| Identity provider (Google, GitHub, etc.) | OIDC IdP configured per-domain in `kratos.yml` |
+| Authentication flow | Kratos flow config |
+| Authenticator (TOTP, WebAuthn) | Kratos credential type |
+| Account console | Kratos settings flow (rendered by Hera) |
+| Admin console | Athena |
+| Themes | Hera fork with your branding |
+
+## Identity export → Kratos import
+
+### Step 1: Export from Keycloak
+
+```bash
+# Inside the Keycloak container or via kc.sh
+./kc.sh export --dir /tmp/export --realm your-realm --users different_files
+```
+
+This produces JSON files: `your-realm-realm.json` (realm config), `your-realm-users-N.json` (users in chunks).
+
+### Step 2: Transform to Kratos identity format
+
+Each Keycloak user → one Kratos identity:
+
+```json
+{
+  "schema_id": "default",
+  "state": "active",
+  "traits": {
+    "email": "user@example.com",
+    "name": { "first": "...", "last": "..." }
+  },
+  "verifiable_addresses": [
+    { "value": "...", "verified": true, "via": "email", "status": "completed" }
+  ],
+  "credentials": {
+    "password": {
+      "type": "password",
+      "identifiers": ["user@example.com"],
+      "config": { "hashed_password": "$2a$10$..." }
+    }
+  }
+}
+```
+
+Keycloak password hashes are typically `pbkdf2-sha256` with embedded salt. Kratos supports importing pbkdf2 hashes — see Kratos's [hash format docs](https://www.ory.sh/docs/kratos/manage-identities/import-user-accounts-identities). Map Keycloak's hash representation to Kratos's expected format.
+
+If hashes can't be re-imported, fall back: force a password reset for every user via Kratos's recovery flow on first login.
+
+### Step 3: Bulk import
+
+```bash
+for f in identities-*.json; do
+  curl -X POST http://localhost:3101/admin/identities -H 'content-type: application/json' -d @"$f"
+done
+```
+
+## OAuth2 client mapping
+
+For each Keycloak client:
+
+- **Public client** (e.g. SPA) → Hydra public client with PKCE.
+- **Confidential client** (e.g. server-side app) → Hydra confidential client with `client_secret_basic`.
+- **Bearer-only client** (resource server) → no Hydra registration needed; validate tokens via introspection.
+
+```bash
+hydra create client \
+  --endpoint http://localhost:3103 \
+  --name <client-name> \
+  --grant-type authorization_code,refresh_token \
+  --response-type code \
+  --scope "openid profile email" \
+  --redirect-uri https://app.example.com/callback
+```
+
+## Roles → trait
+
+Keycloak's role concept doesn't have a direct Kratos equivalent. The typical Olympus pattern is:
+
+```json
+"role": {
+  "type": "string",
+  "enum": ["admin", "operator", "user"]
+}
+```
+
+For multi-role users, use an array trait. App code reads `identity.traits.role` to authorize.
+
+## Identity providers
+
+Keycloak IdPs (Google, GitHub, etc.) become Kratos OIDC providers in `kratos.yml`:
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      enabled: true
+      config:
+        providers:
+          - id: google
+            provider: google
+            client_id: <client-id>
+            client_secret: <secret>
+            mapper_url: file:///etc/config/kratos/oidc.google.jsonnet
+            scope: ["openid", "email", "profile"]
+```
+
+Re-create the upstream Google/GitHub OAuth2 apps with Olympus's redirect URI.
+
+## Themes / branding
+
+Keycloak themes don't port to Hera. Hera is a Next.js app — branding is a fork of Hera with your CSS/components.
+
+## Cutover patterns
+
+Same as [From Auth0](/docs/migration/from-auth0): big-bang (downtime) or dual-write.
+
+For Keycloak specifically, the dual-write pattern is harder because Keycloak's "user search" API is paginated and slow for large realms. Big-bang is usually preferred.
+
+## Things that don't directly map
+
+- **Keycloak Authorization Services (UMA, fine-grained permissions)** — Olympus doesn't support. Implement in your app or via OPA / Cedar in front.
+- **Keycloak Required Actions for custom flows** — translate to Kratos hooks.
+- **Keycloak SAML federation** — Olympus is OIDC-first. For SAML, run a SAML→OIDC bridge.
+
+## Validation
+
+- [ ] User counts match.
+- [ ] Sample user can log in.
+- [ ] Social IdPs work.
+- [ ] Roles are visible in the ID token (Hydra includes traits).
+- [ ] Apps can validate access tokens.
+
+## Related
+
+- [Migration — From Auth0](/docs/migration/from-auth0)
+- [Identity — Identity schemas](/docs/identity/identity-schemas)
+- [Get Started — Your first OAuth2 client](/docs/get-started/first-oauth-client)

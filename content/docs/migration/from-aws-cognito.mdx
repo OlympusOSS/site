@@ -1,0 +1,108 @@
+---
+title: From AWS Cognito
+description: Migrating an AWS Cognito user pool to Olympus
+---
+
+This guide moves an AWS Cognito user pool to Olympus.
+
+## Concept mapping
+
+| Cognito | Olympus |
+| --- | --- |
+| User pool | CIAM or IAM domain (Olympus has two) |
+| User | Kratos identity |
+| Custom attributes | Identity traits |
+| Username (which can be email, phone, or custom) | Kratos identifier (typically email) |
+| App client | Hydra OAuth2 client |
+| User pool client secret | Hydra client_secret |
+| Group | Trait (array) |
+| Identity pool | Not used — IAM roles are AWS-specific |
+| Hosted UI | Hera |
+| Pre/Post triggers (Lambda) | Kratos flow webhooks |
+| MFA (SMS, TOTP) | Kratos TOTP/WebAuthn |
+| Custom auth challenge | Not directly portable — custom flow in Hera |
+
+## Identity export → Kratos import
+
+### Step 1: Export from Cognito
+
+```bash
+# Cognito doesn't have a clean export — paginate ListUsers
+aws cognito-idp list-users --user-pool-id us-east-1_abc123 \
+  --pagination-token $TOKEN \
+  --max-results 60
+```
+
+The catch: **Cognito does not export password hashes.** You can export users (email, attributes, status) but not the credentials.
+
+### Step 2: Strategies for credentials
+
+Three options:
+
+#### Strategy A: Force-reset everyone
+
+Import identities into Kratos in `state: active` but **without** password credentials. On first login, every user gets routed to the recovery flow (because they have no password set), receives a recovery email, sets a new password.
+
+```bash
+for user in $(aws cognito-idp list-users ...); do
+  # Create identity without password credentials
+  curl -X POST http://localhost:3101/admin/identities -d "{
+    \"schema_id\": \"default\",
+    \"state\": \"active\",
+    \"traits\": { \"email\": \"$EMAIL\" },
+    \"verifiable_addresses\": [{ \"value\": \"$EMAIL\", \"verified\": true, ... }]
+  }"
+done
+```
+
+Pros: clean, no Cognito dependency post-migration. Cons: every user does a one-time recovery flow.
+
+#### Strategy B: Lazy migration (proxy through Cognito)
+
+During the transition window:
+1. On every login attempt, check Olympus first. If user exists with valid credentials, use Olympus.
+2. If user doesn't exist OR has no password (Strategy A's initial state), try Cognito's `AdminInitiateAuth` (`USER_PASSWORD_AUTH` flow).
+3. On Cognito success, **store the verified password in Olympus** (via Kratos admin import) so future logins go direct.
+
+After 30 days, decommission Cognito; anyone who hasn't logged in falls back to Strategy A.
+
+#### Strategy C: Bulk migration via password set
+
+If you can prompt users (banner: "We're migrating; please log in to confirm your account"), you bulk-set passwords as users authenticate, capturing the password during a normal Cognito login and immediately writing it to Kratos.
+
+Strategy A is simplest. Strategy B is best UX. Strategy C is best for high-engagement deployments where most users will log in within a short window.
+
+## OAuth2 client mapping
+
+For each Cognito App Client:
+
+```bash
+hydra create client \
+  --endpoint http://localhost:3103 \
+  --name <app-client-name> \
+  --grant-type authorization_code,refresh_token \
+  --response-type code \
+  --scope "openid profile email" \
+  --redirect-uri https://app.example.com/callback
+```
+
+Cognito's `client_secret` doesn't transfer — generate new ones in Hydra.
+
+## Things that don't directly map
+
+- **Cognito Identity Pools (federated AWS IAM roles)** — Olympus doesn't issue AWS IAM credentials. Use AWS STS AssumeRoleWithWebIdentity manually if you need this, with the Olympus ID token.
+- **Cognito Lambda triggers** — translate to Kratos hooks (HTTP webhooks).
+- **Cognito Advanced Security** (adaptive auth, risk-based MFA) — Olympus has rule-based equivalents (brute-force lockout, breach checks) but not the ML-based adaptive flow.
+- **Cognito sync** (cross-device data sync) — out of scope for Olympus.
+
+## Validation
+
+- [ ] User count matches.
+- [ ] Sample user can authenticate.
+- [ ] Apps can validate Olympus access tokens.
+- [ ] Lambda-triggered flows have webhook equivalents in `kratos.yml`.
+
+## Related
+
+- [Migration — From Auth0](/docs/migration/from-auth0)
+- [Get Started — Your first OAuth2 client](/docs/get-started/first-oauth-client)

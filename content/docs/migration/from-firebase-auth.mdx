@@ -1,0 +1,113 @@
+---
+title: From Firebase Auth
+description: Migrating Firebase Authentication users to Olympus
+---
+
+This guide moves a Firebase Authentication project to a self-hosted Olympus deployment.
+
+## Concept mapping
+
+| Firebase Auth | Olympus |
+| --- | --- |
+| Project | CIAM domain |
+| User | Kratos identity |
+| `customClaims` | Identity traits (or claim mapper if you need Hydra to include them in tokens) |
+| Provider (email, Google, Apple, anonymous, phone) | Kratos credential type + OIDC provider |
+| Email link sign-in | Kratos's recovery flow re-purposed (no direct equivalent) |
+| Phone auth | Not supported in Olympus default — needs SMS provider integration in Kratos |
+| Anonymous auth | Not supported in Olympus |
+| `getIdToken()` (JWT for backend verification) | Hydra ID token via standard OIDC flow |
+
+## Identity export → Kratos import
+
+### Step 1: Export from Firebase
+
+```bash
+firebase auth:export users.json --project your-project
+```
+
+Output is JSONL — one user per line.
+
+Each entry includes: `localId`, `email`, `emailVerified`, `displayName`, `customClaims`, `passwordHash` (scrypt), `passwordSalt`, `providerUserInfo[]`, `createdAt`, `lastLoginAt`.
+
+### Step 2: Transform — the scrypt problem
+
+Firebase uses **Firebase-flavored scrypt** for password hashes. This is a custom variant; not the standard scrypt.
+
+The hash format is `<base64-hash>` plus a separate `salt`, `saltSeparator`, `rounds`, `memCost`, and a project-wide `signerKey` (also base64).
+
+Kratos does **not** support Firebase scrypt directly.
+
+Options:
+
+#### A. Force password reset on first login
+
+Import users without password credentials. They go through recovery on first login.
+
+#### B. Custom hash verification via Kratos hooks
+
+Implement a Kratos `before_login` hook that verifies the Firebase scrypt hash and, on match, transparently sets a Kratos-compatible password (bcrypt/argon2) for future logins.
+
+#### C. Dual-write through Firebase
+
+Keep Firebase running as a verification backend. On every Olympus login, fall back to Firebase if Olympus credentials don't exist. Migrate as users authenticate.
+
+Strategy A is simplest. Strategy B is best UX. Strategy C lets you migrate gradually.
+
+### Step 3: Import
+
+```bash
+jq -c '. | {
+  schema_id: "default",
+  state: "active",
+  traits: { email: .email, name: .displayName },
+  verifiable_addresses: [{ value: .email, verified: .emailVerified, via: "email", status: (.emailVerified | if . then "completed" else "pending" end) }]
+}' users.json > kratos-identities.json
+
+while read line; do
+  curl -X POST http://localhost:3101/admin/identities -H 'content-type: application/json' -d "$line"
+done < kratos-identities.json
+```
+
+## OAuth2 client mapping
+
+Firebase's `signInWithRedirect` flows have no exact equivalent — Firebase is OIDC-like but not strictly OIDC. For each Firebase provider you support:
+
+- Register equivalent OAuth2 clients in your apps that call **Olympus Hydra** instead of Firebase.
+- Update your client-side SDK from `firebase/auth` to a standard OIDC client (`oauth4webapi`, `oidc-client-ts`).
+
+## Custom claims
+
+Firebase `customClaims` become identity traits. The Kratos identity schema declares them:
+
+```json
+"role": { "type": "string", "enum": ["admin", "user"] }
+```
+
+Hydra includes traits in the ID token automatically.
+
+## Anonymous and phone users
+
+If your app uses Firebase anonymous auth:
+- Decide whether anonymous accounts should be permanently dropped or converted to email-required accounts.
+- Olympus doesn't support fully-anonymous identities.
+
+If you use phone auth, you'll need to add SMS provider integration to Kratos (Twilio, MessageBird) and configure the identity schema for `phone_number` as identifier.
+
+## Things that don't map
+
+- **Firestore security rules referencing `request.auth`** — your app database access must be reauthored.
+- **Anonymous auth** — drop or replace.
+- **Email link (passwordless email) sign-in** — Olympus doesn't ship this; can be implemented as a custom Hera flow.
+
+## Validation
+
+- [ ] User count matches.
+- [ ] Sample user can sign in (via the chosen credential-migration strategy).
+- [ ] Custom claims appear in the ID token.
+- [ ] Frontend SDK swapped from `firebase/auth` to OIDC client.
+
+## Related
+
+- [Migration — From Auth0](/docs/migration/from-auth0)
+- [Migration — From Supabase Auth](/docs/migration/from-supabase-auth) — similar shape (also custom hash format).

@@ -1,0 +1,140 @@
+---
+title: From Supabase Auth
+description: Migrating Supabase Auth (GoTrue) users to Olympus
+---
+
+This guide moves a Supabase Auth deployment (built on GoTrue) to a self-hosted Olympus deployment.
+
+## Concept mapping
+
+| Supabase Auth | Olympus |
+| --- | --- |
+| Project | CIAM or IAM domain |
+| User (`auth.users` table) | Kratos identity |
+| `raw_user_meta_data` | Identity traits |
+| `raw_app_meta_data` | Identity traits (typically a `role`) |
+| Provider (`auth.identities` table — google, github, etc.) | OIDC provider in `kratos.yml` |
+| RLS policies referencing `auth.uid()` | Application-side `sub` claim from Olympus ID token |
+| Magic link sign-in | Recovery flow (re-purposed) |
+| Phone auth | Not in Olympus default — needs SMS integration |
+| Anonymous sign-in | Not in Olympus |
+| OAuth via Supabase | Direct OIDC against Olympus Hydra |
+
+## Identity export → Kratos import
+
+### Step 1: Export from Supabase
+
+```bash
+# Supabase Postgres has auth.users directly accessible:
+psql $SUPABASE_DB_URL -c "COPY (
+  SELECT id, email, email_confirmed_at, encrypted_password, raw_user_meta_data, raw_app_meta_data, created_at
+  FROM auth.users
+) TO STDOUT WITH CSV HEADER" > users.csv
+```
+
+### Step 2: Transform — bcrypt hashes
+
+Supabase Auth (GoTrue) uses **bcrypt** by default. Kratos supports bcrypt directly. This is straightforward compared to Firebase's custom scrypt.
+
+```python
+import csv, json
+for row in csv.DictReader(open('users.csv')):
+    meta = json.loads(row['raw_user_meta_data'] or '{}')
+    app = json.loads(row['raw_app_meta_data'] or '{}')
+    identity = {
+        "schema_id": "default",
+        "state": "active",
+        "traits": {
+            "email": row['email'],
+            "name": meta.get('full_name', ''),
+            "role": app.get('role', 'user')
+        },
+        "verifiable_addresses": [{
+            "value": row['email'],
+            "verified": bool(row['email_confirmed_at']),
+            "via": "email",
+            "status": "completed" if row['email_confirmed_at'] else "pending"
+        }],
+        "credentials": {
+            "password": {
+                "type": "password",
+                "identifiers": [row['email']],
+                "config": { "hashed_password": row['encrypted_password'] }
+            }
+        }
+    }
+    print(json.dumps(identity))
+```
+
+### Step 3: Import
+
+```bash
+while read line; do
+  curl -X POST http://localhost:3101/admin/identities \
+    -H 'content-type: application/json' -d "$line"
+done < kratos-identities.jsonl
+```
+
+## OAuth2 client mapping
+
+Supabase Auth doesn't expose OAuth2 clients in the conventional sense — it's primarily a "frontend SDK" model where your Supabase project URL + anon key serve as the OAuth context.
+
+For Olympus, you'll register OAuth2 clients in Hydra and update your apps:
+
+```bash
+hydra create client \
+  --endpoint http://localhost:3103 \
+  --name web-app \
+  --grant-type authorization_code,refresh_token \
+  --response-type code \
+  --scope "openid profile email" \
+  --redirect-uri https://app.example.com/callback
+```
+
+Replace `supabase-js` `signInWithPassword` calls with standard OAuth2 / OIDC flows. Your app talks to `/oauth2/auth` on the CIAM Hydra.
+
+## Social providers
+
+For each Supabase OAuth provider configured:
+1. Re-create the upstream OAuth app (Google, GitHub, etc.) with Olympus's callback URL.
+2. Configure as a Kratos OIDC provider in `kratos.yml`.
+
+## RLS policies referencing `auth.uid()`
+
+Supabase RLS policies reference `auth.uid()` and `auth.jwt()`. After migration:
+- The `auth.uid()` is the Kratos identity ID (UUID). Same format, different source.
+- Apps now receive a Hydra-issued JWT (or opaque token). For RLS to work, your Postgres needs the JWT decoded and `auth.uid()` set per-request.
+
+The standard pattern: in your backend, validate the Olympus access token, extract `sub`, then set `request.jwt.claims` on the Postgres connection before the RLS query.
+
+```sql
+-- Backend sets the JWT claims for this transaction
+SET LOCAL request.jwt.claims = '{"sub":"<kratos-identity-id>", "role":"user"}';
+
+-- RLS policy
+CREATE POLICY user_owns_row ON your_table
+  USING (user_id = (current_setting('request.jwt.claims')::json->>'sub')::uuid);
+```
+
+## Edge functions
+
+Supabase Edge Functions referencing `auth.users` directly no longer work — there's no Supabase Auth. Move auth logic to your app server.
+
+## Things that don't map
+
+- **Anonymous sign-in.**
+- **Phone auth without SMS integration.**
+- **Magic link (passwordless) sign-in** as a first-class flow — Olympus has it via recovery flow re-purposing.
+- **`auth.email_change` / `auth.phone_change`** native flows — Kratos's settings flow handles email change via verification.
+
+## Validation
+
+- [ ] User count matches.
+- [ ] Sample user can sign in with existing password (bcrypt re-verification works).
+- [ ] RLS continues to function with `auth.uid()` populated by your app.
+- [ ] Social providers work end-to-end.
+
+## Related
+
+- [Migration — From Auth0](/docs/migration/from-auth0)
+- [Migration — From Firebase Auth](/docs/migration/from-firebase-auth)

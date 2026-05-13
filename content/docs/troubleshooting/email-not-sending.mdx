@@ -1,0 +1,87 @@
+---
+title: Email not sending
+description: Users report missing verification or recovery emails
+---
+
+Users say they didn't receive verification or recovery emails. Most often this is a deliverability issue, not a sending issue — Kratos's courier dispatched the email, but it didn't reach the inbox.
+
+## Diagnostic procedure
+
+### 1. Did Kratos dispatch the email?
+
+```bash
+# View recent courier messages
+podman exec ciam-kratos kratos courier list-messages --endpoint http://localhost:5001 | head
+```
+
+You should see a row for the missing email with `status: processed`. If `status: queued` or `failed`, the courier never sent it — go to step 2. If `processed`, go to step 4.
+
+### 2. Are courier credentials valid?
+
+```bash
+# Check courier connection
+podman exec ciam-kratos curl -sf -o /dev/null \
+  --connect-timeout 5 smtp://your-smtp-host:587
+echo $?  # 0 = reachable
+```
+
+If unreachable, the SMTP host is down or the firewall is blocking egress. Check from inside the container.
+
+If reachable but auth fails (look at Kratos logs), the SMTP credentials are wrong. Verify in your email provider's dashboard.
+
+### 3. Re-trigger queued messages
+
+```bash
+podman exec ciam-kratos kratos courier flush --endpoint http://localhost:5001
+```
+
+Forces the courier to re-attempt all queued messages.
+
+### 4. Did the email arrive but go to spam?
+
+Ask the user to check the spam folder. If found there:
+
+- **SPF**: ensure your sender domain has an SPF record listing the provider's IPs.
+- **DKIM**: ensure DKIM is configured in your email provider and the DNS record is published.
+- **DMARC**: publish a DMARC record (start with `p=none` to monitor).
+- **From address**: must be on a verified domain at the provider.
+
+### 5. Is the recipient on a "bad senders" list?
+
+If your sender IP has poor reputation, Gmail / Outlook may silently bounce. Symptoms:
+- Single users from a single mailbox provider missing emails.
+- Provider's deliverability dashboard shows bounces for those addresses.
+
+Mitigate by warming the sender IP / domain. Send small volumes to engaged users first; ramp up over weeks.
+
+### 6. Is the user using a temporary email domain?
+
+Many disposable email providers (10minutemail, etc.) silently drop mail. There's no fix; the user must use a real email.
+
+## Provider-specific debugging
+
+### Resend
+
+Dashboard → Emails — shows delivery, bounces, complaints per recipient.
+
+### Postmark
+
+Dashboard → Server → Activity — same; very detailed timeline.
+
+### Brevo / SMTP2GO / Custom SMTP
+
+Check provider dashboard's outbound activity. Look for bounces tagged with the recipient's address.
+
+## What to tell the user
+
+For the user's primary report:
+1. Check spam folder.
+2. Wait 5 minutes — some providers (Gmail) queue emails for content scanning before delivery.
+3. Add `noreply@your-domain.com` to their contacts.
+4. If still nothing, request a resend from your support team. Behind the scenes: an admin in Athena clicks "Resend verification" for that identity.
+
+## Related
+
+- [Operate — Email deliverability](/docs/operate/email-deliverability)
+- [Deploy — DNS and Domains](/docs/deploy/dns-and-domains)
+- [Security — Email verification](/docs/security/email-verification)

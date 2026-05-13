@@ -1,0 +1,68 @@
+---
+title: Kratos flow expired
+description: Flow expired before user completed it
+---
+
+```
+error: This flow has expired
+```
+
+Each Kratos flow (login, registration, recovery, verification, settings) has a TTL. After the TTL, the flow is invalid and must be re-initiated.
+
+## Default TTLs
+
+| Flow | TTL |
+|---|---|
+| Login | 1 hour |
+| Registration | 1 hour |
+| Recovery | 1 hour (link in email is valid for 1 hour from email send) |
+| Verification | 1 hour |
+| Settings | 1 hour |
+
+Configurable in `kratos.yml` → `selfservice.flows.<flow>.lifespan`.
+
+## User-facing fix
+
+Re-initiate. The user clicks "Forgot password?" again, or goes back to the login page. A fresh flow starts.
+
+## When the user reports it constantly
+
+If a user can't complete a flow within an hour, the TTL is the wrong size for the use case. Investigate:
+
+- **Email delivery is slow.** Verification emails arriving 30+ minutes late give the user 30 minutes to click. Either:
+  - Speed up email delivery (provider issue).
+  - Extend the verification TTL: `selfservice.flows.verification.lifespan: 24h`.
+- **Users are interrupted mid-flow.** A registration that the user starts at home, then continues from their commute, then completes at work — exceeds 1 hour.
+  - Extend the relevant flow lifespan.
+- **Users click an old email link.** They abandoned the flow, came back days later, clicked the email. The link references the now-dead flow.
+  - Educate users to start over. Or have your link page detect expiry and auto-restart.
+
+## Olympus-specific gotcha
+
+The recovery link contains both a flow ID and a token. The token TTL and the flow TTL can be different.
+
+If a user reports "the recovery link says it's expired but I just clicked it":
+- The flow TTL has expired (the flow expired before the user clicked).
+- This means the link was sent ≥1 hour ago.
+- Re-initiate.
+
+## Adjusting TTLs
+
+```yaml
+# kratos.yml
+selfservice:
+  flows:
+    recovery:
+      lifespan: 4h    # link valid for 4 hours
+    login:
+      lifespan: 30m   # user must complete login within 30 minutes
+```
+
+Trade-off: longer TTLs = more user-friendly but longer attack window for replayable flow URLs. Don't extend recovery beyond 24h.
+
+## Related
+
+- [Identity — Flow login](/docs/identity/flow-login)
+- [Identity — Flow recovery](/docs/identity/flow-recovery)
+- [Identity — Flow verification](/docs/identity/flow-verification)
+- [Reference — kratos.yml](/docs/reference/config/kratos-yml)

@@ -1,0 +1,69 @@
+---
+title: OAuth2 invalid_grant
+description: Hydra rejects an authorization code or refresh token exchange
+---
+
+`invalid_grant` is the OAuth2 error code when Hydra rejects a token exchange. The cause is one of several misconfigurations or expired-token situations.
+
+## Specific sub-errors
+
+The `error_description` distinguishes:
+
+| `error_description` | Cause |
+|---|---|
+| `Authorization code has already been used` | The code was already exchanged. Either you're retrying after a successful exchange (don't), or two parallel requests raced and one lost. |
+| `Authorization code is expired or invalid` | The code's lifetime (~10 minutes) elapsed before exchange. Or the code was never valid (typo, tampered query string). |
+| `Refresh token has been revoked` | The refresh token was explicitly revoked (via `/oauth2/revoke`), or the user's identity was deleted, or rotation was broken. |
+| `Refresh token has expired` | Default 30-day lifetime exceeded. User must log in again. |
+| `Mismatching client_id` | The token was issued for client X but you're exchanging it as client Y. Use the same client. |
+| `Mismatching redirect_uri` | The `/oauth2/token` request includes a `redirect_uri` that doesn't match the `/oauth2/auth` request's `redirect_uri`. They must match exactly (case-sensitive, trailing slashes included). |
+| `Code verifier does not match challenge` | PKCE verification failed — the `code_verifier` sent at token exchange doesn't hash to the `code_challenge` sent at authorization. |
+
+## Fix per case
+
+### "Authorization code has already been used"
+
+Check whether your token exchange logic runs twice. Common cause: React StrictMode in development re-renders, double-firing your callback handler.
+
+Fix: dedupe by storing the code in component state and ignoring duplicate fires; or wrap the exchange in a server component that runs once.
+
+### "Authorization code is expired or invalid"
+
+If you exchange immediately after callback, this shouldn't happen unless the user took >10 min between auth and callback. Or the code is being base64-decoded incorrectly somewhere.
+
+Verify the code arrives intact:
+
+```js
+const code = new URL(window.location.href).searchParams.get('code');
+console.log('code length:', code?.length);  // ~64 chars typically
+```
+
+### "Refresh token has been revoked"
+
+Either:
+1. Someone revoked the token explicitly.
+2. Refresh-token rotation was broken — you exchanged a refresh token but didn't store the new one returned in the response, so on next refresh you sent the dead old one.
+
+Fix the rotation logic: on every refresh, store the new `refresh_token` from the response immediately, and use that for the next refresh.
+
+### "Mismatching redirect_uri"
+
+Exact-match the redirect URI between the auth request and the token request. Differences that trip people up:
+- `https://app.example.com/callback` vs `https://app.example.com/callback/` (trailing slash)
+- `https://app.example.com/callback` vs `http://app.example.com/callback`
+- Different ports.
+
+### "Code verifier does not match challenge"
+
+You're sending a different `code_verifier` than the one you generated.
+
+Common cause: cookie or sessionStorage state was lost between authorization and callback. The verifier needs to persist across the redirect.
+
+Recommended pattern: store the verifier in an HttpOnly cookie set by your backend before redirecting to Hydra, read it back in your callback.
+
+## Related
+
+- [Integrate — OAuth2 authorization code](/docs/integrate/oauth2-authorization-code)
+- [Integrate — OAuth2 PKCE](/docs/integrate/oauth2-pkce)
+- [Integrate — OAuth2 error codes](/docs/integrate/oauth2-error-codes)
+- [Integrate — OAuth2 refresh tokens](/docs/integrate/oauth2-refresh-tokens)

@@ -1,0 +1,97 @@
+---
+title: Certificate expired
+description: Browsers show TLS warnings for ciam.<domain> or iam.<domain>
+---
+
+If users see a browser TLS warning ("Your connection is not private", `NET::ERR_CERT_DATE_INVALID`), your Caddy certificate has expired.
+
+This is rare in Olympus because:
+- Caddy auto-renews 30 days before expiry.
+- `cert-expiry-check.yml` workflow runs daily and opens GitHub Issues at 30/14/7 day windows.
+
+But if expiry happens anyway, this page is the recovery.
+
+## Immediate fix
+
+```bash
+ssh prod 'podman exec olympus-caddy caddy reload --config /etc/caddy/Caddyfile'
+```
+
+Caddy reload triggers an ACME renewal check. If the cert is expired but the renewal would succeed, Caddy fetches a new one within seconds.
+
+## Why renewal didn't happen automatically
+
+The most common reasons:
+
+### Let's Encrypt rate limit
+
+Let's Encrypt limits 50 certs per registered domain per week. If your domain hit the limit (often because of accidental repeated cert requests), no renewal succeeds.
+
+Check by running the renewal manually and looking at the error:
+
+```bash
+ssh prod 'podman logs olympus-caddy --since 1h | grep -i acme'
+```
+
+If you see "too many failed authorizations" or "rate limit exceeded," fall back to ZeroSSL (Caddy supports it as an alternative ACME provider). Update Caddyfile:
+
+```
+{
+  acme_ca https://acme.zerossl.com/v2/DV90
+  acme_eab {
+    key_id <your-id>
+    mac_key <your-key>
+  }
+}
+```
+
+### HTTP-01 challenge failing
+
+Caddy's default ACME validates ownership via HTTP-01 — Let's Encrypt fetches `http://<domain>/.well-known/acme-challenge/...`. If your firewall blocks port 80, this fails.
+
+Verify port 80 is reachable from outside:
+```bash
+curl -v http://ciam.<domain>/.well-known/acme-challenge/test
+# Expected: 404 (Caddy returns 404 because there's no real challenge; the route is reachable)
+```
+
+Fix: ensure port 80 is open in the host firewall AND reachable from the internet (CDN proxies that intercept HTTP traffic block this).
+
+If you're behind a proxy that intercepts HTTP, switch to DNS-01 ACME (uses your DNS provider's API).
+
+### DNS not resolving
+
+If your domain's DNS no longer points at the VPS (registrar lapsed, DNS provider issue), Let's Encrypt can't reach you.
+
+```bash
+dig ciam.<domain>
+# Expected: A record matching your VPS IP
+```
+
+### Caddy container restarted but `/data` wasn't preserved
+
+Caddy stores certificates and ACME accounts in `/data`. If this volume gets recreated (e.g. with `podman compose down -v`), Caddy must request new certs.
+
+In small windows where you've recently issued many certs, the new request may hit the rate limit.
+
+Fix: avoid destroying the Caddy data volume. The compose file should declare it as a named volume that persists.
+
+## After fix: verify
+
+```bash
+echo | openssl s_client -connect ciam.<domain>:443 -servername ciam.<domain> 2>/dev/null | openssl x509 -noout -dates
+```
+
+Should show `notBefore=<recent>` and `notAfter=<recent + 90 days>`.
+
+## Long-term prevention
+
+- **Enable `cert-expiry-check.yml`** in your platform fork's actions. It checks every day.
+- **Set up status-page monitoring** — public uptime monitoring services (uptimerobot, StatusCake, etc.) will alert on TLS errors immediately.
+- **Don't manually delete Caddy data.** It loses ACME accounts and starts cold.
+
+## Related
+
+- [Operate — Cert rotation](/docs/operate/cert-rotation)
+- [Deploy — DNS and Domains](/docs/deploy/dns-and-domains)
+- [Operate — Incident response](/docs/operate/incident-response)

@@ -1,0 +1,54 @@
+---
+title: redirect_uri localhost in production
+description: Hydra accepts a localhost redirect URI and a user complains
+---
+
+A user reports that someone shared a link starting `https://ciam.<your-domain>/oauth2/auth?...&redirect_uri=http://localhost:8765/...`. Hydra allowed the flow because the client has `http://localhost:8765/callback` in its allowlist.
+
+This is **likely a misconfigured OAuth2 client.** Localhost redirect URIs are appropriate for development clients, not for production-exposed apps.
+
+## Why it matters
+
+`redirect_uri=http://localhost:8765` means the authorization code is delivered to whatever's running on the user's `localhost:8765`. A malicious app running there would receive a code for the user's account on your service.
+
+This is by design — OAuth2 lets apps register localhost URIs for CLI / mobile dev flows. But for a production client that real users authenticate against, localhost shouldn't be in the allowlist.
+
+## Audit
+
+Find any production client with localhost in its redirect URIs:
+
+```bash
+hydra list clients --endpoint http://localhost:3103 \
+  -o jsonpath='{.items[*].redirect_uris}' | grep localhost
+```
+
+Or in Athena: OAuth2 Clients → look at the Redirect URIs column.
+
+## Fix
+
+Remove localhost from the production client's allowlist:
+
+```bash
+hydra update client <client-id> --endpoint http://localhost:3103 \
+  --redirect-uri https://app.<domain>/callback
+```
+
+The CLI replaces the entire list. To preserve other URIs, list them all:
+
+```bash
+hydra update client <client-id> --endpoint http://localhost:3103 \
+  --redirect-uri https://app.<domain>/callback \
+  --redirect-uri https://mobile.<domain>/callback
+```
+
+If the client is a CLI tool that genuinely needs localhost redirects, use a **separate** dev/test client. Don't co-mingle production and dev redirect URIs on one client.
+
+## Prevention
+
+A CI check that lists all production OAuth2 clients and flags localhost URIs is a good addition to `verify-prod-config.yml`. Not currently shipped — a future enhancement.
+
+## Related
+
+- [Integrate — OAuth2 authorization code](/docs/integrate/oauth2-authorization-code)
+- [Reference — Hydra create OAuth2 client](/docs/reference/api/hydra/oauth2/createoauth2client)
+- [Security — Threat model](/docs/security/threat-model)

@@ -1,0 +1,80 @@
+---
+title: Kratos CSRF violation
+description: 400 from Kratos with security_csrf_violation
+---
+
+```
+error: The provided CSRF token does not match the value stored in the cookie
+```
+
+This means the CSRF token in the form submission doesn't match what Kratos expects.
+
+## Why it happens
+
+Every Kratos browser flow includes a per-flow CSRF token, stored in a cookie and embedded in the form. Submission must include both, matching.
+
+Common reasons they don't match:
+
+### Cookie was cleared between flow init and submission
+
+The user started the flow, then cleared cookies (or used an incognito tab), then submitted. The CSRF cookie is gone.
+
+Fix: user starts over.
+
+### Flow was initiated on a different domain
+
+The user started the flow on `ciam.example.com` but submitting to `ciam.staging.example.com`. The cookie is scoped to the wrong domain.
+
+Fix: ensure flow URLs are consistent.
+
+### Browser blocked the cookie
+
+Strict tracking protection (Safari ITP, Firefox ETP) may block cookies if your auth domain is unfamiliar to the browser.
+
+Fix: arrange for auth and app to be on the same registered domain.
+
+### Cookie expired
+
+CSRF cookies are session-scoped. If the browser closed and re-opened, the cookie is gone.
+
+Fix: user starts over.
+
+### Multi-tab interaction
+
+User opened the flow in two tabs. The cookie holds the CSRF for the most recent. Submitting the older tab fails.
+
+Fix: educate users not to start two flows simultaneously. Or implement a "flow not found" detection that re-initiates.
+
+### Reverse proxy stripped the cookie
+
+A misconfigured proxy in front of Caddy might strip cookies. Less common; check headers if you have such a proxy.
+
+## Diagnostic
+
+Look at the request that fails:
+- Does it include `csrf_token_<flow-id>` cookie?
+- Does the body include `csrf_token` form field?
+- Do they match?
+
+If both are present and match but Kratos still rejects, check:
+- Did the flow ID match? (The cookie is keyed by flow ID.)
+- Is the time skew between Kratos and the user's browser excessive? (Unlikely but possible.)
+
+## Olympus-specific
+
+Olympus's CIAM/IAM isolation means cookies set on `ciam.example.com` are NOT sent to `iam.example.com`. A CIAM flow can't be submitted to an IAM endpoint, or vice versa. If your URL paths conflated the two, this is the source of confusion.
+
+## Reproduction
+
+To reliably reproduce in dev:
+1. Open `http://localhost:3000/login` (Hera CIAM).
+2. Wait for the form to load.
+3. Open DevTools → Application → Cookies. Delete the `csrf_token_<flow-id>` cookie.
+4. Submit the form.
+5. Expect 400 `security_csrf_violation`.
+
+## Related
+
+- [Identity — Flow login](/docs/identity/flow-login)
+- [Troubleshooting — Cookies not persisting](/docs/troubleshooting/cookies-not-persisting)
+- [Troubleshooting — Login loops](/docs/troubleshooting/login-loops)

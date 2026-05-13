@@ -1,0 +1,150 @@
+---
+title: From Okta
+description: Migrating an Okta org to Olympus
+---
+
+This guide moves an Okta org (typically Workforce — internal employees, IT-managed) to Olympus IAM.
+
+## When this guide applies
+
+Use the **IAM** domain of Olympus for Okta workforce migrations. Customer-facing Okta deployments (Auth0 / Customer Identity Cloud) should follow [From Auth0](/docs/migration/from-auth0).
+
+## Concept mapping
+
+| Okta | Olympus IAM |
+| --- | --- |
+| Org | IAM domain |
+| User | Kratos identity |
+| User profile | Identity traits |
+| Group | Identity trait (array) |
+| Application | Hydra OAuth2 client |
+| Group rule | Application-side logic on traits |
+| Authentication policy | Kratos flow config + Hera UI logic |
+| Sign-on rule | Kratos hook |
+| MFA factor | Kratos credential (TOTP, WebAuthn) |
+| Identity provider (SAML, OIDC) | Kratos OIDC provider |
+| Universal Directory | Identity schema |
+
+## Identity export → Kratos import
+
+### Step 1: Export from Okta
+
+```bash
+# Okta API: paginate /api/v1/users
+okta get-users --search 'status pr "DEPROVISIONED"' --paginate > users.json
+```
+
+Okta's export includes: email, profile attributes, status, factors enrolled, group memberships, password hashes (if you're on a paid plan with that export enabled).
+
+### Step 2: Transform to Kratos
+
+```json
+{
+  "schema_id": "admin",
+  "state": "active",
+  "traits": {
+    "email": "user@example.com",
+    "first_name": "...",
+    "last_name": "...",
+    "role": "admin",
+    "groups": ["engineers", "oncall"]
+  },
+  "verifiable_addresses": [{ "value": "...", "verified": true, "via": "email", "status": "completed" }],
+  "credentials": {
+    "password": {
+      "type": "password",
+      "identifiers": ["user@example.com"],
+      "config": { "hashed_password": "..." }
+    }
+  }
+}
+```
+
+Okta uses `pbkdf2-sha512` for password hashes. Kratos supports this — see [Kratos password import docs](https://www.ory.sh/docs/kratos/manage-identities/import-user-accounts-identities).
+
+### Step 3: Bulk import
+
+```bash
+for f in identities-*.json; do
+  curl -X POST http://localhost:4101/admin/identities -d @"$f"
+done
+```
+
+## Application (OAuth2 client) mapping
+
+Each Okta application becomes a Hydra client:
+
+| Okta type | Hydra equivalent |
+|---|---|
+| Web (with secret) | Confidential client, `client_secret_basic` |
+| SPA (no secret) | Public client, PKCE mandatory |
+| Native (mobile, CLI) | Public client, PKCE mandatory |
+| SAML 2.0 | Not native — run a SAML→OIDC bridge |
+| API services (M2M) | Confidential client, `client_credentials` grant |
+
+```bash
+hydra create client --endpoint http://localhost:4103 \
+  --name <app-name> \
+  --grant-type authorization_code,refresh_token \
+  --response-type code \
+  --scope "openid profile email" \
+  --redirect-uri https://app.example.com/callback
+```
+
+## SAML migration
+
+Olympus IAM is OIDC. For SAML SPs you can't change to OIDC:
+- Run a SAML→OIDC bridge (e.g. [saml-to-oidc-proxy](https://github.com/saml-to-oidc-proxy)) in front of IAM Hera.
+- Or migrate the SP itself to OIDC if possible.
+
+## Groups → traits
+
+Okta groups become a trait array in the IAM identity schema:
+
+```json
+"groups": {
+  "type": "array",
+  "items": { "type": "string" }
+}
+```
+
+Application authorization reads `identity.traits.groups`.
+
+## Authentication policies → Kratos flow config
+
+Okta's sign-on policies (e.g. "engineers must use phishing-resistant MFA") become:
+
+```yaml
+selfservice:
+  flows:
+    login:
+      after:
+        password:
+          hooks:
+            - hook: require_aal2
+              config:
+                aal: "aal2"
+                # condition: identity.traits.groups contains "engineers"
+                # — implemented via a webhook hook that checks
+```
+
+Olympus doesn't have a built-in conditional AAL requirement; implement via a webhook to your authz service.
+
+## Lifecycle Management
+
+Okta's deprovisioning, JIT provisioning don't directly port. Use:
+- For deprovisioning: an Athena-driven script that deletes the IAM identity when HR system signals offboarding.
+- For JIT: Kratos's OIDC provider auto-creates an identity on first sign-in.
+
+## Validation
+
+- [ ] User count matches.
+- [ ] Sample employee can sign in via IAM.
+- [ ] OAuth2 apps can validate IAM tokens.
+- [ ] SAML bridge (if used) works end-to-end.
+
+## Related
+
+- [Migration — From Auth0](/docs/migration/from-auth0)
+- [Get Started — CIAM vs IAM](/docs/get-started/concepts-ciam-vs-iam)
+- [ADR 0002 — Kratos+Hydra over Keycloak](/docs/adrs/0002-kratos-hydra-over-keycloak)
