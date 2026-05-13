@@ -1,0 +1,94 @@
+---
+title: AWS CloudFront in front of Olympus
+description: Add CloudFront as a CDN/WAF layer
+---
+
+CloudFront + Olympus: CloudFront caches static assets, terminates TLS at the edge, optionally applies WAF rules. Olympus origin runs Caddy as usual.
+
+## Architecture
+
+```
+User → CloudFront (cache + WAF) → Caddy on VPS → Olympus services
+```
+
+## Setup
+
+### 1. Distribution
+
+- **Origin**: Custom origin → your Caddy host (`yourhost.example.com` or its IP).
+- **Origin Protocol Policy**: `HTTPS Only` (CloudFront → Caddy uses HTTPS).
+- **Allowed Methods**: `GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE`.
+- **Cache Policy**: `CachingDisabled` for auth paths (default).
+
+### 2. Behaviors
+
+Add behaviors per path pattern:
+
+| Pattern | Cache | Reason |
+|---|---|---|
+| `/.well-known/*` | 5 min cache | Discovery is safe to cache briefly. |
+| `/_next/static/*` | 1 year | Hashed static assets. |
+| `/oauth2/*`, `/login`, `/registration` | No cache | Auth — never cache. |
+| `*` | No cache by default | Safer. |
+
+### 3. TLS
+
+ACM certificate for `*.example.com` in **us-east-1** (CloudFront requirement). Configure on the distribution.
+
+Caddy still has its own cert for the origin → CloudFront connection.
+
+### 4. Headers
+
+CloudFront should forward all headers needed by Olympus:
+
+- `Host` (so Caddy routes correctly)
+- `Cookie` (auth)
+- `Authorization` (API)
+- `User-Agent` (audit)
+
+Use the `AllViewer` origin request policy.
+
+## Real IP
+
+CloudFront adds `CloudFront-Viewer-Address` and `X-Forwarded-For`. Configure Caddy:
+
+```caddy
+servers {
+  trusted_proxies static <cloudfront-ip-ranges>
+}
+```
+
+CloudFront publishes its IP ranges. Update periodically.
+
+## WAF
+
+Attach AWS WAF to the CloudFront distribution:
+- AWS Managed Rules: Common Rule Set, Known Bad Inputs.
+- Rate-based rule: 2000 requests per 5 min per IP — complements Caddy's `rate_limit`.
+
+## Lambda@Edge for advanced
+
+For edge-side request manipulation:
+- Inject CORS headers.
+- Reject requests with malformed User-Agents.
+- A/B test login UI variants.
+
+Lambda@Edge adds ~5ms latency.
+
+## Cost
+
+- CloudFront: $0.085/GB egress (cheaper than EC2 direct).
+- WAF: $5/month + $1 per rule.
+- Lambda@Edge: per-invocation.
+
+Worth it at scale; overkill for small deployments — use Cloudflare instead.
+
+## Caveat
+
+The OAuth2 token endpoint (`/oauth2/token`) accepts POSTed form data. CloudFront's default behavior should forward this correctly, but verify in testing.
+
+## Related
+
+- [Cookbook — Cloudflare in front](/docs/cookbook/cloudflare-in-front)
+- [Cookbook — Load balancer in front](/docs/cookbook/load-balancer-in-front)
+- [Security — Caddy supply chain](/docs/security/caddy-supply-chain)

@@ -1,0 +1,94 @@
+---
+title: Postgres connection pool exhausted
+description: Services error with "no available connections" or "remaining connection slots are reserved"
+---
+
+After some uptime, services start erroring:
+
+```
+Error: remaining connection slots are reserved for non-replication superuser connections
+```
+
+or
+
+```
+psql: FATAL: sorry, too many clients already
+```
+
+## Cause
+
+Postgres has a max connections limit (`max_connections`, default 100). Each Olympus service holds a pool of connections. With many services × pool size, total can exceed the limit.
+
+## Diagnostic
+
+```bash
+# Count current connections
+podman exec olympus-postgres psql -U postgres -c "
+  SELECT datname, COUNT(*) FROM pg_stat_activity GROUP BY datname ORDER BY 2 DESC;
+"
+```
+
+Should show counts per database (`ciam_kratos`, `iam_kratos`, etc.). If approaching 100, you have a pool sizing problem.
+
+## Fixes
+
+### Reduce SDK pool size
+
+```bash
+# Per app container
+SDK_POOL_MAX=5
+```
+
+Default is 10. Lower to 5 if each app has multiple replicas.
+
+### Reduce Kratos / Hydra pool
+
+In `kratos.yml`:
+
+```yaml
+dsn: postgres://...?max_open_conns=10&max_idle_conns=2
+```
+
+Same for `hydra.yml`.
+
+### Increase Postgres max_connections
+
+```sql
+ALTER SYSTEM SET max_connections = 200;
+-- Restart Postgres
+```
+
+Watch RAM usage — each connection takes ~10MB. 200 connections × 10MB = 2GB just for connections.
+
+### Use a connection pooler
+
+PgBouncer between apps and Postgres. The apps connect to PgBouncer (cheap), which multiplexes onto a smaller pool of real Postgres connections.
+
+For Olympus:
+- Add PgBouncer container.
+- Change DATABASE_URLs to point at PgBouncer.
+- Caveat: PgBouncer's transaction-pooling mode breaks prepared statements. Either use session-pooling mode or disable prepared statements in app/Ory configs.
+
+### Audit for connection leaks
+
+A leak (connection checked out but never returned) gradually exhausts the pool. Diagnose:
+
+```sql
+SELECT pid, state, query_start, query FROM pg_stat_activity
+WHERE state = 'idle' AND query_start < NOW() - INTERVAL '1 hour';
+```
+
+Long-idle connections suggest a leak. Look at which service holds them; check its source for missing `await db.end()` or unhandled errors.
+
+## Prevention
+
+- Monitor connection count (Prometheus has Postgres exporters).
+- Alert at 70% of `max_connections`.
+- Quarterly review of pool sizes vs actual usage.
+
+## Related
+
+- [Operate — Health endpoints](/docs/operate/health-endpoints)
+- [Operate — Logs and observability](/docs/operate/logs-and-observability)
+- [Internals — SDK connection pool](/docs/internals/sdk-connection-pool)
+- [Deploy — Database — Managed Neon](/docs/deploy/database-managed-neon) — Neon's connection limit applies differently.

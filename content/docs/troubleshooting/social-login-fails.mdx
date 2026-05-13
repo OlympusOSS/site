@@ -1,0 +1,98 @@
+---
+title: Social login fails
+description: Google / GitHub / Apple OAuth fails or stuck
+---
+
+User clicks "Continue with Google" → ends up at an error page or login retry. Common causes.
+
+## Diagnose: which step failed?
+
+DevTools → Network. Reproduce. Look for:
+
+1. `GET /self-service/methods/oidc/auth/google` → should redirect to Google. If not, the OIDC method isn't enabled.
+2. `GET https://accounts.google.com/...` → Google's OAuth page. If this fails, Google config is wrong.
+3. Return: `GET /self-service/methods/oidc/callback/google?code=...&state=...` → Kratos receives the callback.
+4. Kratos finalizes → redirects to where user was going.
+
+## Common causes
+
+### Provider not enabled in Kratos
+
+`kratos.yml`:
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      enabled: true
+      config:
+        providers:
+          - id: google
+            provider: google
+            client_id: ...
+            client_secret: ...
+```
+
+If absent or `enabled: false`, the provider doesn't appear on the login page.
+
+### Wrong redirect URI
+
+In the upstream IdP's OAuth config (Google Cloud Console, GitHub Settings, etc.), the **Authorized redirect URI** must exactly match Kratos's callback URL:
+
+```
+https://ciam.your-domain/self-service/methods/oidc/callback/google
+```
+
+Common mistakes:
+- `http://` instead of `https://`.
+- Wrong subdomain (`auth.` vs `ciam.`).
+- Trailing slash.
+
+### Missing scopes
+
+Google requires `openid email profile`. If you omit `openid`, no ID token comes back.
+
+### Domain not verified at provider
+
+For Google: your domain must be verified in Google Cloud Console.
+For Apple: your Services ID must reference a verified domain.
+
+Without verification, the provider may reject your client.
+
+### Account linking confirmation stuck
+
+If the user already has an Olympus identity with the same email, the [account-linking flow](/docs/identity/account-linking) kicks in. The user sees "Link this account?" If they navigate away or click "No," the flow ends without a session.
+
+### Email not verified by provider
+
+Olympus doesn't trust upstream `email_verified` ([Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust)). After OIDC flow completes, Kratos triggers its own verification flow. If the user closes the tab before completing verification, they don't get a session.
+
+### Cookie not persisting
+
+OAuth2 redirects need browser cookies. See [Troubleshooting — Cookies not persisting](/docs/troubleshooting/cookies-not-persisting).
+
+## Provider-specific issues
+
+### Google
+
+- **"This app is blocked"** — your Google app is in "Test" mode and the user isn't in the test list. Move to "Production" mode (requires verification by Google for sensitive scopes; basic scopes are auto-approved).
+
+### Apple
+
+- **JWT client_secret expired** — Apple's client secret is a JWT valid 6 months max. Rotate every 6 months.
+- **Private relay email** — user chose to hide email. You receive `xxx@privaterelay.appleid.com`. Your app needs to handle this.
+
+### Microsoft
+
+- **Wrong tenant** — `microsoft_tenant: common` allows all tenants. Restrict to a specific tenant ID if needed.
+
+### GitHub
+
+- **No email** — user has hidden email in GitHub settings. You receive null or a noreply address. Handle gracefully.
+
+## Related
+
+- [Identity — Social login](/docs/identity/social-login)
+- [Identity — Social connections admin](/docs/identity/social-connections-admin)
+- [Cookbook — Add Google as social provider](/docs/cookbook/add-social-provider-google)
+- [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust)
