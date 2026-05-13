@@ -1,0 +1,77 @@
+---
+title: Enforce step-up auth (AAL2) on sensitive operations
+description: Require a second factor at certain checkpoints
+---
+
+Some operations should require more than a password. Examples:
+- Changing the user's email or password.
+- Transferring money.
+- Granting admin access to another user.
+- Deleting all data.
+
+Use **step-up to AAL2** — the user must complete a second factor before the operation succeeds.
+
+## In Kratos's settings flow (built-in)
+
+For built-in settings flows that modify credentials, Kratos automatically requires AAL2 if the identity has MFA enrolled. No configuration needed.
+
+If you want this to apply even to identities **without** MFA enrolled, configure:
+
+```yaml
+selfservice:
+  flows:
+    settings:
+      required_aal: aal2
+```
+
+Identities without a second factor are forced to enroll one before they can change settings.
+
+## In your application
+
+For non-Kratos operations (e.g. "delete all my data" in your app), implement the step-up yourself:
+
+### Step 1: Check the user's current AAL
+
+```ts
+async function getSession(req) {
+  const response = await fetch('https://ciam.<domain>/sessions/whoami', {
+    headers: { cookie: req.headers.get('cookie') }
+  });
+  if (!response.ok) return null;
+  return await response.json();
+}
+
+// In your handler:
+const session = await getSession(req);
+if (session?.authenticator_assurance_level !== 'aal2') {
+  // Redirect to step-up
+  return Response.redirect(
+    `https://ciam.<domain>/self-service/login/browser?aal=aal2&refresh=true&return_to=${encodeURIComponent(req.url)}`
+  );
+}
+```
+
+### Step 2: Resume after step-up
+
+The user completes the second factor in Hera; Kratos updates the session to AAL2; redirects back to `return_to`. Your handler re-runs with the AAL2 session; proceeds.
+
+## When AAL2 isn't enrolled
+
+If the user has no second factor, the step-up redirect returns them to settings to enroll. Once enrolled, they can complete the AAL2 challenge.
+
+This is the right UX: someone trying to do a sensitive operation without MFA is forced to set it up.
+
+## Recovery
+
+Without a working second factor, the user can't complete AAL2. Recovery:
+- The user goes through password recovery (sends new password via email — keeps the existing session if any).
+- After recovery, the user's AAL is still AAL1; they re-enroll a second factor in settings.
+
+For admin recovery (an admin can't access their MFA), use the runbook in [Operate — Incident Response](/docs/operate/incident-response).
+
+## Related
+
+- [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)
+- [Identity — MFA policy](/docs/identity/mfa-policy)
+- [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
+- [Troubleshooting — Kratos session AAL too low](/docs/troubleshooting/kratos-session-aal-too-low)

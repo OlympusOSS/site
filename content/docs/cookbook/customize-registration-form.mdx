@@ -1,0 +1,72 @@
+---
+title: Customize the registration form
+description: Add or remove fields, change validation, restyle
+---
+
+The registration form is **schema-driven**. Adding a field to the identity schema automatically adds it to the registration form (and to settings, account profile, etc.). No frontend code changes needed.
+
+## Add a new field
+
+Edit `platform/dev/ciam-kratos/identity.schema.json` (or the prod variant):
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "email": { "..." },
+    "name": { "..." },
+    "phone": {
+      "type": "string",
+      "title": "Phone number",
+      "pattern": "^\\+[1-9]\\d{1,14}$",
+      "description": "Including country code, e.g. +1234567890"
+    },
+    "agree_to_terms": {
+      "type": "boolean",
+      "title": "I agree to the Terms of Service"
+    }
+  },
+  "required": ["email", "agree_to_terms"]
+}
+```
+
+Reload Kratos's schemas (Athena → Schemas → Reload, or POST to the sidecar). The registration form now shows the new fields.
+
+## Validation
+
+JSON Schema validation runs server-side. The schema's `pattern`, `format`, `minLength`, `maxLength`, `enum` are all enforced.
+
+For richer validation (e.g. "phone must be a valid format" using `libphonenumber-js`), client-side validation in Hera complements server-side. Hera's `SchemaForm` component uses `@rjsf/core` for client validation; the rules above are translated automatically.
+
+## Custom widget per field
+
+If a field needs a custom renderer (e.g. PhoneInput from `@olympusoss/canvas`), declare a widget via `ui:widget` in `uiSchema`:
+
+```ts
+const uiSchema = {
+  phone: { "ui:widget": "PhoneInput" }
+};
+```
+
+This requires a Hera fork — add the widget mapping in `hera/src/components/registration-form.tsx`.
+
+## Branding
+
+The form's overall look is Tailwind classes on Hera's pages. Fork Hera, change `hera/src/app/registration/page.tsx`, redeploy.
+
+## Per-domain customization
+
+CIAM and IAM have separate schemas. Use different fields per domain.
+
+## Multi-step registration
+
+If you need a multi-step form (page 1: email/password, page 2: profile, page 3: agree to terms), Kratos's flow doesn't natively support this. Two options:
+
+- **All in one Kratos flow, but visually split**: Hera renders the form across multiple panes; the submission to Kratos happens once.
+- **Two Kratos flows**: register first with just email/password, then go through a settings flow to add the rest. More complex but uses Kratos's own primitives.
+
+## Related
+
+- [Identity — Identity schemas](/docs/identity/identity-schemas)
+- [Identity — Flow registration](/docs/identity/flow-registration)
+- [Reference — Identity schemas](/docs/reference/schemas/identity-schemas)

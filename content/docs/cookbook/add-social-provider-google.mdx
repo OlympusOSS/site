@@ -1,0 +1,98 @@
+---
+title: Add Google as a social login provider
+description: Configure Google OIDC as an alternate login method
+---
+
+## Prerequisites
+
+- A Google Cloud project with OAuth consent screen configured.
+- An Olympus deployment.
+
+## Step 1: Create the Google OAuth2 client
+
+1. Go to [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials).
+2. Click **Create Credentials → OAuth client ID → Web application**.
+3. **Authorized redirect URIs**: `https://ciam.<your-domain>/self-service/methods/oidc/callback/google`.
+4. Save. Note the **Client ID** and **Client Secret**.
+
+## Step 2: Configure Kratos
+
+Edit `platform/prod/ciam-kratos/kratos.yml`:
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      enabled: true
+      config:
+        providers:
+          - id: google
+            provider: google
+            client_id: <google-client-id>
+            client_secret: <google-client-secret>
+            mapper_url: file:///etc/config/kratos/oidc.google.jsonnet
+            scope:
+              - openid
+              - email
+              - profile
+            requested_claims:
+              id_token:
+                email:
+                  essential: true
+                email_verified:
+                  essential: true
+```
+
+Create `platform/prod/ciam-kratos/oidc.google.jsonnet`:
+
+```jsonnet
+local claims = std.extVar('claims');
+{
+  identity: {
+    traits: {
+      email: claims.email,
+      [if 'given_name' in claims then 'name' else null]: {
+        first: claims.given_name,
+        last: claims.family_name,
+      },
+    },
+  },
+}
+```
+
+## Step 3: Surface in Athena
+
+Olympus's Athena → Social Connections lets operators enable/disable providers without redeploying:
+
+1. Open Athena IAM.
+2. Navigate to **Social Connections**.
+3. Click **+ Add Provider** → **Google**.
+4. Paste Client ID and Client Secret.
+5. Check **Enabled**.
+6. Save.
+
+Athena writes the settings to the `olympus` settings vault (encrypted via SDK). The Hera login page reads from the vault and renders the Google button.
+
+See [Identity — Social connections (admin)](/docs/identity/social-connections-admin) for the admin flow detail.
+
+## Step 4: Test
+
+1. Open `https://ciam.<your-domain>/login`.
+2. Click **Continue with Google**.
+3. Google's consent page appears.
+4. Approve.
+5. Land back at the configured `return_to` (defaults to `/`).
+
+A new Kratos identity is created with the OIDC credential linked.
+
+## Things to verify
+
+- Kratos's `email_verified` claim from Google is **not** trusted — Kratos runs its own verification flow on first link. See [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust).
+- If a user with the Google email already has a password identity in Olympus, they'll see an account-linking confirmation screen (see [Identity — Account linking](/docs/identity/account-linking)).
+
+## Related
+
+- [Identity — Social login](/docs/identity/social-login)
+- [Identity — Social connections (admin)](/docs/identity/social-connections-admin)
+- [Cookbook — Add Apple as social provider](/docs/cookbook/add-social-provider-apple)
+- [Cookbook — Add Microsoft as social provider](/docs/cookbook/add-social-provider-microsoft)

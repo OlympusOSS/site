@@ -1,0 +1,63 @@
+---
+title: Use Olympus as OIDC IdP for AWS IAM Identity Center
+description: Federate AWS SSO to Olympus
+---
+
+AWS IAM Identity Center (formerly SSO) supports external OIDC IdPs for federated workforce access. This recipe configures Olympus IAM as that IdP.
+
+## Prerequisites
+
+- An AWS Organization with IAM Identity Center enabled.
+- Olympus IAM running at `https://iam.<your-domain>`.
+
+## Step 1: Register IAM Identity Center as a client in Olympus
+
+In Athena IAM → OAuth2 Clients → New Client:
+
+- Name: `aws-iam-identity-center`
+- Client type: Confidential
+- Grants: `authorization_code`, `refresh_token`
+- Scopes: `openid`, `email`, `profile`
+- Redirect URIs: AWS provides this when you configure the external IdP (typically `https://<region>.signin.aws.amazon.com/platform/saml/<id>`)
+
+For IAM Identity Center specifically, AWS expects SAML SSO **or** OAuth. The OAuth path requires AWS's "external IdP" feature.
+
+## Step 2: Configure AWS
+
+1. AWS IAM Identity Center → Settings → Identity source → **Change identity source** → **External identity provider**.
+2. Choose **OpenID Connect**.
+3. Issuer URL: `https://iam.<your-domain>`.
+4. AWS displays a callback URL. Copy it.
+5. Return to step 1 and add that URL as a Redirect URI on your Olympus OAuth2 client.
+
+## Step 3: SCIM provisioning (optional)
+
+AWS expects user provisioning via SCIM in addition to authentication. Olympus doesn't expose a native SCIM endpoint. Workarounds:
+
+- **Manual provisioning**: pre-create users in AWS IAM Identity Center; OIDC authenticates them.
+- **JIT provisioning**: AWS creates the user on first login if their claims include the necessary fields.
+- **Custom SCIM proxy**: deploy a small service that translates Kratos admin API calls into SCIM responses for AWS to consume.
+
+JIT is the path of least resistance.
+
+## Step 4: Group mapping
+
+If AWS IAM Identity Center expects `groups` claim for permission set mapping, ensure your IAM identity schema includes `groups` and the trait is populated.
+
+## Step 5: Test
+
+User goes to your AWS access portal URL (`https://<id>.awsapps.com/start`). Clicks login. Redirects to Olympus IAM. Authenticates. Returns to AWS with access permissions.
+
+## Limitations
+
+AWS's expectations for OIDC IdPs are fiddly. Common stumbles:
+- AWS expects `email_verified=true` in the ID token. Olympus emits this from the identity's `verifiable_addresses` state.
+- Permission set mapping requires consistent group naming.
+- SCIM provisioning gaps mean some operators stick with AWS-native IdP (or use Okta as a middle layer).
+
+For SAML federation (which AWS supports natively), run a SAML-to-OIDC bridge in front of Olympus IAM.
+
+## Related
+
+- [Cookbook — Use Olympus as IdP for Grafana](/docs/cookbook/olympus-as-idp-grafana)
+- [Cookbook — Use Olympus as IdP for ArgoCD](/docs/cookbook/olympus-as-idp-argocd)

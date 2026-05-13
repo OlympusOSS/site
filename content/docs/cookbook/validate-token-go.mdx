@@ -1,0 +1,79 @@
+---
+title: Validate an access token (Go)
+description: Verify Olympus access tokens in a Go backend
+---
+
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+)
+
+type TokenInfo struct {
+	Active   bool   `json:"active"`
+	Sub      string `json:"sub"`
+	Scope    string `json:"scope"`
+	ClientID string `json:"client_id"`
+	Exp      int64  `json:"exp"`
+}
+
+func ValidateToken(ctx context.Context, token string) (*TokenInfo, error) {
+	form := url.Values{}
+	form.Set("token", token)
+
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		"https://ciam.your-domain/.ory/hydra/admin/oauth2/introspect",
+		strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(adminUser, adminPass)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var info TokenInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return nil, err
+	}
+	if !info.Active {
+		return nil, errors.New("token inactive")
+	}
+	return &info, nil
+}
+
+func authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, "missing token", http.StatusUnauthorized)
+			return
+		}
+		info, err := ValidateToken(r.Context(), strings.TrimPrefix(auth, "Bearer "))
+		if err != nil {
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
+		}
+		ctx := context.WithValue(r.Context(), "user", info.Sub)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+```
+
+For JWT access tokens (if you've configured `access_token_strategy=jwt`), use `github.com/coreos/go-oidc/v3/oidc` for local validation via JWKS.
+
+## Related
+
+- [Cookbook — Validate access token (Node)](/docs/cookbook/validate-token-node)
+- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)
