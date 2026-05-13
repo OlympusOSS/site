@@ -1,0 +1,223 @@
+---
+title: Local development environment
+description: Run Olympus on your laptop
+---
+
+For working on integrations, customizing Hera, or testing changes, run the full Olympus stack locally.
+
+## Prerequisites
+
+- macOS, Linux, or Windows with WSL2.
+- Podman 4.x or Docker (Compose-compatible).
+- Bun 1.x (for Hera, Athena, SDK).
+- A 16 GB+ RAM machine recommended.
+
+## Quick start
+
+```bash
+git clone https://github.com/OlympusOSS/platform.git
+cd platform
+cp .env.sample .env
+
+# Edit .env — at minimum, set:
+# DOMAIN=localhost
+# (everything else can default)
+
+podman-compose up -d
+
+# Open:
+# https://localhost:3000  (Hera)
+# https://localhost:3001  (Athena)
+```
+
+## Default ports
+
+| Port | Service | Use |
+|---|---|---|
+| 3000 | Hera | Login UI |
+| 3001 | Athena | Admin UI |
+| 4444 | Hydra public | OAuth2 endpoints |
+| 4445 | Hydra admin | OAuth2 admin |
+| 5000 | Kratos public | Identity flows |
+| 5001 | Kratos admin | Identity admin |
+| 5432 | Postgres | Database |
+
+If conflicts, override in `.env`:
+
+```bash
+HERA_PORT=3100
+ATHENA_PORT=3101
+```
+
+## TLS for localhost
+
+OAuth2/OIDC don't strictly require TLS for `localhost` per RFC 8252. But cookies with `SameSite=Lax + Secure` need HTTPS.
+
+Three options:
+
+### Option A: Run without HTTPS
+
+Set `KRATOS_SESSION_COOKIE_SECURE=false`. Cookies work over HTTP. Don't ever do this in prod.
+
+### Option B: Caddy auto-TLS for localhost
+
+Caddy can issue local CA certs for localhost.
+
+```caddy
+# Caddyfile.local
+{
+  local_certs
+}
+
+localhost {
+  reverse_proxy hera:3000
+}
+```
+
+First run: Caddy creates a local root CA and asks for sudo to install it in your system keychain.
+
+### Option C: ngrok / mkcert
+
+```bash
+mkcert -install
+mkcert localhost
+# Mounts the cert into Caddy
+```
+
+## Hot-reload for Hera
+
+For developing Hera UI changes, run it outside the container with hot reload:
+
+```bash
+# Stop containerized Hera
+podman stop ciam-hera
+
+# Run locally
+cd hera
+bun install
+bun run dev  # next dev — auto-reloads on changes
+```
+
+Browser at `http://localhost:3000` reflects code changes within a second.
+
+## Mock SMTP
+
+For local development, you don't want to send real emails. Use a fake SMTP:
+
+```yaml
+# docker-compose.dev.yml override
+ciam-mailpit:
+  image: axllent/mailpit
+  ports:
+    - "1025:1025"  # SMTP
+    - "8025:8025"  # web UI
+```
+
+Point Kratos at it:
+
+```yaml
+# kratos.yml
+courier:
+  smtp:
+    connection_uri: smtp://mailpit:1025/
+```
+
+Open `http://localhost:8025` to see all emails sent.
+
+## Seed data
+
+For testing, populate the DB with some users:
+
+```bash
+# scripts/seed-dev.sh
+#!/bin/bash
+for i in 1 2 3 4 5; do
+  curl -X POST http://localhost:5001/admin/identities \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"schema_id\": \"default\",
+      \"traits\": {
+        \"email\": \"test${i}@example.com\",
+        \"first_name\": \"Test\",
+        \"last_name\": \"User${i}\"
+      },
+      \"credentials\": {
+        \"password\": {
+          \"config\": { \"password\": \"DevPassword123!\" }
+        }
+      }
+    }"
+done
+```
+
+Run after `up -d`.
+
+## Watching logs
+
+```bash
+podman-compose logs -f kratos hydra hera
+```
+
+Multi-service tail. Filter to one service:
+
+```bash
+podman logs -f ciam-kratos
+```
+
+## Resetting
+
+To wipe and start fresh:
+
+```bash
+podman-compose down -v  # removes volumes
+podman-compose up -d
+```
+
+DB recreates, identities gone. Useful when schema changes.
+
+## Tunneling to external services
+
+Sometimes you want a third-party service to reach your local Olympus (e.g., testing webhook callbacks). Use ngrok:
+
+```bash
+ngrok http 3000
+# Forwards https://X.ngrok.io → localhost:3000
+```
+
+Configure Hera to use the ngrok URL as `HERA_PUBLIC_URL` so callbacks come back to the right place.
+
+## IDE setup
+
+VS Code with these extensions:
+- ESLint
+- Biome (alternative formatter, used in Olympus)
+- Docker (for Compose file editing)
+- Mermaid Markdown Syntax Highlighting
+
+Workspace settings:
+```json
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "biomejs.biome"
+}
+```
+
+## Tests
+
+```bash
+cd hera
+bun test           # unit
+bun run test:e2e   # playwright e2e (requires running stack)
+```
+
+## Common dev tasks
+
+- Add a trait: edit `identity.schema.json`, restart Kratos.
+- Add an OAuth2 client: use Athena's UI at localhost:3001 or `hydra create client` CLI.
+- Test recovery: trigger from Hera, check Mailpit, click link.
+
+## Related
+
+- [Develop — Architecture](/docs/develop/architecture)
+- [Cookbook — Customize Hera UI](/docs/cookbook/customize-hera-ui)
+- [Cookbook — Custom email templates](/docs/cookbook/custom-email-templates)

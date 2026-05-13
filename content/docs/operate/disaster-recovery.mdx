@@ -1,0 +1,159 @@
+---
+title: Disaster recovery
+description: When the host is gone, how do you get back online?
+---
+
+A scenario: your VPS provider has a regional outage. Or someone ran `rm -rf` on the wrong server. Or the host was compromised. You need to bring Olympus back somewhere else, with as little data loss as possible.
+
+## RPO and RTO
+
+- **RPO (Recovery Point Objective)**: how recent must the data be? E.g., RPO=1h means we lose up to 1h of changes.
+- **RTO (Recovery Time Objective)**: how quickly can we be back? E.g., RTO=2h means we're back online within 2h.
+
+Olympus's default backup pattern (daily snapshots) gives RPO ≈ 24h. Aggressive: PITR with WAL archiving gives RPO < 5min. RTO depends on how prepared you are.
+
+## What needs recovery
+
+1. **Database state**: identities, OAuth2 clients, sessions, audit logs, consent grants.
+2. **Encryption keys**: from secrets manager. Without these, encrypted data is opaque.
+3. **TLS certs**: Caddy fetches new ones automatically.
+4. **Config files**: kratos.yml, hydra.yml, Caddyfile. From git.
+5. **Static assets**: from container images.
+
+The DB and encryption keys are non-replaceable. Everything else can be re-fetched.
+
+## Backup strategy
+
+### Daily snapshot
+
+```bash
+# Cron: daily at 03:00
+pg_dump olympus | gzip | aws s3 cp - s3://olympus-backups-eu/olympus-$(date +%Y%m%d).sql.gz
+```
+
+Keep 30 days. Cost: ~$0.10/mo.
+
+### Continuous WAL archive
+
+For tighter RPO:
+
+```bash
+# postgresql.conf
+archive_mode = on
+archive_command = 'aws s3 cp %p s3://olympus-wal/%f'
+```
+
+WAL files (10-100 MB each) stream to S3 as they're generated.
+
+Restore: replay WAL on top of latest base backup → RPO ≤ 1min.
+
+### Off-site
+
+Backups in the same region as the primary DB are useless if the region is the disaster. S3 cross-region replication, or backup to a different cloud entirely.
+
+## Encryption keys
+
+Stored in:
+- Bitwarden / 1Password / Hashicorp Vault — manual operator access.
+- AWS Secrets Manager / GCP Secret Manager — programmatic access.
+
+Replicate across multiple secret stores or geographies. If you only have keys in one place, and that place is gone, your encrypted data is gone forever.
+
+## DR drill
+
+Quarterly drill:
+1. Spin up a fresh VPS.
+2. Restore latest backup.
+3. Fetch encryption keys from secret store.
+4. Start containers.
+5. Verify a known test identity can log in.
+6. Time the whole thing.
+
+Document the RTO actually achieved. Improve.
+
+## Recovery procedure
+
+### Step 1: Acquire host
+
+Hetzner: 30 min to provision a fresh server.
+AWS: 2 min.
+
+Don't try to recover on the same host that failed.
+
+### Step 2: Restore Olympus repo
+
+```bash
+git clone https://github.com/OlympusOSS/platform.git
+cd platform
+```
+
+Apply your env-specific config (from your config repo or operator-stored).
+
+### Step 3: Restore DB
+
+```bash
+# Pull latest backup
+aws s3 cp s3://olympus-backups-eu/olympus-20260514.sql.gz - | gunzip | psql olympus
+
+# Or PITR
+pg_basebackup -h <s3-bucket> -D /var/lib/postgresql/data
+# Then point to WAL archive in recovery.conf
+```
+
+### Step 4: Restore encryption keys
+
+```bash
+aws secretsmanager get-secret-value --secret-id olympus/encryption-key | jq -r .SecretString > .env
+```
+
+Or copy from operator's password manager.
+
+### Step 5: Start
+
+```bash
+podman-compose up -d
+```
+
+### Step 6: DNS
+
+Point `ciam.your-domain.com` at the new host's IP. DNS propagation can take 5 min - 1 h. Use a low TTL on the A/AAAA record.
+
+If you use Cloudflare proxy, just change the origin IP — instant.
+
+### Step 7: Smoke test
+
+- A known test identity logs in.
+- An OAuth2 token is issued.
+- Token is introspected.
+
+If green: announce service restored.
+
+## Communication during disaster
+
+- Status page: status.your-domain.com (separately hosted, NOT on the affected infrastructure).
+- Email blast: "We're aware of [issue], working on it."
+- Update every 30 min.
+
+For B2B: customer success / account managers reach out individually.
+
+## Post-incident
+
+1. Postmortem within 5 days.
+2. Action items: what could have prevented this? What would have made recovery faster?
+3. Test your fixes.
+
+## Recovery testing
+
+You haven't tested DR if:
+- You've never restored a backup.
+- You've never failed-over to a different host.
+- Your encryption keys live in only one place.
+
+Schedule quarterly DR drills. Pretend the host is gone — what do you actually do?
+
+## Related
+
+- [Operate — Backup and restore](/docs/operate/backup-restore)
+- [Cookbook — Multi-region deployment](/docs/cookbook/multi-region-deployment)
+- [Cookbook — Recover lost encryption key](/docs/cookbook/recover-lost-encryption-key)
+- [Operate — Incident response](/docs/operate/incident-response)

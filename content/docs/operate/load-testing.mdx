@@ -1,0 +1,193 @@
+---
+title: Load testing Olympus
+description: Find the breaking point before users do
+---
+
+Olympus runs comfortably at 100k MAU on a single mid-tier VPS. Beyond that, you need to know where the bottlenecks are. Load testing is how you find out.
+
+## What to test
+
+Most CIAM traffic is logins, token introspection, and `whoami`. In that order of volume:
+
+| Endpoint | % of total traffic | Latency target |
+|---|---|---|
+| `GET /kratos/sessions/whoami` | ~60% | < 50ms p99 |
+| `POST /oauth2/introspect` | ~25% | < 100ms p99 |
+| `POST /self-service/login` | ~10% | < 200ms p99 |
+| `POST /oauth2/token` | ~3% | < 200ms p99 |
+| Other | ~2% | varies |
+
+## Tools
+
+- **k6** (Go-based): scriptable, good output. Recommended.
+- **Locust** (Python): pythonic, distributed.
+- **vegeta** (Go): simple, HTTP-only.
+
+## k6 script: login spike
+
+```js
+// load/login.js
+import http from "k6/http";
+import { check, sleep } from "k6";
+import { Counter } from "k6/metrics";
+
+export const options = {
+  stages: [
+    { duration: "1m", target: 50 },    // ramp to 50 users
+    { duration: "5m", target: 50 },    // hold
+    { duration: "1m", target: 200 },   // spike
+    { duration: "3m", target: 200 },   // hold
+    { duration: "1m", target: 0 },     // drain
+  ],
+  thresholds: {
+    "http_req_duration{step:login}": ["p(99)<200"],
+    "http_req_failed": ["rate<0.01"],
+  },
+};
+
+const errors = new Counter("login_errors");
+
+export default function () {
+  // Get login flow
+  const flowRes = http.post(`${__ENV.HERA_URL}/self-service/login/api`, null, {
+    tags: { step: "init_flow" }
+  });
+  const flow = flowRes.json();
+
+  // Submit credentials (test users pre-created)
+  const idx = Math.floor(Math.random() * 1000);
+  const submitRes = http.post(flow.ui.action, JSON.stringify({
+    method: "password",
+    identifier: `loadtest+${idx}@example.com`,
+    password: "TestPassword123!",
+  }), {
+    headers: { "Content-Type": "application/json" },
+    tags: { step: "login" },
+  });
+
+  if (!check(submitRes, {
+    "200": (r) => r.status === 200,
+    "has session": (r) => r.json().session_token != null,
+  })) {
+    errors.add(1);
+  }
+
+  sleep(1);
+}
+```
+
+Run:
+
+```bash
+k6 run --env HERA_URL=https://staging-ciam.your-domain.com load/login.js
+```
+
+## Pre-create test users
+
+Don't register inside the load test — that double-counts and fills your DB with junk. Pre-create:
+
+```bash
+# scripts/create-test-users.sh
+for i in $(seq 1 1000); do
+  curl -X POST $KRATOS_ADMIN/admin/identities \
+    -H "Content-Type: application/json" \
+    -d "{\"schema_id\":\"default\",\"traits\":{\"email\":\"loadtest+${i}@example.com\"},\"credentials\":{\"password\":{\"config\":{\"password\":\"TestPassword123!\"}}}}"
+done
+```
+
+After test, clean up:
+
+```bash
+psql -c "DELETE FROM identities WHERE traits->>'email' LIKE 'loadtest+%@example.com'"
+```
+
+## What to measure
+
+### Throughput
+
+Requests per second you can sustain without errors. Target: 2x your peak production load.
+
+### Latency
+
+p50 / p95 / p99 / p999. p99 is the user-experience target — but pay attention to p999 (the very rare slow request — often indicates GC or DB lock).
+
+### Error rate
+
+Should be < 0.1% during normal load. Above that, find the cause:
+- 502s → backend killed (memory? OOM?).
+- 503s → rate limiting kicked in.
+- 504s → backend slow, gateway timed out.
+- 500s → application error, check logs.
+
+### System metrics
+
+Tail CPU, memory, disk IO, network. Where does saturation hit first?
+
+```bash
+# Watch on the host during load
+top
+iostat -x 1
+```
+
+## Common bottlenecks
+
+### Postgres connections
+
+```
+pgbouncer: maxwait > 1s
+```
+
+→ More backends needed. Increase pool. See [PgBouncer](/docs/operate/postgres-pgbouncer).
+
+### Postgres CPU
+
+→ Slow queries. Run `EXPLAIN ANALYZE` on hot queries. Add indexes.
+
+### Hera CPU
+
+→ Each request rendering server-side. Profile. Cache where possible.
+
+### Argon2id
+
+→ Login is CPU-heavy because Argon2id is intentionally slow. If you have thousands of concurrent logins, that's a lot of CPU.
+
+Knob: reduce Argon2id parameters (less secure but faster).
+
+## Capacity math
+
+Single-host Olympus (8 vCPU, 16 GB RAM):
+- ~200 login/s sustained.
+- ~2000 whoami/s sustained.
+- ~5000 token introspect/s sustained.
+
+At 1:1000 MAU:RPS ratio:
+- 200 logins/s × 86400 s/day = 17M logins/day = ~5M peak MAU.
+
+In practice, you'll bottleneck on Postgres before that — figure ~500k MAU per single-host with stock Postgres.
+
+## Staging vs prod
+
+Run load tests against a separate staging environment that mirrors prod. Never load-test prod.
+
+Spin up staging that mirrors prod:
+```bash
+terraform apply -var-file=envs/staging.tfvars
+# Restore latest backup into staging DB
+# Load-test
+```
+
+## Schedule
+
+Quarterly load test. Especially before:
+- Major launches (expected traffic spike).
+- Black Friday / promotional events.
+- Customer onboarding that adds expected 10k+ users.
+
+Track regressions over time.
+
+## Related
+
+- [Operate — Postgres tuning](/docs/operate/postgres-tuning)
+- [Operate — PgBouncer](/docs/operate/postgres-pgbouncer)
+- [Security — Rate limiting](/docs/security/rate-limiting)
+- [Operate — Logs and observability](/docs/operate/logs-and-observability)

@@ -1,0 +1,258 @@
+---
+title: Coding standards
+description: Conventions across Olympus repos
+---
+
+Across Olympus repos (Hera, Athena, SDK, Canvas, platform tools, daedalus), we keep style consistent so the team can context-switch easily.
+
+## Languages
+
+- **TypeScript** for JS code (no plain JS).
+- **Go** for Ory components (we don't write Go; we configure).
+- **SQL** for migrations.
+- **YAML** for config / Compose.
+- **Markdown / MDX** for docs.
+
+## Formatting
+
+Biome handles formatting and linting. Run:
+
+```bash
+bun run check
+```
+
+Pre-commit hook enforces. CI rejects misformatted code.
+
+Defaults: 2-space indent, double quotes for strings, semicolons, trailing commas.
+
+## Imports
+
+Top to bottom:
+1. Built-ins (`node:fs`, `node:path`).
+2. External (`react`, `next`, `drizzle-orm`).
+3. Internal absolute (`@/lib/...`).
+4. Internal relative (`./foo`).
+
+Don't use deep relative imports (`../../../`). Reach for absolute aliases.
+
+## Naming
+
+- Files: `kebab-case.ts` for utilities, `PascalCase.tsx` for React components.
+- Variables: `camelCase`.
+- Constants: `UPPER_SNAKE_CASE` for module-level immutables; `camelCase` for everything else.
+- Types: `PascalCase`.
+- Boolean variables: prefix `is`, `has`, `can`, `should`.
+
+## Functions
+
+Prefer named function declarations for exports, arrow functions for inline:
+
+```ts
+// Module export
+export function calculatePrice(items: Item[]) {
+  return items.reduce(/* ... */);
+}
+
+// Inline / callback
+items.map((item) => item.price);
+```
+
+## Error handling
+
+### Domain errors
+
+Create a typed error per domain:
+
+```ts
+export class AuthError extends Error {
+  constructor(public code: "invalid_credentials" | "locked", message: string) {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+```
+
+Throw at boundaries. Catch in handlers. Convert to HTTP status codes there.
+
+### Avoid catch-all
+
+```ts
+// Don't
+try { /* ... */ } catch (e) { /* swallow */ }
+
+// Do
+try {
+  await operation();
+} catch (e) {
+  if (e instanceof AuthError) return res.status(401);
+  if (e instanceof ValidationError) return res.status(400);
+  throw e; // let the framework handle
+}
+```
+
+## Async
+
+Always `await`. No bare promises:
+
+```ts
+// Don't
+foo().then(/* ... */);
+
+// Do
+const result = await foo();
+```
+
+Exception: fire-and-forget logging:
+```ts
+audit.log({ /* ... */ }).catch(err => console.error("audit log failed", err));
+```
+
+## Database
+
+### Always parameterize
+
+```ts
+// Don't
+await db.query(`SELECT * FROM users WHERE id = '${id}'`);
+
+// Do
+await db`SELECT * FROM users WHERE id = ${id}`;
+```
+
+### Transactions for multi-write
+
+```ts
+await db.transaction(async (tx) => {
+  await tx`INSERT INTO identities ...`;
+  await tx`INSERT INTO audit_log ...`;
+});
+```
+
+If any throws, all roll back.
+
+## React / Next.js
+
+### Default to Server Components
+
+Don't reach for `"use client"` unless you need:
+- State / effects.
+- Event handlers.
+- Browser-only APIs (window, document, navigator).
+
+Server Components compose with client where needed.
+
+### No `useEffect` for initial data
+
+```tsx
+// Don't (server-side rendered as loading state)
+function MyComp() {
+  const [data, setData] = useState(null);
+  useEffect(() => { fetch("...").then(r => r.json()).then(setData); }, []);
+  if (!data) return "Loading...";
+  return <div>{data.foo}</div>;
+}
+
+// Do (server component)
+async function MyComp() {
+  const data = await fetchData();
+  return <div>{data.foo}</div>;
+}
+```
+
+Fetch on the server, render with data already there.
+
+### Forms via server actions
+
+Already covered. No client-side fetch loops.
+
+## Testing
+
+### Unit
+
+Co-locate `*.test.ts` with source. Use Bun's test runner:
+
+```ts
+import { test, expect } from "bun:test";
+
+test("formats price", () => {
+  expect(formatPrice(1099)).toBe("$10.99");
+});
+```
+
+### E2E
+
+Playwright in `tests/e2e/`. Real browser, real stack.
+
+### Mocking
+
+Avoid mocking your own code — refactor for testability instead. Mock external services (Postmark, OIDC providers) with MSW or specific test doubles.
+
+## Comments
+
+Default: no comments. Code should explain itself.
+
+When comments help:
+- Why something is the way it is (non-obvious constraint).
+- Link to spec, RFC, or issue for clarity.
+- Hard-coded magic number explanation.
+
+Don't:
+- Restate what the code does.
+- Block comments at file head describing the file.
+- TODO/FIXME without a date and owner.
+
+## Logging
+
+Structured JSON logging:
+
+```ts
+logger.info({ event: "user_logged_in", user_id: id, ip: req.ip });
+```
+
+Levels:
+- `error`: something broke; needs attention.
+- `warn`: unexpected but recoverable; may need attention.
+- `info`: notable events.
+- `debug`: development only.
+
+Don't log PII unless audit:
+- Don't: `logger.info({ msg: "User Jane Doe logged in" })`.
+- Do: `logger.info({ event: "login", user_id: id })`. The audit log has PII separately, with retention policy.
+
+## Git
+
+### Commits
+
+```
+[area]: imperative present-tense summary
+
+Longer description if needed. Wrap at 72.
+```
+
+Examples:
+- `[hera] add password strength meter`
+- `[athena] fix identity export pagination`
+- `[platform] bump kratos to v1.2.0`
+
+### Branches
+
+Push directly to `main` per Olympus convention. No long-lived feature branches.
+
+### Squash & merge
+
+Each PR = one commit on main. Squash before merge.
+
+## Reviews
+
+For each PR check:
+- Does it follow these standards?
+- Are tests included?
+- Is the audit log respected (for Athena/server)?
+- Are the docs updated?
+- Are migration's expand/contract safe?
+
+## Related
+
+- [Develop — Local dev environment](/docs/develop/local-dev-environment)
+- [Develop — Architecture](/docs/develop/architecture)
+- [Operate — Database migrations](/docs/operate/db-migrations)

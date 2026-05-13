@@ -1,0 +1,135 @@
+---
+title: "Sequence: registration with email verification"
+description: Step-by-step of the new-user signup path
+---
+
+The complete flow when a user signs up with email + password, then verifies their email.
+
+## Sequence
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant H as Hera
+  participant K as Kratos (public)
+  participant DB as Postgres
+  participant E as Email (Postmark)
+  participant V as Verification page
+
+  U->>H: GET /registration
+  H->>K: POST /self-service/registration/browser
+  K->>DB: INSERT selfservice_registration_flows
+  K->>H: 302 with flow ID
+  H->>K: GET /self-service/registration/flows?id=...
+  K->>H: Flow JSON (CSRF token, fields, action URL)
+  H->>U: Registration form (HTML)
+  U->>H: POST (email, password, csrf_token)
+  H->>K: POST /self-service/registration?flow=...
+  K->>K: Validate schema
+  K->>K: Hash password (Argon2id)
+  K->>DB: INSERT identities, identity_credentials
+  K->>K: Trigger after-registration hook
+  K->>E: Send verification email (via courier)
+  K->>H: 200 + session cookie
+  H->>U: Redirect to /welcome
+  Note over U,E: Some time later...
+  U->>E: Open email, click verify link
+  E->>V: GET /verification?token=...
+  V->>K: POST /self-service/verification?token=...
+  K->>DB: UPDATE identities SET verified=true
+  K->>V: 200
+  V->>U: "Email verified" page
+```
+
+## What's happening at each step
+
+| Step | What | Why |
+|---|---|---|
+| 1 | User loads `/registration` | Browser navigation |
+| 2 | Hera starts flow | Kratos's browser flow API |
+| 3 | Flow record created in DB | Trackable, expires after 1h |
+| 4-5 | Flow ID issued, fetched | Stateless from Hera's view |
+| 6 | Form rendered | With CSRF and field definitions |
+| 7-8 | Submit goes to Kratos | Hera proxies; doesn't validate |
+| 9 | Schema validation | Email format, password strength, etc. |
+| 10 | Password hashed | Argon2id (m=64MB, p=2, t=2) |
+| 11 | Identity row written | UUID, encrypted traits |
+| 12 | Post-registration hook | If configured: pre-fill role, allowlist check, etc. |
+| 13 | Verification email queued | Via courier — separate process delivers |
+| 14 | Session created | Cookie set on response |
+| 15 | Redirect to app | Logged in immediately (Kratos default) |
+| 16-19 | User clicks email later | Async, may be hours |
+| 20 | Verification updates DB | identity.verifiable_addresses.verified = true |
+| 21 | Success page | Done |
+
+## Key design decisions
+
+### Logged in before verifying
+
+By default, Olympus logs the user in immediately. The user can use the app right away. Email verification is "soft" — required for some flows (recovery) but not for general use.
+
+Alternative: enforce verified-before-login. Configure:
+
+```yaml
+selfservice:
+  flows:
+    registration:
+      after:
+        password:
+          hooks:
+            - hook: require_verified_address
+```
+
+Adds `verifiable_addresses[].verified = true` as a session prerequisite.
+
+### Hashed token in DB
+
+The verification email contains a token. Kratos hashes it and stores only the hash. Even if DB is leaked, attacker can't use stored tokens.
+
+### Email courier is asynchronous
+
+Kratos doesn't block registration on email send. If Postmark is slow, the user still gets logged in. The email is sent eventually by the courier worker.
+
+If courier fails persistently, you accumulate undelivered emails. Monitor courier health.
+
+## Edge cases
+
+### Duplicate email
+
+Step 9 catches via DB unique constraint:
+
+```json
+{ "error": "registration_failed", "details": "identity with the same identifier already exists" }
+```
+
+### Weak password
+
+Step 9 returns:
+
+```json
+{ "error": "validation_failed", "details": "password too weak" }
+```
+
+User sees inline error.
+
+### Pre-registration hook rejects
+
+Custom hook (e.g., domain allowlist) returns `reject: true`. Step 12 errors out:
+
+```json
+{ "error": "domain_not_allowed" }
+```
+
+Identity row never created. User sees error.
+
+### Email delivery fails
+
+Courier marks the email failed; retries up to 5 times with backoff. User may not see the verification email. They can request resend.
+
+## See also
+
+- [Identity — Registration flow](/docs/identity/registration-flow)
+- [Identity — Verification flow](/docs/identity/verification-flow)
+- [Cookbook — Email-domain allowlist](/docs/cookbook/email-domain-allowlist)
+- [Cookbook — Invitation-based signup](/docs/cookbook/invitation-based-signup)

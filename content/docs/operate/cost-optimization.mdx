@@ -1,0 +1,206 @@
+---
+title: Cost optimization
+description: Running Olympus inexpensively
+---
+
+Olympus's value prop is "no per-MAU pricing." But your own infrastructure costs scale with usage. Here's where the money goes and how to trim.
+
+## Baseline costs (single-host, ~50k MAU)
+
+| Item | Cost / month |
+|---|---|
+| VPS (8 GB RAM, 4 vCPU, 100 GB SSD) | $20-50 |
+| DNS (Cloudflare) | $0-20 |
+| Backups (S3 30-day) | $5-15 |
+| Email transactional (Postmark/Brevo, 10k/mo) | $10-15 |
+| Monitoring (Grafana Cloud free tier) | $0 |
+| Status page | $0-5 |
+| TLS (Let's Encrypt) | $0 |
+| **Total** | **$35-105** |
+
+At 50k MAU, that's < $0.002 per user/month. Compare to Auth0 at $0.05+/MAU.
+
+## Where costs grow
+
+### MAU → DB size
+
+Each identity is ~5KB in DB (encrypted traits, credentials, sessions).
+- 100k identities = ~500 MB.
+- 1M identities = ~5 GB.
+
+Plus indexes (~30% overhead). Plus audit logs.
+
+At 1M users with 1y audit retention, expect ~50 GB DB. Still fits a $50/mo VPS.
+
+### MAU → Email volume
+
+Average verification + recovery + notifications: ~2 emails per active user per month.
+- 50k MAU = 100k emails/mo (~$10-15).
+- 1M MAU = 2M emails/mo (~$200-400).
+
+Email becomes the biggest line item at scale.
+
+### MAU → Bandwidth
+
+Each login session: ~50KB total (HTML, JS, CSS, API calls). Cached after first visit.
+- 50k MAU at 4 logins/mo = 200k page loads × 50KB = 10 GB.
+- VPS bandwidth allowance usually covers this.
+
+### Auth fraud
+
+Bots probing your registration endpoint at 100 req/s 24/7. Costs:
+- DB rows (if you don't filter): millions of failed registrations.
+- Bandwidth.
+- Compute (Argon2id on each).
+
+Mitigation: aggressive rate limiting + CAPTCHA + bot detection.
+
+## Tactical savings
+
+### Right-size your VPS
+
+Most Olympus deployments run at 5-15% CPU. Don't over-provision. Start small, monitor, scale up if needed.
+
+Hetzner CAX21 (8 GB / 4 vCPU ARM): $9/mo. Plenty for < 50k MAU.
+
+### ARM instances
+
+ARM is ~30% cheaper for the same performance on Hetzner Cloud. Olympus Go services (Kratos, Hydra) run native ARM. Node/Bun (Hera, Athena) also work on ARM.
+
+```yaml
+# docker-compose.yml — image tags
+image: oryd/kratos:v1.2.0  # multi-arch
+```
+
+### Backup tier
+
+S3 Standard: ~$0.023/GB/mo.
+S3 Glacier: ~$0.004/GB/mo.
+
+For backups > 30 days, move to Glacier. Retrieval takes hours but you don't need fast access — these are emergency backups.
+
+```bash
+aws s3 cp olympus-backup.dump.gz s3://your-bucket/ \
+  --storage-class GLACIER_IR
+```
+
+### Email provider
+
+Postmark: $1.25 per 1000 emails (consistent, reliable).
+Brevo (free tier): 300/day = ~9k/mo free.
+SendGrid (free tier): 100/day = ~3k/mo free.
+
+For < 10k emails/mo, use free tiers. At scale: Postmark for reliability.
+
+### DNS
+
+Cloudflare free tier: unlimited DNS, basic DDoS, proxying.
+Route 53: $0.50 per zone/mo + $0.40 per million queries.
+
+For Olympus, Cloudflare free is plenty.
+
+### Monitoring
+
+- Grafana Cloud free tier: 10k metrics + 50 GB logs/mo. Plenty.
+- Prometheus self-host: $0 but operator overhead.
+- Datadog: $$$. Don't unless you're already on it.
+
+### Storage
+
+If DB > 100 GB and growing:
+- Migrate to managed (Neon, RDS) for auto-scaling.
+- OR archive old audit logs to S3 (cold storage).
+
+## Strategic savings
+
+### Lazy-delete inactive identities
+
+If a user hasn't logged in 5 years, you probably don't need their data. GDPR requires data minimization anyway.
+
+```sql
+-- Identify inactive
+SELECT id FROM identities
+WHERE last_login < NOW() - INTERVAL '5 years'
+  AND state = 'active';
+
+-- Delete (with proper notification)
+```
+
+Cuts DB size, audit log volume, email volume.
+
+### Audit log retention
+
+90 days for routine, 2 years for security events, then drop.
+
+```bash
+# Daily cron
+psql -c "DELETE FROM security_audit WHERE event_type IN ('login', 'whoami') AND created_at < NOW() - INTERVAL '90 days'"
+```
+
+A million-MAU deployment without retention will have 100M+ rows in audit log within a year.
+
+### Session pruning
+
+Same — old expired sessions accumulate:
+
+```bash
+podman exec ciam-kratos kratos janitor --keep-last 168h
+```
+
+### CDN for assets
+
+If you're paying for bandwidth, CDN the static assets (JS/CSS):
+- Bunny.net: ~$0.005/GB.
+- Cloudflare R2 / S3: ~$0.01/GB.
+
+Frees VPS bandwidth for API calls.
+
+### Postgres tuning
+
+Default Postgres config is conservative. Tune for your workload:
+
+```ini
+shared_buffers = 4GB           # 25% of RAM
+effective_cache_size = 12GB    # 75% of RAM
+work_mem = 16MB
+maintenance_work_mem = 1GB
+```
+
+Reduces query times, lets you serve more on smaller instance.
+
+See [Postgres tuning](/docs/operate/postgres-tuning).
+
+## When to scale up
+
+Signals:
+- CPU > 70% sustained → bigger instance.
+- DB > 80% disk → bigger disk OR managed Postgres.
+- Latency p99 > 500ms → bigger instance OR optimize queries.
+
+Don't pre-scale. You'll know when it's needed.
+
+## When to scale out
+
+Single-host is fine up to ~500k MAU. Beyond that:
+- Add read replica.
+- Add second app host with shared DB.
+- Eventually: managed Postgres, multi-region.
+
+See [Multi-region deployment](/docs/cookbook/multi-region-deployment).
+
+## Compare to alternatives
+
+Auth0: $0.05 per MAU (B2C) or $1.50 per MAU (B2B). At 100k MAU = $5k/mo or $150k/mo.
+Okta CIC: similar.
+AWS Cognito: ~$0.0055/MAU. At 100k MAU = $550/mo.
+
+Olympus at 100k MAU: ~$80/mo infrastructure. Operator time: a few hours per quarter.
+
+The savings are real and significant — but they're not free. You're trading dollars for operator time. Worth it if you have the time. Not worth it if you don't.
+
+## Related
+
+- [Operate — Postgres tuning](/docs/operate/postgres-tuning)
+- [Operate — Backup and restore](/docs/operate/backup-restore)
+- [Cookbook — Managed Postgres (Neon)](/docs/cookbook/managed-postgres-neon)
+- [Operate — Logs and observability](/docs/operate/logs-and-observability)

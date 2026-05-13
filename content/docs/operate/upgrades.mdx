@@ -1,0 +1,190 @@
+---
+title: Upgrading Olympus
+description: Routine version bumps and what to expect
+---
+
+How to safely upgrade Olympus components (Kratos, Hydra, Hera, Athena, Caddy) without downtime.
+
+## Cadence
+
+- **Patch** (1.2.3 → 1.2.4): security fixes, bug fixes. Apply promptly.
+- **Minor** (1.2.x → 1.3.x): backwards-compatible features. Apply within 30 days.
+- **Major** (1.x → 2.x): breaking changes. Plan, test, schedule.
+
+## Pre-upgrade checklist
+
+- [ ] Read changelog (CHANGELOG.md in the repo).
+- [ ] Identify any breaking changes.
+- [ ] Take a fresh DB backup.
+- [ ] Have a rollback plan written down.
+- [ ] Notify users if downtime is possible (rare).
+
+## Standard upgrade procedure
+
+### 1. Backup
+
+```bash
+pg_dump olympus | gzip > pre-upgrade-$(date +%Y%m%d).sql.gz
+```
+
+Off-host, ideally.
+
+### 2. Update version tag
+
+```bash
+# .env
+KRATOS_TAG=v1.2.0
+```
+
+Or `docker-compose.yml`:
+
+```yaml
+ciam-kratos:
+  image: oryd/kratos:v1.2.0
+```
+
+### 3. Pull image
+
+```bash
+podman-compose pull ciam-kratos
+```
+
+### 4. Migrate schema (if changelog says so)
+
+```bash
+podman exec ciam-kratos kratos migrate sql up
+```
+
+### 5. Recreate container
+
+```bash
+podman-compose up -d ciam-kratos
+```
+
+Downtime: ~10 seconds while container restarts.
+
+### 6. Smoke test
+
+```bash
+curl https://ciam.your-domain.com/health/ready
+# Should be 200
+
+# Try a login
+```
+
+### 7. Watch logs / metrics
+
+For 30 minutes:
+```bash
+podman logs -f ciam-kratos | grep -i error
+```
+
+If problems → rollback to previous image:
+
+```bash
+# .env
+KRATOS_TAG=v1.1.0  # previous
+podman-compose up -d ciam-kratos
+```
+
+## Zero-downtime upgrades
+
+For services with multiple replicas (Hera, Athena), do rolling:
+
+```bash
+# Bring up new version alongside
+podman-compose up -d --scale ciam-hera=2
+# Wait for new one to be ready
+# Caddy LB picks both
+# Drop old
+podman stop ciam-hera-old
+```
+
+For single-instance services (Kratos, Hydra, Postgres): see [Cookbook — Blue/green deploy](/docs/cookbook/blue-green-deploy) for true zero-downtime.
+
+## Order of upgrades
+
+When upgrading multiple things, the safe order:
+
+1. **Postgres**: most foundational. Minor version (16.3 → 16.4) is safe. Major (15 → 16) requires planning.
+2. **Caddy**: usually safe; if rate-limit module incompatibility, revert.
+3. **Kratos**: typically backwards-compatible API.
+4. **Hydra**: typically backwards-compatible API.
+5. **Hera** / **Athena**: consume Kratos/Hydra APIs; need to be compatible with what's running.
+
+Don't upgrade everything in one go. One service at a time.
+
+## Major version upgrades
+
+For major bumps (Kratos 0.x → 1.x), expect:
+- Config file format changes.
+- API breaking changes.
+- DB schema changes that aren't backward-compatible.
+
+Test in staging first. Read the migration guide in the project's changelog.
+
+## Hydra 1.x → 2.x specifics
+
+(Example for reference, not an actual current task.)
+
+Migrations Hydra 2.x introduces:
+- New token format (was JSON, now Protobuf-style).
+- Breaking changes to consent screen API (different challenge shape).
+- New default scopes.
+
+Migration plan:
+1. Backup.
+2. Run `hydra migrate sql up` (handles DB).
+3. Update Hera's consent handler for new API.
+4. Deploy.
+
+## Image pinning
+
+Don't use `:latest`. Pin specific versions:
+
+```yaml
+image: oryd/kratos:v1.2.0
+```
+
+Reproducible deploys. Latest moves under you and breaks things.
+
+## Container registry
+
+Olympus uses GHCR. Make sure your auth works:
+
+```bash
+echo $GITHUB_TOKEN | podman login ghcr.io -u USER --password-stdin
+```
+
+Periodic re-auth needed if tokens expire.
+
+## Notifying users
+
+For unavoidable downtime (rare — usually 30s during container restart):
+
+```html
+<!-- in Hera -->
+<div class="banner">
+  Maintenance window: <strong>May 15, 03:00–03:15 UTC</strong>.
+  Sign-in may briefly fail during this time.
+</div>
+```
+
+Schedule for off-peak (3 AM in your largest user TZ).
+
+## Rolling back
+
+If you discover a problem post-upgrade:
+
+1. Set image back to previous version in `.env`.
+2. `podman-compose up -d` to recreate with old version.
+3. Migrations: if the new version added columns, the old version will ignore them (usually fine). If the new version dropped columns, you're stuck — restore from backup.
+
+This is why we always backup first.
+
+## Related
+
+- [Operate — Database migrations](/docs/operate/db-migrations)
+- [Operate — Backup and restore](/docs/operate/backup-restore)
+- [Cookbook — Blue/green deploy](/docs/cookbook/blue-green-deploy)
+- [Cookbook — Canary deploy](/docs/cookbook/canary-deploy)

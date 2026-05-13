@@ -1,0 +1,235 @@
+---
+title: Contributing to Athena
+description: How Athena is structured and how to extend it
+---
+
+Athena is the operator-facing admin UI for Olympus. It's where you manage identities, OAuth2 clients, settings, audit logs, and more. Next.js 15 + Tailwind + Drizzle.
+
+## Repo layout
+
+```
+athena/
+├── app/
+│   ├── (auth)/login/page.tsx
+│   ├── (admin)/
+│   │   ├── layout.tsx           # auth-required layout
+│   │   ├── identities/
+│   │   ├── clients/
+│   │   ├── audit/
+│   │   ├── settings/
+│   │   └── ...
+│   └── api/
+├── components/
+│   ├── ui/                  # primitives (Button, Input, etc.)
+│   ├── tables/              # IdentityTable, ClientTable, etc.
+│   └── ...
+├── lib/
+│   ├── kratos.ts            # admin API client
+│   ├── hydra.ts             # admin API client
+│   ├── db.ts                # athena's own DB
+│   └── ...
+├── drizzle/                 # migrations
+└── tests/
+```
+
+## Auth: who can access Athena
+
+Athena is itself an Olympus app. Admins log in via Hera, get a Kratos session, then access Athena.
+
+Athena's middleware:
+
+```tsx
+// middleware.ts
+import { NextResponse } from "next/server";
+import { kratos } from "@/lib/kratos";
+
+export async function middleware(req) {
+  const session = await kratos.toSession({ cookie: req.headers.get("cookie") });
+  if (!session || session.identity.traits.role !== "iam:admin") {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+}
+```
+
+Only `iam:admin` identities can use Athena. Reject otherwise.
+
+## Pages
+
+### Identity list
+
+```tsx
+// app/(admin)/identities/page.tsx
+export default async function Identities({ searchParams }) {
+  const page = Number(searchParams.page ?? "1");
+  const identities = await kratos.adminListIdentities({ page, per_page: 50 });
+  return <IdentityTable identities={identities} />;
+}
+```
+
+Server Component — fetches on the server, no client-side waterfall.
+
+### Identity detail
+
+```tsx
+// app/(admin)/identities/[id]/page.tsx
+export default async function IdentityDetail({ params }) {
+  const identity = await kratos.adminGetIdentity({ id: params.id });
+  const sessions = await kratos.adminListSessions({ identity_id: params.id });
+  return <IdentityDetailView identity={identity} sessions={sessions} />;
+}
+```
+
+## Admin actions
+
+Mutation = server action + audit log:
+
+```tsx
+"use server";
+import { db } from "@/lib/db";
+import { kratos } from "@/lib/kratos";
+
+export async function revokeAllSessions(identityId: string) {
+  const actor = await getCurrentAdmin();
+  await kratos.adminRevokeSessions({ identity_id: identityId });
+  await db.insert(auditTable).values({
+    actor_id: actor.id,
+    target_id: identityId,
+    action: "sessions_revoked",
+  });
+}
+```
+
+Every admin action MUST be audited.
+
+## Settings vault
+
+Athena's settings vault holds runtime-editable config:
+
+```
+olympus.registration.enabled = true
+olympus.mfa.required_for_role = ["admin"]
+olympus.email.from = "noreply@your-domain.com"
+```
+
+Stored in the `settings` table:
+
+```sql
+CREATE TABLE settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_by UUID
+);
+```
+
+Edit via Athena's settings page → reflected immediately in apps that read from settings vault.
+
+Reading at runtime:
+
+```ts
+const required = await db.select().from(settings).where(eq(settings.key, "olympus.mfa.required_for_role"));
+const roles = required[0]?.value ?? [];
+```
+
+Cache for 60s to reduce DB hits.
+
+## Adding a new admin page
+
+E.g., a "blocked IPs" management page.
+
+1. Decide where: `app/(admin)/security/blocked-ips/page.tsx`.
+2. DB schema:
+   ```sql
+   CREATE TABLE blocked_ips (
+     ip INET PRIMARY KEY,
+     reason TEXT,
+     blocked_by UUID NOT NULL,
+     blocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   );
+   ```
+3. Drizzle schema in `lib/db/schema.ts`.
+4. List page (server component).
+5. Add form (server action) for blocking.
+6. Audit log on every action.
+7. Add nav link.
+8. Tests.
+
+## UI primitives
+
+Athena has its own UI library in `components/ui/`:
+- `<Button>`, `<Input>`, `<Select>`
+- `<Table>` with pagination
+- `<Dialog>` for confirmations
+- `<Badge>`, `<Avatar>`
+
+Don't add a new primitive lightly. Check what exists.
+
+## Forms
+
+Server actions + form. No client-side fetch / hooks for most cases:
+
+```tsx
+async function update(formData: FormData) {
+  "use server";
+  const value = formData.get("value");
+  await db.update(...);
+}
+
+<form action={update}>
+  <Input name="value" />
+  <Button>Save</Button>
+</form>
+```
+
+For complex UX (autocomplete, multi-step), upgrade to client components.
+
+## Testing
+
+```bash
+bun test           # unit
+bun run test:e2e   # playwright e2e
+```
+
+E2E tests require:
+- Running Olympus stack.
+- Pre-created admin user.
+
+## Common pitfalls
+
+### Accessing Athena DB from outside Athena
+
+Athena's `db` (its own tables) is separate from Kratos's DB. Don't read Athena tables from Hera or other services — keep them isolated.
+
+Athena reads from Kratos's tables only via Kratos's admin API.
+
+### Server vs client component
+
+```tsx
+"use server"; // ← top of file = whole module is server-only
+
+"use client"; // ← top of file = whole module is client-side
+
+// Without either, depends on what's imported.
+```
+
+If you accidentally make a server component a client component, secrets leak. Server actions only work in server components.
+
+### Skipping audit
+
+Every mutation needs an audit row. Build this into a wrapper:
+
+```ts
+async function audited(action: string, fn: () => Promise<any>) {
+  await auditLog.write({ action });
+  return fn();
+}
+```
+
+Use this wrapper in actions to enforce.
+
+## Related
+
+- [Develop — Local dev environment](/docs/develop/local-dev-environment)
+- [Operate — Audit log query](/docs/operate/audit-log-query)
+- [Cookbook — Per-tenant config](/docs/cookbook/per-tenant-config)
+- [Cookbook — Admin impersonate user](/docs/cookbook/admin-impersonate-user)

@@ -1,0 +1,203 @@
+---
+title: Contributing to Hera
+description: How Hera is structured and how to add features
+---
+
+Hera is the customer-facing UI for Olympus auth. It's a Next.js 15 app using App Router, React Server Components, and Tailwind.
+
+## Repo layout
+
+```
+hera/
+├── app/
+│   ├── login/page.tsx
+│   ├── registration/page.tsx
+│   ├── recovery/page.tsx
+│   ├── settings/page.tsx
+│   ├── verification/page.tsx
+│   ├── consent/page.tsx
+│   ├── logout/page.tsx
+│   └── api/
+│       └── ...
+├── components/
+│   ├── flow/             # Kratos flow renderers
+│   ├── ui/               # primitives
+│   └── ...
+├── lib/
+│   ├── kratos.ts         # Kratos SDK setup
+│   ├── hydra.ts          # Hydra SDK setup
+│   └── ...
+├── public/               # static assets
+└── tests/
+    └── e2e/              # Playwright
+```
+
+## Key patterns
+
+### Flow rendering
+
+Kratos returns a "flow" object with a list of UI nodes. Hera renders them.
+
+```tsx
+// components/flow/Flow.tsx
+export function Flow({ flow }: { flow: LoginFlow }) {
+  return (
+    <form action={flow.ui.action} method={flow.ui.method}>
+      {flow.ui.nodes.map((node) => (
+        <Node key={getNodeKey(node)} node={node} />
+      ))}
+    </form>
+  );
+}
+```
+
+The `<Node>` component dispatches on node type: text input, hidden field, button, message, etc. To customize the look of any field, edit `components/flow/nodes/*`.
+
+### Server actions for submissions
+
+Form submissions go through Server Actions for type safety:
+
+```tsx
+"use server";
+
+export async function submitLogin(flowId: string, formData: FormData) {
+  const result = await kratos.updateLoginFlow({
+    flow: flowId,
+    updateLoginFlowBody: { /* ... */ }
+  });
+  redirect(result.return_to);
+}
+```
+
+### Cookies
+
+Hera doesn't manage Kratos session cookies — Kratos sets them directly on its responses. Hera just forwards them via Next.js's `cookies()`.
+
+## Adding a new screen
+
+E.g., a "verify phone" screen.
+
+1. Add Kratos config for SMS method (or generic identifier method).
+2. Add `app/verify-phone/page.tsx`:
+   ```tsx
+   import { kratos } from "@/lib/kratos";
+   export default async function VerifyPhone({ searchParams }) {
+     const flow = await kratos.getVerificationFlow({ id: searchParams.flow });
+     return <Flow flow={flow.data} />;
+   }
+   ```
+3. Add a custom Node renderer for the phone-specific input.
+4. Test in dev.
+
+## Branding hooks
+
+The CSS is in `app/globals.css` with Tailwind theme tokens:
+
+```css
+@theme {
+  --color-primary: #4F46E5;
+  --color-background: #FFFFFF;
+}
+```
+
+Per-tenant branding: override via CSS custom properties at runtime. See [Cookbook — Per-tenant config](/docs/cookbook/per-tenant-config).
+
+## i18n
+
+Hera uses [next-intl](https://next-intl-docs.vercel.app/):
+
+```tsx
+import { useTranslations } from "next-intl";
+export default function Login() {
+  const t = useTranslations("login");
+  return <h1>{t("title")}</h1>;
+}
+```
+
+Translation files in `messages/{locale}/login.json`. Add a locale, add the JSON, done.
+
+## Testing
+
+### Unit tests
+
+```bash
+bun test
+```
+
+Uses Bun's built-in test runner. Tests live next to source as `*.test.ts`.
+
+### E2E
+
+```bash
+bun run test:e2e
+```
+
+Playwright tests against a real running Olympus stack (use `docker-compose -f docker-compose.test.yml`).
+
+Tests in `tests/e2e/`. Patterns:
+
+```ts
+test("user can log in", async ({ page }) => {
+  await page.goto("/login");
+  await page.fill('input[name="identifier"]', "test@example.com");
+  await page.fill('input[name="password"]', "TestPass123!");
+  await page.click('button[type="submit"]');
+  await page.waitForURL(/\/dashboard/);
+});
+```
+
+## Style
+
+- TypeScript strict mode.
+- Biome for formatting + linting.
+- File names: `kebab-case.tsx` for components, `camelCase.ts` for utilities.
+- Component naming: `PascalCase`.
+
+## PR process
+
+Olympus's policy: PRs go through CI (lint, test, build). For Hera specifically:
+- Visual regression tests (Chromatic or similar) on UI changes.
+- A11y audit (axe) on every PR.
+
+## Common pitfalls
+
+### Server-only secrets in client components
+
+```tsx
+// Don't do this — leaks to browser
+"use client";
+const secret = process.env.KRATOS_ADMIN_TOKEN;
+```
+
+Server-only env vars must not be accessed in `"use client"` files. Use server-side fetching, pass data via props.
+
+### Mixing flow logic and presentation
+
+Kratos's flow is the source of truth. Don't conditionally render based on stale form state — re-fetch the flow.
+
+### Bypassing CSRF token
+
+```tsx
+<input type="hidden" name="csrf_token" value={flow.csrf} />
+```
+
+Forgetting this → CSRF violation on submit. Use the `<Flow>` component which handles it automatically.
+
+## Where to start
+
+For a first contribution:
+- Improve a copy / translation.
+- Fix a layout issue (responsive bug).
+- Add a missing aria-label.
+
+For bigger:
+- New social provider button (see existing).
+- New identity field (with corresponding Kratos schema).
+- New flow (passwordless, SMS, etc.).
+
+## Related
+
+- [Develop — Local dev environment](/docs/develop/local-dev-environment)
+- [Develop — Architecture](/docs/develop/architecture)
+- [Cookbook — Customize Hera UI](/docs/cookbook/customize-hera-ui)
+- [Cookbook — Localize Hera UI](/docs/cookbook/localize-hera-ui)

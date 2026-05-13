@@ -1,0 +1,151 @@
+---
+title: "Sequence: Kratos session lifecycle"
+description: When sessions are created, refreshed, and destroyed
+---
+
+## Sequence
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant H as Hera
+  participant K as Kratos
+  participant DB as Postgres
+  participant App as Your App
+
+  rect rgb(220, 240, 220)
+    Note over U,DB: Session creation
+    U->>H: Authenticate
+    H->>K: POST /self-service/login
+    K->>K: Validate credentials
+    K->>K: Generate session_token, session_id
+    K->>DB: INSERT sessions (token, identity_id, expires_at)
+    K->>H: 200 + Set-Cookie ory_kratos_session
+    H->>U: 302 to app
+  end
+
+  rect rgb(240, 240, 220)
+    Note over U,App: Session use
+    U->>App: GET /protected (cookie attached)
+    App->>K: GET /sessions/whoami (cookie forwarded)
+    K->>DB: SELECT session WHERE token=...
+    K->>App: { identity, aal, expires_at }
+    App->>U: Authorized response
+  end
+
+  rect rgb(240, 220, 220)
+    Note over U,DB: Session expiry
+    Note over K: Time passes... session_expires < now
+    U->>App: GET /protected
+    App->>K: GET /sessions/whoami
+    K->>K: Check expires_at < now
+    K->>App: 401 not_authenticated
+    App->>U: 302 to /login
+  end
+
+  rect rgb(220, 220, 240)
+    Note over U,K: Explicit logout
+    U->>H: GET /logout
+    H->>K: POST /self-service/logout/api (token)
+    K->>DB: DELETE sessions WHERE token=...
+    K->>H: 204
+    H->>U: 302 to / + Clear-Cookie
+  end
+
+  rect rgb(240, 220, 240)
+    Note over U,DB: Admin revoke
+    Note over K: An admin revokes via Athena
+    K->>DB: UPDATE sessions SET revoked_at=now WHERE id=...
+    U->>App: Next request
+    App->>K: whoami
+    K->>K: Check revoked_at IS NOT NULL
+    K->>App: 401
+  end
+```
+
+## Session lifecycle states
+
+| State | DB columns | Whoami returns |
+|---|---|---|
+| Active | `revoked_at IS NULL` AND `expires_at > now` | 200 + identity |
+| Expired | `expires_at < now` | 401 |
+| Revoked | `revoked_at IS NOT NULL` | 401 |
+| Refreshed | Same row, `expires_at` extended | 200 (new lifespan) |
+
+## Refresh / extension
+
+Default Kratos config: `lifespan: 24h`. Each call to `whoami` does NOT extend by default — the user must re-authenticate after 24h.
+
+For sliding expiration (extend on activity):
+
+```yaml
+# kratos.yml
+session:
+  lifespan: 24h
+  earliest_possible_extend: 1h  # extend if remaining < this
+```
+
+`whoami` will extend if the session has less than 1h remaining. Useful for "stay logged in while active" UX.
+
+## AAL (Authenticator Assurance Level)
+
+The session carries an AAL:
+- `aal1`: password OR social OR magic link.
+- `aal2`: aal1 + a second factor (TOTP / WebAuthn / SMS).
+
+Set when the session is created. Can be elevated mid-session:
+
+```ts
+// Step-up to aal2 (e.g., for sensitive endpoint)
+fetch("/self-service/settings", { credentials: "include" });
+// Returns 401 if current aal is below requirement, with `aal_request_for: "aal2"`
+// Client redirects to MFA challenge.
+```
+
+## Cookie attributes
+
+```
+Set-Cookie: ory_kratos_session=value;
+  Path=/;
+  HttpOnly;
+  Secure;
+  SameSite=Lax;
+  Max-Age=86400
+```
+
+- `HttpOnly`: not accessible from JavaScript (XSS protection).
+- `Secure`: HTTPS only.
+- `SameSite=Lax`: not sent on cross-site POST (CSRF protection).
+- `Max-Age`: matches session lifespan.
+
+## Multi-device
+
+The user can have many concurrent sessions. Each device gets its own session row. Logging out on one device doesn't affect others (unless you revoke all).
+
+```bash
+# List sessions
+kratos sessions list --identity <uuid>
+
+# Revoke all
+kratos sessions revoke --identity <uuid> --all
+```
+
+Useful for "log out everywhere" UI.
+
+## Cleanup
+
+Expired/revoked sessions linger in DB. Periodic janitor:
+
+```bash
+podman exec ciam-kratos kratos janitor --config /etc/config/kratos.yml --keep-last 168h
+```
+
+Daily cron. Otherwise the sessions table grows indefinitely.
+
+## See also
+
+- [Identity — Sessions](/docs/identity/sessions)
+- [Security — Session cookies](/docs/security/session-cookies)
+- [Cookbook — Enforce step-up auth](/docs/cookbook/enforce-step-up-auth)
+- [Cookbook — Rotate session signing key](/docs/cookbook/rotate-session-signing-key)
