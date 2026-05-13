@@ -1,0 +1,123 @@
+---
+title: OWASP Top 10 alignment
+description: How Olympus addresses each OWASP Top 10 (2021) category
+---
+
+The OWASP Top 10 is the canonical web app risk list. This page maps Olympus's controls to each category.
+
+## A01:2021 – Broken Access Control
+
+**Risk:** Failing to enforce authentication/authorization.
+
+**Olympus controls:**
+- Athena middleware verifies session HMAC + role on every request ([Internals — Athena middleware](/docs/internals/athena-middleware)).
+- OAuth2 scopes gate API access.
+- Kratos admin API protected by network ACL (not exposed publicly).
+- Per-record encryption (HKDF) means a row leak doesn't decrypt all rows.
+
+## A02:2021 – Cryptographic Failures
+
+**Risk:** Plaintext storage, weak ciphers, missing TLS.
+
+**Olympus controls:**
+- AES-256-GCM at rest, HKDF-SHA256 key derivation ([ADR 0006](/docs/adrs/0006-aes-256-gcm-hkdf)).
+- Argon2id for password hashing.
+- TLS everywhere; Postgres `verify-full` ([ADR 0013](/docs/adrs/0013-postgres-sslmode-verify-full)).
+- Encryption key blocklist prevents known-weak values ([ADR 0007](/docs/adrs/0007-encryption-key-blocklist)).
+- HMAC-signed sessions and recovery tokens.
+
+## A03:2021 – Injection
+
+**Risk:** SQL/NoSQL/command injection.
+
+**Olympus controls:**
+- All DB access via parameterized queries (`postgres-js` template literals).
+- No shell-injectable user input — Daedalus shells out only to known commands; user input goes via argv, not via shell strings.
+- CSP `script-src 'self' 'nonce-{NONCE}'` (no `unsafe-inline`) — defends against XSS-as-injection.
+
+## A04:2021 – Insecure Design
+
+**Risk:** Flaws baked into architecture.
+
+**Olympus controls:**
+- Dual-domain isolation ([ADR 0001](/docs/adrs/0001-dual-domain-architecture)).
+- PKCE mandatory for public clients ([ADR 0019](/docs/adrs/0019-pkce-mandatory-public-clients)).
+- No auto-link of social IdPs (prevents pre-linking attack).
+- Independent OIDC verification — don't trust upstream `email_verified` ([Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust)).
+- Threat model: [Security — Threat model](/docs/security/threat-model).
+
+## A05:2021 – Security Misconfiguration
+
+**Risk:** Default credentials, missing headers, verbose errors in prod.
+
+**Olympus controls:**
+- `verify-prod-config.yml` CI gate enforces:
+  - `leak_sensitive_values: false` in prod Kratos config.
+  - All images digest-pinned ([ADR 0014](/docs/adrs/0014-image-digest-pinning)).
+  - SSL `verify-full` on Postgres.
+  - No literal secrets in config files.
+- Encryption key blocklist refuses default values.
+- Caddy enforces security headers (HSTS, X-Frame-Options, Referrer-Policy, CSP).
+
+## A06:2021 – Vulnerable and Outdated Components
+
+**Risk:** Old dependencies with known CVEs.
+
+**Olympus controls:**
+- Dependabot enabled on every repo.
+- Image digest pinning means upgrades are deliberate audits.
+- Daily `cert-expiry-check.yml` alerts on expiring components.
+- Source-only NPM packages mean type-level deps; tree-shake reduces footprint.
+
+## A07:2021 – Identification and Authentication Failures
+
+**Risk:** Weak passwords, credential stuffing, missing MFA.
+
+**Olympus controls:**
+- Argon2id password hashing.
+- HIBP breached-password check at registration and password change.
+- Per-account brute-force lockout.
+- Per-IP rate limiting via Caddy.
+- Cloudflare Turnstile bot mitigation.
+- MFA (TOTP, WebAuthn).
+- AAL2 step-up for sensitive operations.
+
+## A08:2021 – Software and Data Integrity Failures
+
+**Risk:** Compromised CI/CD, unsigned packages.
+
+**Olympus controls:**
+- Reproducible Caddy build ([Security — Caddy supply chain](/docs/security/caddy-supply-chain)).
+- Image digest pinning in prod compose.
+- Source-only NPM packages = no tampered build artifacts.
+- Daedalus secrets sanitizer prevents credentials leaking via screenshots.
+
+## A09:2021 – Security Logging and Monitoring Failures
+
+**Risk:** Attacks go undetected.
+
+**Olympus controls:**
+- `security_audit` table records every auth event ([Operate — Audit log retention](/docs/operate/audit-log-retention)).
+- Brute-force lockout audit events.
+- Health endpoints + external monitoring ([Operate — Health endpoints](/docs/operate/health-endpoints)).
+- Integration patterns for Datadog/Sentry/Honeycomb/Grafana.
+
+## A10:2021 – Server-Side Request Forgery
+
+**Risk:** App makes attacker-controlled URLs.
+
+**Olympus controls:**
+- Validate `redirect_uri` against allowlist on OAuth2 client.
+- Validate `post_logout_redirect_uri` against allowlist.
+- Identity schema validates URL formats via JSON Schema patterns.
+- No user-controlled URL fetches in Athena/Hera (only via well-defined external IdP redirects, themselves validated).
+
+## What this page doesn't cover
+
+OWASP API Security Top 10 (separate list) addresses API-specific concerns: broken object-level authorization, mass assignment, etc. Olympus's middleware + scope-based authz addresses most.
+
+## Related
+
+- [Security — Threat model](/docs/security/threat-model)
+- [Security — Compliance — SOC 2](/docs/security/compliance-soc2)
+- [Security — Compliance — ISO 27001](/docs/security/compliance-iso27001)

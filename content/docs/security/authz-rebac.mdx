@@ -1,0 +1,124 @@
+---
+title: Authorization — ReBAC
+description: Relationship-Based Access Control with Olympus
+---
+
+ReBAC = decisions based on **relationships** between users and resources. "User X is owner of document Y," "User X is editor of folder F." Modeled after Google's Zanzibar paper.
+
+## When ReBAC fits
+
+- Documents/files with sharing semantics (Drive, Notion).
+- Multi-tenant SaaS with org-membership.
+- Hierarchical permissions (folder owner inherits to children).
+
+For pure role-based access, RBAC is simpler. For attribute-driven decisions, ABAC. ReBAC shines when "who relates how to what" is the dominant question.
+
+## Engines
+
+- **[SpiceDB](https://authzed.com/spicedb)** — open-source Zanzibar implementation.
+- **[Permify](https://permify.co)** — same pattern; newer.
+- **[Ory Keto](https://www.ory.sh/keto/)** — Zanzibar by Ory; integrates naturally with Olympus's Kratos+Hydra.
+
+Ory Keto pairs particularly well with Olympus since you're already in the Ory ecosystem.
+
+## Ory Keto setup
+
+Run alongside Olympus:
+
+```yaml
+# Add to compose
+keto:
+  image: oryd/keto:latest
+  ports: ["4466:4466", "4467:4467"]
+  command: serve --config /etc/config/keto/keto.yml
+  volumes:
+    - ./keto:/etc/config/keto
+```
+
+Define a namespace:
+
+```keto
+class Document {
+  related: {
+    owner: User[],
+    editor: User[],
+    viewer: User[],
+  }
+  permits: {
+    view: this.related.viewer | this.related.editor | this.related.owner,
+    edit: this.related.editor | this.related.owner,
+    delete: this.related.owner,
+  }
+}
+```
+
+## From your app
+
+```ts
+// Create a relation when a document is shared
+await fetch("http://keto:4467/relation-tuples", {
+  method: "PUT",
+  body: JSON.stringify({
+    namespace: "Document",
+    object: "doc-123",
+    relation: "editor",
+    subject_id: "user-abc",
+  }),
+});
+
+// Check on every request
+const response = await fetch("http://keto:4466/relation-tuples/check", {
+  method: "POST",
+  body: JSON.stringify({
+    namespace: "Document",
+    object: "doc-123",
+    relation: "view",
+    subject_id: "user-abc",
+  }),
+});
+const { allowed } = await response.json();
+```
+
+## Subject from Olympus
+
+The `subject_id` is the Kratos identity ID — same as `sub` in the OIDC ID token.
+
+```ts
+const session = await getOlympusSession(req);
+const allowed = await ketoCheck(session.sub, "view", "Document:doc-123");
+```
+
+## Hierarchical permissions
+
+ReBAC handles this naturally:
+
+```keto
+class Folder {
+  related: { owner: User[] }
+}
+
+class Document {
+  related: {
+    parent: Folder[],
+    owner: User[],
+  }
+  permits: {
+    view: this.related.owner | this.related.parent.related.owner,
+  }
+}
+```
+
+Owner of a folder implicitly owns documents in it.
+
+## Caveats
+
+- **Relationship explosion**: every shared resource adds tuples. A document shared with 1000 users = 1000 rows.
+- **Tuple consistency**: Keto offers consistency tokens — useful when checks must reflect very recent writes.
+- **Caching**: tuple-based decisions are harder to cache than RBAC because relationships change per-resource.
+
+## Related
+
+- [Security — Authorization — RBAC](/docs/security/authz-rbac)
+- [Security — Authorization — ABAC](/docs/security/authz-abac)
+- [Security — Authorization — OPA integration](/docs/security/authz-opa)
+- [Ory Keto docs](https://www.ory.sh/keto/)

@@ -1,0 +1,74 @@
+---
+title: Passwordless / passkey-only registration
+description: New users register with a passkey directly, no password
+---
+
+The dream UX: user enters email, taps Touch ID, account created. No password ever existed.
+
+## Configuration
+
+Enable WebAuthn passwordless in Kratos:
+
+```yaml
+selfservice:
+  methods:
+    webauthn:
+      enabled: true
+      config:
+        passwordless: true
+        rp:
+          display_name: "Your App"
+          id: ciam.your-domain
+          origins: ["https://ciam.your-domain"]
+```
+
+The `passwordless: true` flag lets WebAuthn be the **primary** credential, not just a second factor.
+
+## Registration flow
+
+Customize Hera's registration page (or fork) to:
+
+1. User enters email.
+2. JS calls `navigator.credentials.create({ publicKey: ... })` with `userVerification: "required"`.
+3. Browser prompts Touch ID / Face ID / hardware key / passkey save.
+4. POST result to Kratos as a `webauthn_register` method.
+5. Kratos saves the credential, marks the identity as `passwordless: true`.
+
+## Login flow
+
+User enters email. JS calls `navigator.credentials.get({ publicKey: ..., mediation: "conditional" })`. Browser shows available passkeys for the email. User taps; logged in.
+
+## Recovery
+
+The challenge: no password = different recovery semantics. Recovery flow:
+
+1. User enters email, clicks "lost passkey."
+2. Email contains a one-time HMAC link.
+3. User clicks → can register a new passkey, replacing the old.
+
+In Kratos, this is the recovery flow followed by a settings flow that enrolls a new WebAuthn credential.
+
+Alternatively, fall back to email-OTP login on lost passkey.
+
+## Pitfalls
+
+- **Single device** — users who enrolled on phone A and now use phone B can't log in unless they synced via passkey provider (iCloud, Google Password Manager).
+- **Browser support** — modern browsers support passkeys, but enterprise SSO contexts may have problems.
+- **Recovery emails as the universal backdoor** — your email security is now your account security. Encourage users to enroll 2+ passkeys.
+
+## Comparison to password-required
+
+| | Passkey-only | Password + optional WebAuthn |
+|---|---|---|
+| Friction | Lowest | Higher |
+| Recovery model | Email or 2nd passkey | Password reset |
+| Cross-device | Passkey sync required | Universal |
+| Phishing-resistant | Yes | Only with WebAuthn 2FA |
+
+For most products: offer both. Let users opt into passwordless if they want.
+
+## Related
+
+- [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
+- [Cookbook — Add WebAuthn](/docs/cookbook/add-webauthn)
+- [Cookbook — Email-only magic-link auth](/docs/cookbook/email-only-magic-link)

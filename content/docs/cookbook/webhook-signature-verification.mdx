@@ -1,0 +1,100 @@
+---
+title: Webhook signature verification
+description: Verify incoming webhooks from your app against Olympus events
+---
+
+If your app or third-party services send webhooks to Olympus / Athena's API, verify the signature to prevent forgery.
+
+## Pattern
+
+```
+Source → POST /api/webhook
+         X-Signature: hmac-sha256(secret, body)
+         X-Timestamp: <epoch>
+Your handler:
+  1. Read body
+  2. Compute expected HMAC
+  3. Constant-time-compare to header
+  4. Reject if mismatch or timestamp too old (>5 min)
+  5. Process
+```
+
+## Implementation
+
+```ts
+import crypto from "node:crypto";
+
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET!;
+
+function verifyWebhook(body: string, signature: string, timestamp: string): boolean {
+  // Reject stale (replay protection)
+  const age = Math.abs(Date.now() / 1000 - parseInt(timestamp));
+  if (age > 300) return false;  // 5 minutes max
+
+  const payload = `${timestamp}.${body}`;
+  const expected = crypto.createHmac("sha256", WEBHOOK_SECRET).update(payload).digest("hex");
+
+  return crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(signature)
+  );
+}
+
+// In your handler
+export async function POST(request: Request) {
+  const body = await request.text();
+  const signature = request.headers.get("X-Signature");
+  const timestamp = request.headers.get("X-Timestamp");
+
+  if (!signature || !timestamp || !verifyWebhook(body, signature, timestamp)) {
+    return Response.json({ error: "invalid_signature" }, { status: 401 });
+  }
+
+  const data = JSON.parse(body);
+  // ... process
+}
+```
+
+## Constant-time comparison
+
+`crypto.timingSafeEqual` (Node) / `subtle.timingSafeEqual` (Web Crypto) prevents timing attacks on the comparison.
+
+## Replay protection
+
+The `timestamp + max age` window prevents:
+- Replays from saved-and-replayed packets.
+- Long-delayed bad-actor forwarding.
+
+If your network is unreliable, widen to 15 min, but no more.
+
+## Secret rotation
+
+Rotate the webhook secret periodically:
+
+1. Generate new secret.
+2. Configure source to send under new secret (some sources allow dual-secret transition).
+3. Update your handler to accept either old or new for a window.
+4. Deprecate old after the transition window.
+
+## Per-source secrets
+
+Use a different secret per webhook source:
+- Stripe webhook → `STRIPE_WEBHOOK_SECRET`.
+- Internal cron → `CRON_WEBHOOK_SECRET`.
+- GitHub webhook → `GITHUB_WEBHOOK_SECRET`.
+
+Don't share. Each rotation is independent.
+
+## When you're the sender
+
+If Olympus's Kratos calls your webhook (post-registration hook), Kratos doesn't natively sign payloads. Workaround:
+
+- Use a static API key in the `Authorization` header (configured in `kratos.yml`).
+- Validate the API key.
+
+Less ideal than HMAC (no replay protection) but covers basic auth.
+
+## Related
+
+- [Cookbook — Custom Kratos webhook](/docs/cookbook/custom-kratos-webhook)
+- [Security — Secrets management](/docs/security/secrets-management)

@@ -1,0 +1,88 @@
+---
+title: Captcha tuning recipes
+description: Field-tested settings for Cloudflare Turnstile in Olympus
+---
+
+The default Olympus captcha config is sensible but doesn't fit every operator. Tuning recipes for common scenarios.
+
+## Default behaviour
+
+- `TURNSTILE_DISABLED=true` in dev.
+- Enabled in prod when `TURNSTILE_SITE_KEY` is set.
+- Default mode: managed (Cloudflare decides whether to show visible challenge).
+- Applied to: registration, login (after-fail), recovery.
+
+## Scenario 1: high false-positive rate
+
+Symptoms: legitimate users complain about captcha appearing repeatedly.
+
+Adjustments:
+
+1. **Lower Turnstile difficulty**: in Cloudflare dashboard → Turnstile → Widget → Settings.
+2. **Skip on login**: `TURNSTILE_ON_LOGIN=false`. Show only on registration/recovery.
+3. **Show only after failure**: `TURNSTILE_ON_LOGIN_AFTER_FAIL=true`. Don't burden the first attempt.
+
+Risk: easier for bots to attempt. Monitor the bot-rejection rate; if it climbs, revert.
+
+## Scenario 2: under attack
+
+Symptoms: lockout rate >100/hour; suspicious traffic patterns.
+
+Adjustments:
+
+1. Enable captcha on **every** login attempt: `TURNSTILE_ON_LOGIN=true`, `TURNSTILE_ON_LOGIN_AFTER_FAIL=false` (apply unconditionally).
+2. Lower the brute-force lockout threshold: `olympus.brute_force.max_attempts = 3`.
+3. Increase lockout duration: `olympus.brute_force.lockout_minutes = 60`.
+4. If sustained, add Cloudflare WAF rule blocking suspicious ASNs.
+
+After attack subsides, revert.
+
+## Scenario 3: paid Pro tier with custom rules
+
+Cloudflare Pro/Business offers per-rule configurations:
+
+- Apply captcha only when the request rate exceeds a threshold.
+- Apply captcha to specific countries / ASNs.
+- Allow trusted IPs (your office) to skip.
+
+Configure in Cloudflare dashboard, not Olympus env vars.
+
+## Scenario 4: regional regulations
+
+Some jurisdictions have specific captcha rules:
+
+- Germany / EU: explicit cookie consent (Turnstile uses cookies — note in your cookie policy).
+- China: Cloudflare's CDN is partially blocked; use a local equivalent (hCaptcha works too).
+
+## Scenario 5: testing without captcha
+
+For automated tests (Playwright):
+
+```ts
+// Test setup: use Turnstile test keys
+process.env.TURNSTILE_SITE_KEY = "1x00000000000000000000AA"; // always passes
+process.env.TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA";
+```
+
+Cloudflare's documented test keys always succeed. Useful for E2E tests.
+
+## Scenario 6: hCaptcha instead
+
+Hera's captcha integration is Turnstile-specific. For hCaptcha:
+
+1. Fork Hera.
+2. Replace `@marsidev/react-turnstile` usage with `@hcaptcha/react-hcaptcha`.
+3. Configure hCaptcha keys instead.
+
+## Monitoring
+
+Watch:
+- Captcha success rate (should be >95%).
+- Login completion rate over time (drop = friction problem).
+- Bot-rejection count (rises during attacks).
+
+## Related
+
+- [Security — Captcha Turnstile](/docs/security/captcha-turnstile)
+- [Operate — Captcha tuning](/docs/operate/captcha-tuning)
+- [Operate — Rate limiting tuning](/docs/operate/rate-limiting-tuning)
