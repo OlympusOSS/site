@@ -1,0 +1,131 @@
+---
+title: Restrict registration to specific email domains
+description: Only @your-corp.com employees can sign up
+---
+
+For internal-tool deployments, restrict registration to your company's email domain.
+
+## Approach 1: Kratos schema validation
+
+Add a JSON Schema pattern to the email trait:
+
+```json
+"email": {
+  "type": "string",
+  "format": "email",
+  "pattern": "^[^@]+@(your-corp\\.com|subsidiary\\.com)$",
+  "title": "Work email"
+}
+```
+
+Kratos rejects registration with `validation_failed` if the email doesn't match. Users see "must match pattern."
+
+## Approach 2: Pre-registration hook
+
+For nicer error messages or dynamic allowlists:
+
+```yaml
+selfservice:
+  flows:
+    registration:
+      before:
+        hooks:
+          - hook: web_hook
+            config:
+              url: https://your-backend/internal/check-domain-allowlist
+              response:
+                ignore: false
+                parse: true
+```
+
+Your backend:
+
+```ts
+export async function POST(request: Request) {
+  const { traits } = await request.json();
+  const email = traits.email;
+  const allowedDomains = await getAllowedDomainsFromSettings();
+  const userDomain = email.split("@")[1];
+
+  if (!allowedDomains.includes(userDomain)) {
+    return Response.json({
+      reject: true,
+      error: "domain_not_allowed",
+      message: `Registration restricted to: ${allowedDomains.join(", ")}`
+    });
+  }
+
+  return Response.json({ ok: true });
+}
+```
+
+The settings vault (`olympus.registration.allowed_domains`) stores the list, so admins can edit without redeploy.
+
+## Approach 3: OIDC-only
+
+If everyone in your org uses Google Workspace / Microsoft Entra, force OIDC and rely on the IdP to gate who has an account:
+
+```yaml
+selfservice:
+  methods:
+    password:
+      enabled: false  # No password registration
+    oidc:
+      enabled: true
+      config:
+        providers:
+          - id: google
+            provider: google
+            # ...
+```
+
+Only employees with Workspace accounts can OIDC into Olympus. Subtle: any Google user can OIDC in unless you also filter on the `hd` (hosted domain) claim:
+
+```text
+local claims = std.extVar('claims');
+if claims.hd != 'your-corp.com' then error 'invalid_domain' else {
+  identity: { traits: { email: claims.email, ... } }
+}
+```
+
+The Jsonnet mapper errors → Kratos rejects the OIDC.
+
+## Bypass for trusted exceptions
+
+Need to whitelist a specific external email (contractor, partner)?
+
+Add to the settings vault:
+
+```
+olympus.registration.allowed_emails = ["contractor@partner-co.com", "vendor@external.org"]
+```
+
+Your pre-registration hook checks domain OR exact-email allowlist.
+
+## What this doesn't catch
+
+- **Existing identities with disallowed domains**. The pattern applies only to new registrations. To purge old ones, run an admin script.
+- **Email change to disallowed domain**. Apply the same check in settings flow.
+
+```yaml
+selfservice:
+  flows:
+    settings:
+      before:
+        hooks:
+          - hook: web_hook
+            config:
+              url: ...  # same hook
+```
+
+## Self-service email-change consideration
+
+If a user can change their email to anything, they could move to a non-allowed domain post-registration. Either:
+- Make the email immutable in the schema (`readOnly: true`).
+- Validate change events via the settings hook.
+
+## Related
+
+- [Identity — Identity schemas](/docs/identity/identity-schemas)
+- [Cookbook — Custom Kratos webhook](/docs/cookbook/custom-kratos-webhook)
+- [Cookbook — Customize registration form](/docs/cookbook/customize-registration-form)

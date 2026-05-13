@@ -1,0 +1,78 @@
+---
+title: Session fixation defense
+description: How Olympus prevents fixed-session attacks
+---
+
+**Session fixation**: attacker sets the user's session cookie to a value the attacker knows. User logs in; the session is now hijack-able.
+
+## Olympus defenses
+
+### Session ID regenerated on login
+
+Kratos issues a **new** session ID after successful authentication. The pre-login cookie value (if any) is invalidated.
+
+This means: even if an attacker tricks the user into navigating to `/login` with a poisoned cookie, the attacker's planted value is replaced after login.
+
+### Secure, HttpOnly, SameSite cookies
+
+```
+Set-Cookie: ory_kratos_session=<value>; HttpOnly; Secure; SameSite=Lax; Path=/
+```
+
+- `HttpOnly`: JS can't read or set. Browser-side fixation via `document.cookie` blocked.
+- `Secure`: HTTPS only. No fixation via plaintext intermediary.
+- `SameSite=Lax`: cookie not sent on cross-site POSTs. Limits set-cookie via cross-site request.
+
+### CSRF tokens per flow
+
+Every Kratos flow includes a CSRF token in form + cookie. Submitting requires both. An attacker can't pre-populate a flow without also knowing the CSRF (which is also session-bound).
+
+### No session ID in URLs
+
+Olympus never puts session IDs in URLs. URLs go to:
+- Browser history (visible to other apps on shared machines).
+- Referrer headers (leaks to third parties).
+- Server logs.
+
+Session IDs are cookie-only.
+
+## Where fixation could still bite
+
+1. **Subdomain confusion**: if `*.your-domain` cookies are sent broadly, a compromised subdomain could plant cookies on Olympus's domain. Mitigation: scope cookies to specific subdomains.
+
+2. **Cookie name collision with another app**: rare, but possible. Use unique cookie names.
+
+3. **Token in OAuth2 callback URLs**: the `code` parameter is a kind of session-precursor. PKCE prevents fixation here — see [Security — PKCE enforcement](/docs/security/pkce-enforcement).
+
+## OAuth2 state parameter
+
+For OAuth2 flows, the `state` parameter prevents a related class of attack (CSRF on the callback):
+
+```
+GET /oauth2/auth?...&state=<random>&...
+```
+
+After redirect:
+
+```
+GET /callback?code=...&state=<must-match>
+```
+
+Your app verifies that the returned `state` matches what you sent. Mismatch = reject the callback.
+
+Olympus's playground client demonstrates this pattern — see [Internals — Site OAuth2 playground](/docs/internals/site-oauth2-playground).
+
+## Audit log
+
+A session fixation attempt — if detected — logs as an audit event. Watch:
+- Pre-login session cookie values that don't match any active session (could mean attacker-planted).
+- Multiple session attempts with same cookie value from different IPs.
+
+Olympus doesn't auto-detect these patterns; build into your SIEM (see [Cookbook — Audit log to SIEM](/docs/cookbook/audit-log-to-siem)).
+
+## Related
+
+- [Security — Session cookies](/docs/security/session-cookies)
+- [Security — PKCE enforcement](/docs/security/pkce-enforcement)
+- [Security — Threat model](/docs/security/threat-model)
+- [Troubleshooting — Cookies not persisting](/docs/troubleshooting/cookies-not-persisting)

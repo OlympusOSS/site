@@ -1,0 +1,94 @@
+---
+title: Embed Hera in an iframe
+description: Embed the login UI within another app
+---
+
+For some white-label or embedded SaaS scenarios, you might want to render Hera inside an iframe. This is **strongly discouraged** for security reasons, but here's the shape if you have a real need.
+
+## Why this is discouraged
+
+- **Clickjacking**: iframes are the classic clickjacking vector. Attacker overlays clickable elements; users authenticate while thinking they're clicking something else.
+- **Cookie context**: iframe cookie behavior varies by browser; can cause silent auth failures.
+- **CSP `frame-ancestors`**: Hera ships with `frame-ancestors 'none'` by default — iframes are blocked.
+
+If you proceed, you're accepting these risks.
+
+## Allowing the embed
+
+Modify Hera's CSP to allow a specific parent:
+
+```yaml
+# In your Hera fork
+content_security_policy:
+  frame_ancestors: ["'self'", "https://your-parent-app.com"]
+```
+
+Don't use `*` for `frame-ancestors`. Specific origins only.
+
+## X-Frame-Options
+
+Olympus's Caddy sets `X-Frame-Options: DENY` by default. Override per-route:
+
+```caddy
+@hera_embed_paths {
+  path /login /registration
+}
+header @hera_embed_paths X-Frame-Options "ALLOW-FROM https://your-parent-app.com"
+```
+
+(Note: `ALLOW-FROM` is deprecated. Modern browsers honor `frame-ancestors` only. Set both for compatibility.)
+
+## In your parent app
+
+```html
+<iframe
+  src="https://ciam.your-domain/login"
+  width="400" height="600"
+  sandbox="allow-forms allow-scripts allow-same-origin"
+></iframe>
+```
+
+The `sandbox` attribute limits what the iframe can do. `allow-forms` is required for login submission. `allow-scripts` for the Kratos flow UI. `allow-same-origin` for cookies.
+
+## Communicating from iframe to parent
+
+After login, the iframe needs to tell the parent "auth complete." Use `postMessage`:
+
+```ts
+// In Hera (post-login redirect target)
+window.parent.postMessage({ type: "auth_complete", subject: sessionSub }, "https://your-parent-app.com");
+```
+
+```ts
+// In parent
+window.addEventListener("message", (e) => {
+  if (e.origin !== "https://ciam.your-domain") return; // critical: verify origin
+  if (e.data.type === "auth_complete") {
+    // Reload or navigate
+  }
+});
+```
+
+## Cookie SameSite
+
+`SameSite=Lax` cookies in an iframe may not behave as expected. Mobile Safari's ITP can block. Test thoroughly across browsers.
+
+If `Lax` doesn't work, you'd need `SameSite=None` + `Secure` — but `SameSite=None` weakens CSRF protections.
+
+## Mobile considerations
+
+iOS Safari and Chrome on iOS treat iframes with strict origin policies. Embedded auth often breaks in mobile webviews. Consider:
+- Native app SDK instead of WebView/iframe.
+- Standard browser redirect (out of iframe).
+
+## Better alternatives
+
+- **OAuth2 redirect**: parent app starts OAuth2, browser navigates to Hera (not in iframe), returns to parent's callback. Standard, secure.
+- **Native app SDK**: for mobile, use platform SDKs that don't need WebView at all.
+
+## Related
+
+- [Security — CSP — Hera](/docs/security/csp-hera)
+- [Security — Threat model](/docs/security/threat-model)
+- [Integrate — Mobile integration](/docs/integrate/mobile-integration)
+- [Integrate — SPA integration](/docs/integrate/spa-integration)

@@ -1,0 +1,117 @@
+---
+title: Onboarding a new developer
+description: Get a new engineer productive on the Olympus codebase in a day
+---
+
+A checklist for getting a new engineer running Olympus locally and contributing.
+
+## Hour 1: prerequisites
+
+- Install Node 20+, Bun (`curl -fsSL https://bun.sh/install | bash`).
+- Install Podman (macOS: `brew install podman`).
+- Install git, gh CLI.
+- Create a GitHub account if needed.
+
+## Hour 2: clone the workspace
+
+```bash
+mkdir Olympus && cd Olympus
+for repo in platform athena hera site canvas sdk octl daedalus; do
+  git clone https://github.com/OlympusOSS/$repo.git
+done
+```
+
+The sibling layout is required — see [Develop — Workspace setup](/docs/develop/workspace-setup).
+
+## Hour 3: run it locally
+
+```bash
+npx @olympusoss/octl deploy
+```
+
+Wait for "Seed complete!" Then open:
+- `http://localhost:2000/docs` — these docs.
+- `http://localhost:4001` — Athena IAM. Log in as `admin@demo.user` / `admin123!`.
+- `http://localhost:3000` — Hera CIAM (login UI from the customer's perspective).
+- `http://localhost:5434` — MailSlurper (captured emails).
+
+## Hour 4: read the IA
+
+Read these foundational docs in order:
+
+1. [What is Olympus](/docs/what-is-olympus) — design philosophy.
+2. [CIAM vs IAM](/docs/get-started/concepts-ciam-vs-iam) — the most important concept.
+3. [Identity vs OAuth2](/docs/get-started/concepts-identity-vs-oauth2) — why two Ory services.
+4. [Architecture](/docs/architecture) — top-level service layout with diagram.
+5. [Repo map](/docs/repo-map) — what each of the 8 repos contains.
+
+## Hour 5: pick a target
+
+Pick a starter task:
+
+- **Bug fix** — search GH issues for "good first issue" labels.
+- **Doc fix** — anything in `/docs/` is fair game.
+- **Add a cookbook recipe** — describe a real integration scenario.
+- **Improve a generator** — see `site/scripts/gen/`.
+
+## Hour 6: run the tests
+
+Per repo:
+
+```bash
+cd athena && bun run test
+cd ../hera && bun run test
+cd ../sdk && bun run test
+```
+
+See [Develop — Running tests](/docs/develop/running-tests).
+
+## Hour 7: make a change
+
+Pick a small change. Make it. Add a test. Verify tests pass.
+
+## Hour 8: commit + push
+
+```bash
+git add ...
+git commit -m "Brief, present-tense description"
+# Add changeset if you changed a published package
+bun changeset
+git push origin main   # per ADR 0004, push-to-main
+```
+
+Watch CI. Per the [Monitor builds directive](/docs/adrs/0004-push-to-main-deployment), fix if red.
+
+## What's been deferred
+
+For a deeper dive (over weeks):
+
+- [Internals — overview](/docs/internals/overview) — per-repo deep dives.
+- [ADRs](/docs/adrs/overview) — architectural decisions.
+- [Security — Threat model](/docs/security/threat-model) — what we defend against.
+
+## Common stumbles
+
+- **Sibling layout missed**: cloning to non-sibling locations breaks `octl deploy`. Re-organize.
+- **Forgot Podman**: Linux operators must install before `octl deploy`.
+- **TypeScript strict mode**: Olympus codebases use strict TS. Add types deliberately; don't escape with `any`.
+- **Biome formatting**: pre-commit hooks may reject. Run `bun run lint:fix`.
+
+## Documentation conventions
+
+- No emojis in code or docs (operator directive).
+- No "Co-Authored-By: Claude" trailers in commits.
+- Prefer editing existing files over creating new ones.
+
+## Where to ask for help
+
+- File a GitHub issue on the relevant repo.
+- For internal teams: post in your team's Slack/Discord channel.
+- For operations issues: see [Operate — Incident response](/docs/operate/incident-response).
+
+## Related
+
+- [Develop — Workspace setup](/docs/develop/workspace-setup)
+- [Develop — Contributing](/docs/develop/contributing)
+- [Develop — Running tests](/docs/develop/running-tests)
+- [Develop — Inspecting your containers](/docs/develop/inspecting-your-containers)
