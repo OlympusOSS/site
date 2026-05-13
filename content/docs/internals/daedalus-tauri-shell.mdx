@@ -1,0 +1,153 @@
+---
+title: Daedalus — Tauri shell
+description: How the Tauri runtime hosts the Daedalus wizard
+---
+
+Daedalus is a [Tauri](https://tauri.app) app. The frontend (Vite + React + TypeScript) runs in a webview; the backend (Rust) handles native operations.
+
+## Architecture
+
+```
+┌──────────────────────────────────────┐
+│  Native window (macOS / WebKit)      │
+│  ┌────────────────────────────────┐  │
+│  │ Webview (Vite + React)         │  │
+│  │  ─ Wizard UI                   │  │
+│  │  ─ xterm.js terminal display   │  │
+│  └────────────────────────────────┘  │
+│                                      │
+│  Tauri commands (invoke ↔ Rust)      │
+│                                      │
+│  Rust backend:                       │
+│    ├─ PTY (portable-pty)             │
+│    ├─ Screenshot (ScreenCaptureKit)  │
+│    ├─ MCP server (Tokio + HTTP)      │
+│    ├─ File I/O                       │
+│    └─ Shell command spawning         │
+└──────────────────────────────────────┘
+```
+
+## Why Tauri
+
+Bundle size: ~10MB vs Electron's ~100MB.
+Security: Rust backend means strong typing and explicit capabilities.
+Performance: native window using the OS webview, not a bundled Chromium.
+
+Trade-offs documented in [ADR 0023 — Tauri over Electron](/docs/adrs/0023-tauri-over-electron).
+
+## Project structure
+
+```
+daedalus/
+├── src/                       # Frontend (TS, React)
+│   ├── app/                   # Pages — one per wizard step
+│   ├── components/            # Shared UI
+│   └── stores/                # Zustand state stores
+├── src-tauri/                 # Rust backend
+│   ├── src/
+│   │   ├── main.rs            # Entry point
+│   │   ├── lib.rs             # Tauri command registrations
+│   │   ├── commands/          # Per-command modules
+│   │   ├── mcp/               # Embedded MCP server
+│   │   └── ...
+│   ├── Cargo.toml
+│   └── tauri.conf.json        # Tauri config: window, allowlist, etc.
+└── ...
+```
+
+## Tauri commands
+
+Each native operation is a `#[tauri::command]`:
+
+```rust
+#[tauri::command]
+async fn run_shell_command(cmd: String) -> Result<String, String> {
+    let output = tokio::process::Command::new("sh")
+        .arg("-c").arg(&cmd)
+        .output().await
+        .map_err(|e| e.to_string())?;
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+```
+
+Frontend invokes:
+
+```ts
+import { invoke } from "@tauri-apps/api/core";
+const output = await invoke<string>("run_shell_command", { cmd: "ls -la" });
+```
+
+## Capability model
+
+`tauri.conf.json` declares an **allowlist** of what the webview can call:
+
+```json
+"app": {
+  "security": {
+    "csp": "default-src 'self'; script-src 'self'; ..."
+  }
+},
+"plugins": {
+  "shell": { "open": false }
+}
+```
+
+Disabled by default; commands explicitly opt-in via the `#[tauri::command]` annotation and being registered in `lib.rs::run()`.
+
+## State management
+
+The frontend uses Zustand for state. The Rust backend reads `daedalus.json` (deployment context) as the source of truth; the frontend mirrors selected fields.
+
+`read_context` and `write_context` Tauri commands handle the file I/O. Frontend never touches the file directly.
+
+## Window management
+
+macOS-specific window config:
+
+```json
+"windows": [
+  {
+    "label": "main",
+    "title": "Daedalus",
+    "width": 1280,
+    "height": 800,
+    "minWidth": 1024,
+    "minHeight": 600,
+    "fullscreen": false
+  }
+]
+```
+
+Single window. The wizard is a SPA inside it; route changes don't open new windows.
+
+## Build
+
+```bash
+cd daedalus
+bun install
+bun run tauri:build   # produces .app bundle
+```
+
+For release:
+- Code-signing happens in `daedalus/.github/workflows/release.yml` using Apple Developer credentials in GitHub Secrets.
+- Notarization is automatic post-sign.
+- The signed `.dmg` uploads to GitHub Releases.
+
+## Dev
+
+```bash
+bun run tauri:dev
+```
+
+Spins up Vite dev server + the Tauri shell. Hot-reload works for frontend changes; Rust changes require a manual restart.
+
+## Where the MCP server fits
+
+The MCP server is part of the Rust backend, spawned as a Tokio task in `mcp::mod::start()`. See [Internals — Daedalus MCP server](/docs/internals/daedalus-mcp-server).
+
+## Related
+
+- [Repo map — Daedalus](/docs/repo-map)
+- [ADR 0023 — Tauri over Electron](/docs/adrs/0023-tauri-over-electron)
+- [Internals — Daedalus MCP server](/docs/internals/daedalus-mcp-server)
+- [Internals — Daedalus PTY pipeline](/docs/internals/daedalus-pty-pipeline)

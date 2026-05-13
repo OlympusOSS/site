@@ -1,0 +1,147 @@
+---
+title: Localize the Hera UI
+description: Multi-language support for login, registration, and consent pages
+---
+
+Hera's UI is single-language by default. To support multiple languages, you'll need to fork Hera and add i18n.
+
+## Strategy
+
+Two options:
+
+### A. Per-tenant Hera fork
+
+For each language, a separate Hera deploy. Pros: simple, no runtime logic. Cons: N images to maintain.
+
+### B. Runtime i18n in one Hera
+
+A single Hera reads the user's preferred language (from cookie, traits, or browser `Accept-Language`) and renders accordingly. Pros: one deploy. Cons: adds dependency on `next-intl` or similar.
+
+Most operators want B.
+
+## Implementation
+
+### Step 1: Add `next-intl`
+
+```bash
+cd hera
+bun add next-intl
+```
+
+### Step 2: Create message bundles
+
+```
+hera/messages/
+├── en.json
+├── es.json
+├── fr.json
+└── ja.json
+```
+
+```json
+// en.json
+{
+  "login": {
+    "title": "Sign in",
+    "email_label": "Email",
+    "password_label": "Password",
+    "submit": "Sign in",
+    "forgot_password": "Forgot password?"
+  },
+  "registration": { ... },
+  "recovery": { ... }
+}
+```
+
+### Step 3: Wire `next-intl` into Hera
+
+```tsx
+// app/[locale]/login/page.tsx
+import { useTranslations } from "next-intl";
+
+export default function Login() {
+  const t = useTranslations("login");
+  return (
+    <form>
+      <label>{t("email_label")}</label>
+      <input type="email" />
+      <label>{t("password_label")}</label>
+      <input type="password" />
+      <button type="submit">{t("submit")}</button>
+      <a href="/recovery">{t("forgot_password")}</a>
+    </form>
+  );
+}
+```
+
+### Step 4: Detect language
+
+Several signals to consider:
+- **Identity trait**: `traits.locale: "es-ES"` on the user. Set during registration; remembered.
+- **Accept-Language header**: the browser's preference. Use when no identity yet.
+- **URL prefix**: `/es/login`. Explicit; bookmarkable.
+
+Olympus recommends combining: URL prefix as the source of truth, with auto-redirect from `/` based on `Accept-Language` + identity trait.
+
+### Step 5: Identity schema
+
+Add `locale` to your identity schema:
+
+```json
+"locale": {
+  "type": "string",
+  "pattern": "^[a-z]{2}(-[A-Z]{2})?$",
+  "default": "en",
+  "title": "Preferred language"
+}
+```
+
+This way registration captures it, and settings flow lets users change it.
+
+## Localizing Kratos's UI strings
+
+Kratos returns flow state with English UI nodes (`ui.messages[].text`). To localize these:
+
+1. Map known message IDs to your translation keys.
+2. In Hera's render, if `ui.messages[i].id` matches a known ID, use your translation; else fall back to Kratos's text.
+
+Kratos's message IDs are stable across versions, documented in Ory's docs.
+
+## Localizing email templates
+
+See [Cookbook — Custom email templates](/docs/cookbook/custom-email-templates). The Go templates can include `if eq .Identity.Traits.locale "es-ES"` branches.
+
+## RTL languages
+
+Arabic, Hebrew, etc. require `dir="rtl"`. Set in your `<html>` element based on the chosen locale:
+
+```tsx
+<html lang={locale} dir={isRtl(locale) ? "rtl" : "ltr"}>
+```
+
+Tailwind has logical properties (`me-` for margin-end, `ps-` for padding-start) that make RTL adaptation cleaner. Olympus's Canvas uses these.
+
+## Number / date formatting
+
+`Intl.NumberFormat`, `Intl.DateTimeFormat` are built into modern browsers. No extra library.
+
+## Testing
+
+```bash
+# Visit each locale
+open http://localhost:3000/es/login
+open http://localhost:3000/fr/registration
+```
+
+Add Playwright tests that cycle through locales to catch missing translations.
+
+## Maintenance
+
+- Use a translation management service (Crowdin, Lokalise) for community translations.
+- CI check: any new English key must have entries in other locale files (fall back to English with a console warning if missing).
+
+## Related
+
+- [Cookbook — Custom email templates](/docs/cookbook/custom-email-templates)
+- [Identity — Identity schemas](/docs/identity/identity-schemas)
+- [Internals — Hera route map](/docs/internals/hera-route-map)

@@ -1,0 +1,86 @@
+---
+title: Daedalus — wizard state machine
+description: How the 13 wizard steps progress and gate
+---
+
+The Daedalus wizard is a state machine. Each of the 13 steps depends on prior steps having completed. The current step is tracked in `daedalus.json` and the URL.
+
+## States
+
+```
+welcome → repository → domain → provider → email → database → compute
+                                                              ↓
+deploy ← oauth ← secrets ←──────────────────────────────────────
+   ↓
+health → accounts → applications
+                       ↓
+                    destroy (one-way exit)
+```
+
+Each box is a wizard page at a route like `/repository`, `/domain`, etc.
+
+## Gating
+
+A step is "ready" when its prerequisites have completed. The Zustand store tracks per-step status:
+
+```ts
+interface WizardState {
+  steps: Record<StepName, {
+    status: "pending" | "in_progress" | "completed" | "errored";
+    completed_at?: string;
+    error?: string;
+  }>;
+}
+```
+
+The next step's UI is enabled only when the current step is `completed`.
+
+Operators can navigate backwards (revisit completed steps) but the wizard prompts before overwriting persisted decisions.
+
+## Persistence
+
+After each step completes, the relevant fields are written to `daedalus.json`. On Daedalus restart, the store is rehydrated from this file, and the operator resumes where they left off.
+
+## State transitions
+
+Each step's "Complete" button:
+
+1. Validates inputs.
+2. Performs the step's action (`gh repo fork`, `doctl droplet create`, etc.).
+3. On success: updates `daedalus.json`, advances to next step.
+4. On failure: shows error, keeps the operator on the current step.
+
+## Error states
+
+Errors during a step:
+- The wizard does **not** auto-advance.
+- The error is shown inline in the step UI.
+- The operator can retry, edit inputs, or skip (where applicable).
+
+Some steps are non-skippable (Compute, Deploy). Skipping is only allowed where it's safe (e.g. skip Email if you'll configure later, although the deploy will lack email until you do).
+
+## Destroy is a different shape
+
+`destroy` doesn't fit the linear flow. It's accessible at any time and tears down the deployment. After destroy, `daedalus.json` is wiped and you're back at `welcome`.
+
+## MCP and state
+
+When Claude drives Daedalus via MCP, it calls `read_context` to inspect the state, `navigate` to a step, and step-specific tools (`form_input`, `click`) to advance. The state machine logic stays Rust-side; MCP is read-and-act, not read-and-decide-via-extra-state.
+
+## Adding a wizard step
+
+If a future expansion adds, say, "DNS Configuration" as its own step:
+
+1. Add `dns` to `StepName` type.
+2. Add `src/app/dns/page.tsx` with the UI.
+3. Add a Zustand action for the DNS-completion.
+4. Update the navigation flow (which step comes after Domain, which step comes before).
+5. Update the MCP `navigate` tool's allowed paths list.
+
+Each step takes ~1-2 days for a clean, tested addition.
+
+## Related
+
+- [Internals — Daedalus Tauri shell](/docs/internals/daedalus-tauri-shell)
+- [Deploy — With the Daedalus wizard](/docs/deploy/with-daedalus-wizard)
+- [Get Started — Quickstart with Daedalus](/docs/get-started/quickstart-daedalus)

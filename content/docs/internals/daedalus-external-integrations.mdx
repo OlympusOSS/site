@@ -1,0 +1,120 @@
+---
+title: Daedalus — external integrations
+description: Every external service Daedalus shells out to
+---
+
+Daedalus shells out to many external tools and APIs to provision a deployment. This page catalogs them.
+
+## Shell commands
+
+| Command | Purpose | Step |
+|---|---|---|
+| `gh` | GitHub CLI — fork, create secrets, run workflows | Repository, Secrets, Deploy |
+| `doctl` | DigitalOcean CLI — droplets, firewalls | Provider, Compute |
+| `ssh` | Connect to the VPS | Compute, Deploy |
+| `scp` | Copy files to the VPS | Deploy |
+| `podman`, `podman-compose` | Container ops via SSH on the VPS | Deploy |
+| `openssl` | Generate random secrets | Secrets |
+| `curl` | Provider API calls when CLI not used | various |
+
+Each command goes through the PTY pipeline (see [PTY pipeline](/docs/internals/daedalus-pty-pipeline)) so output is captured and sanitized.
+
+## Provider API endpoints
+
+### DigitalOcean
+
+- `POST https://api.digitalocean.com/v2/droplets` — create droplet.
+- `POST .../v2/firewalls` — create firewall.
+- `POST .../v2/keys` — register SSH key.
+- `GET .../v2/account` — verify token.
+
+### Hostinger
+
+- `POST https://api.hostinger.com/vps/v1/instances` — create.
+- `GET .../v1/instances/<id>` — poll status.
+- `POST .../v1/firewall` — firewall.
+
+### Neon (Postgres)
+
+- `POST https://console.neon.tech/api/v2/projects` — create project.
+- `POST .../v2/projects/<id>/databases` — create per-Olympus-DB.
+- `POST .../v2/projects/<id>/roles` — create per-DB role.
+- `GET .../v2/projects/<id>/connection_uri` — get DSN with `verify-full`.
+
+### Email providers
+
+- **Resend**: `POST https://api.resend.com/domains` (verify ownership).
+- **Postmark**: `GET https://api.postmarkapp.com/servers` (verify token).
+- **Brevo**: similar.
+
+## Authentication for each
+
+| Service | Auth |
+|---|---|
+| GitHub | Personal Access Token (PAT) entered in Repository step |
+| DigitalOcean | API Token entered in Provider step |
+| Hostinger | API Token |
+| Neon | API Key |
+| Email providers | API key per provider |
+| SSH | Daedalus-generated SSH keypair |
+
+Tokens are stored in `daedalus.json` locally **and** pushed to GitHub Actions Secrets in the Secrets wizard step. The deploy workflow reads from GitHub Secrets, not from the local `daedalus.json`.
+
+## Why local + GitHub Secrets
+
+Local stores: lets Daedalus re-deploy without re-collecting.
+GitHub Secrets: the deploy workflow runs on GitHub runners, needs them there too.
+
+The two are kept in sync — when an operator updates a token in Daedalus, the workflow's secret is also updated.
+
+## Network failures
+
+If a provider API is unreachable mid-deploy:
+- The current step errors with the API error message.
+- The operator can retry.
+- Partially-completed steps (e.g. droplet created but firewall failed) leave artifacts to clean up.
+
+Daedalus tracks "what's been provisioned" in `daedalus.json` so the Destroy step knows what to tear down.
+
+## Rate limits
+
+Most providers have generous rate limits for these one-time provisioning operations. We've not hit them in normal use. If you have, retry after a few minutes.
+
+## Adding a new provider
+
+To support, say, AWS EC2 as a fourth Provider option:
+
+1. Add `aws` to the provider enum.
+2. Implement `provider/aws/` with API client.
+3. Add the AWS-specific Provider wizard step UI.
+4. Add cloud-init template for EC2 user data.
+5. Test against an AWS account.
+
+About a week of focused work per provider.
+
+## Where the bytes flow
+
+```
+Daedalus UI                Daedalus Rust              External services
+    │                           │                           │
+    │  click "Create Droplet"   │                           │
+    ├──────────────────────────▶│                           │
+    │                           │  POST .../v2/droplets    │
+    │                           ├──────────────────────────▶│
+    │                           │  201 + droplet_id        │
+    │                           │◀──────────────────────────┤
+    │                           │  POST .../v2/firewalls   │
+    │                           ├──────────────────────────▶│
+    │                           │                           │
+    │                           │ store in daedalus.json   │
+    │                           │                           │
+    │ display "Droplet created" │                           │
+    │◀──────────────────────────┤                           │
+```
+
+## Related
+
+- [Internals — Daedalus Tauri shell](/docs/internals/daedalus-tauri-shell)
+- [Internals — Daedalus wizard state machine](/docs/internals/daedalus-wizard-state-machine)
+- [Deploy — Provider — DigitalOcean](/docs/deploy/provider-digitalocean)
+- [Deploy — Provider — Hostinger](/docs/deploy/provider-hostinger)

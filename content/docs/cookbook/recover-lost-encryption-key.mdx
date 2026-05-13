@@ -1,0 +1,113 @@
+---
+title: Recover from a lost encryption key
+description: What to do when ENCRYPTION_KEY is irretrievably lost
+---
+
+If `ENCRYPTION_KEY` is gone (not in your password manager, not in GitHub Secrets, not anywhere), the encrypted settings in the `olympus` database are **unrecoverable**. The encryption is cryptographically sound; there's no backdoor.
+
+## What's affected
+
+Encrypted settings include:
+- OAuth2 client secrets for social IdPs (Google, Apple, etc.).
+- SMTP credentials for email providers.
+- Webhook signing secrets.
+- Cloudflare Turnstile keys.
+- Any custom encrypted setting.
+
+These plaintexts are gone.
+
+## What's NOT affected
+
+- Identities in Kratos (unencrypted at rest by the SDK; Kratos handles its own state).
+- OAuth2 clients in Hydra (Hydra encrypts with its own `secrets.system`).
+- Audit log (`security_audit` table — unencrypted).
+- Compose configs, Kratos/Hydra YAML.
+
+## Recovery procedure
+
+### Step 1: Confirm the loss
+
+Check every place the key might be:
+- GitHub Secrets for the platform repo.
+- Your local Daedalus context (`~/.daedalus/.../daedalus.json` — though Daedalus pushes secrets to GitHub Secrets immediately and then keeps them local; check anyway).
+- 1Password / Vault / wherever you store secrets.
+- Old `.env` files.
+
+If genuinely gone, proceed.
+
+### Step 2: Generate a new key
+
+```bash
+NEW=$(openssl rand -base64 32)
+gh secret set ENCRYPTION_KEY --body "$NEW"
+```
+
+### Step 3: Wipe the encrypted rows
+
+```sql
+-- Connect to the olympus database
+DELETE FROM ciam_settings WHERE value LIKE 'v2:%';
+DELETE FROM iam_settings WHERE value LIKE 'v2:%';
+```
+
+All encrypted settings are now gone. Unencrypted settings (e.g. feature flags, plain strings) are preserved.
+
+### Step 4: Redeploy
+
+```bash
+gh workflow run deploy.yml
+```
+
+Containers start with the new `ENCRYPTION_KEY` and a database with no encrypted settings.
+
+### Step 5: Re-enter the lost secrets
+
+For each setting that was encrypted:
+- OAuth2 social provider client secrets: re-enter via Athena → Social Connections.
+- SMTP credentials: re-enter via the Kratos config or settings UI.
+- Webhook keys: regenerate.
+- Other encrypted settings: re-enter via Athena → Settings.
+
+Estimated time: 30 minutes if you have all the source credentials. Hours if you also lost some of those.
+
+### Step 6: Test
+
+- Try a social login — verify the provider works.
+- Try a verification email — verify SMTP works.
+- Trigger any webhook — verify signature works.
+
+### Step 7: Save the key
+
+This time, in multiple places:
+- GitHub Secrets (already done).
+- Your team's password manager (Vault, 1Password Teams, etc.).
+- A printed copy in a secure offline location.
+
+## Preventing this
+
+The blocklist (see [Security — Encryption key blocklist](/docs/security/encryption-key-blocklist)) catches the most common "I set a weak key" mistake. It doesn't catch "I generated a strong key and lost it."
+
+Preventive measures:
+- **Always** use a password manager. Generate the key, immediately paste into 1Password.
+- **Run the Secrets Audit quarterly.** If the key is in GitHub Secrets but not in any team-accessible place, that's a single point of failure.
+- **Document key locations in runbook docs** (without the values, of course) so anyone responding to an incident knows where to look.
+
+## Recovering from partial loss
+
+If you have the old key but the rotation went wrong (e.g. you set `ENCRYPTION_KEY` to a new value before running the migration):
+
+1. Restore old `ENCRYPTION_KEY` value as the current key.
+2. Set `ENCRYPTION_KEY_NEXT` to the new value.
+3. Redeploy.
+4. Run the migration (re-encrypts old rows with the new key).
+5. Promote: set `ENCRYPTION_KEY` to new value, drop `ENCRYPTION_KEY_NEXT`.
+6. Redeploy.
+
+If you don't have the old key but have a **database backup** from before the rotation, restore the backup and treat that as the "old state."
+
+## Related
+
+- [Operate — Encryption key rotation](/docs/operate/encryption-key-rotation) — the proper rotation procedure.
+- [Security — Encryption at rest](/docs/security/encryption-at-rest)
+- [Operate — Secrets audit](/docs/operate/secrets-audit)
+- [Operate — Backups (Postgres)](/docs/operate/backups-postgres)
