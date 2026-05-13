@@ -1,0 +1,120 @@
+---
+title: Athena — service layer
+description: How Athena wraps the Kratos and Hydra admin APIs
+---
+
+Athena's `src/services/` directory contains the adapters between Athena's app code and the Ory admin APIs. Route handlers never call Kratos / Hydra directly — they go through these services.
+
+## Why a service layer
+
+Three reasons:
+1. **Testability.** Unit tests mock the service layer, not raw HTTP.
+2. **Auth chain.** The service injects admin credentials and error handling uniformly.
+3. **Future replacement.** If Olympus swaps Ory for another auth engine (unlikely but possible), only the service layer changes.
+
+## Layout
+
+```
+src/services/
+├── kratos/
+│   ├── identities.ts       # GET/POST/PATCH/DELETE /admin/identities
+│   ├── sessions.ts         # /admin/sessions
+│   ├── flows.ts            # /admin/recovery, /admin/verification
+│   ├── schemas.ts          # /schemas
+│   └── courier.ts          # /admin/courier/messages
+└── hydra/
+    ├── clients.ts          # OAuth2 clients
+    ├── tokens.ts           # token introspection
+    ├── consent-sessions.ts # consent management
+    └── login-logout.ts     # login + logout request acceptance
+```
+
+## Adapter pattern
+
+Each service exports typed functions:
+
+```ts
+// src/services/kratos/identities.ts
+export interface ListIdentitiesParams {
+  pageSize?: number;
+  pageToken?: string;
+}
+
+export async function listIdentities(
+  domain: "ciam" | "iam",
+  params: ListIdentitiesParams = {}
+): Promise<KratosIdentity[]> {
+  const url = new URL(`${getKratosAdminUrl(domain)}/admin/identities`);
+  if (params.pageSize) url.searchParams.set("page_size", String(params.pageSize));
+  if (params.pageToken) url.searchParams.set("page_token", params.pageToken);
+
+  const response = await fetch(url, {
+    headers: { ...getKratosAdminHeaders(domain) }
+  });
+  if (!response.ok) throw new ServiceError("kratos:list_identities", response);
+  return await response.json();
+}
+```
+
+Key conventions:
+- **`domain` parameter** every call — selects CIAM vs IAM. Athena administers both.
+- **Typed return** — never returns `unknown`. Type definitions live in `src/services/kratos/types.ts`.
+- **Throws on non-2xx** — wrapping in `ServiceError` with a stable identifier (`kratos:list_identities`) for error mapping in middleware.
+
+## Configuration
+
+Service URLs and auth come from env vars:
+
+```
+CIAM_KRATOS_ADMIN_URL=http://ciam-kratos:5001
+IAM_KRATOS_ADMIN_URL=http://iam-kratos:7001
+CIAM_HYDRA_ADMIN_URL=http://ciam-hydra:5003
+IAM_HYDRA_ADMIN_URL=http://iam-hydra:7003
+```
+
+Resolved in `src/lib/config.ts`. Service files import from there.
+
+## Error mapping
+
+`ServiceError` carries:
+- The HTTP status from Kratos / Hydra.
+- The error body.
+- A stable error identifier.
+
+In route handlers, services throw; middleware catches and maps:
+
+```ts
+catch (e) {
+  if (e instanceof ServiceError) {
+    return Response.json(
+      { error: e.identifier, message: e.body?.error?.message },
+      { status: e.status }
+    );
+  }
+  throw e;
+}
+```
+
+This is how Athena's API surface produces consistent error envelopes regardless of which downstream service errored.
+
+## Testing
+
+Services are mocked in unit tests via Vitest's `vi.mock`:
+
+```ts
+vi.mock("@/services/kratos/identities", () => ({
+  listIdentities: vi.fn().mockResolvedValue([{ id: "uuid", traits: {...} }])
+}));
+```
+
+The mocked module is imported as if real; route handler tests don't touch real Kratos.
+
+## Live development
+
+When local development needs Kratos running but the migration / seed isn't done yet, services that depend on Kratos fail. Athena's `/health` endpoint reports this in its detailed mode (planned for athena#TBD).
+
+## Related
+
+- [Internals — Athena — Route map](/docs/internals/athena-route-map)
+- [Internals — Athena — Middleware](/docs/internals/athena-middleware)
+- [Reference — Athena API authentication](/docs/reference/api-athena-authentication)
