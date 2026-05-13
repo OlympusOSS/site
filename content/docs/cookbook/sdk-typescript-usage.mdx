@@ -1,0 +1,226 @@
+---
+title: "@olympusoss/sdk in your TypeScript app"
+description: Typed client for Olympus auth from Node / browser
+---
+
+The official `@olympusoss/sdk` package wraps Kratos and Hydra API calls with typed methods. Reduces boilerplate when integrating.
+
+## Install
+
+```bash
+npm install @olympusoss/sdk
+# or
+bun add @olympusoss/sdk
+```
+
+## Initialize
+
+```ts
+import { OlympusClient } from "@olympusoss/sdk";
+
+export const olympus = new OlympusClient({
+  publicUrl: process.env.OLYMPUS_PUBLIC_URL!,     // https://ciam.your-domain
+  adminUrl: process.env.OLYMPUS_ADMIN_URL,        // backend-only; omit for browser
+  clientId: process.env.OLYMPUS_CLIENT_ID!,
+  clientSecret: process.env.OLYMPUS_CLIENT_SECRET, // confidential clients only
+});
+```
+
+## Common use cases
+
+### Browser: get session
+
+```ts
+const session = await olympus.toSession();
+// throws if no session; .traits, .identity_id, .aal available
+```
+
+### Browser: start OAuth2 flow
+
+```ts
+const url = await olympus.buildAuthorizationUrl({
+  scope: ["openid", "offline_access", "profile", "email"],
+  redirectUri: "/callback",
+  pkce: true,
+});
+window.location.href = url;
+```
+
+### Browser: handle callback
+
+```ts
+const { accessToken, idToken, refreshToken } = await olympus.exchangeCodeForTokens(code);
+// PKCE verifier is auto-managed in sessionStorage
+```
+
+### Browser: refresh
+
+```ts
+const refreshed = await olympus.refreshToken();
+// Stored access_token / refresh_token rotated
+```
+
+### Server: introspect
+
+```ts
+const intro = await olympus.introspect(accessToken);
+// intro.active, .sub, .scope, .client_id, ...
+```
+
+### Server: list identities (admin)
+
+```ts
+const identities = await olympus.admin.identities.list({
+  page: 1,
+  perPage: 50,
+  filter: 'traits.email eq "alice@example.com"',
+});
+```
+
+### Server: create identity
+
+```ts
+const identity = await olympus.admin.identities.create({
+  schema_id: "default",
+  traits: { email: "alice@example.com", first_name: "Alice" },
+  credentials: {
+    password: { config: { password: "RandomTempPass123!" } }
+  },
+  state: "active",
+});
+```
+
+### Server: trigger recovery
+
+```ts
+const link = await olympus.admin.identities.createRecoveryLink({
+  identity_id: identityId,
+  expires_in: "1h",
+});
+// Email this link to the user
+```
+
+## Types
+
+All responses are fully typed:
+
+```ts
+import type { Session, Identity, AdminIdentitiesListResponse } from "@olympusoss/sdk";
+
+function describe(id: Identity) {
+  return `${id.traits.first_name} ${id.traits.last_name}`;
+}
+```
+
+## Errors
+
+The SDK throws typed errors:
+
+```ts
+import { OlympusError, NotFoundError, ValidationError } from "@olympusoss/sdk";
+
+try {
+  await olympus.toSession();
+} catch (err) {
+  if (err instanceof NotFoundError) {
+    // not logged in
+  } else if (err instanceof OlympusError) {
+    // other Olympus error
+  } else {
+    throw err;
+  }
+}
+```
+
+## React hooks (companion package)
+
+`@olympusoss/sdk-react`:
+
+```bash
+npm install @olympusoss/sdk-react
+```
+
+```tsx
+import { OlympusProvider, useSession, useLogin } from "@olympusoss/sdk-react";
+
+function App() {
+  return (
+    <OlympusProvider client={olympus}>
+      <Profile />
+    </OlympusProvider>
+  );
+}
+
+function Profile() {
+  const { session, loading } = useSession();
+  if (loading) return <Spinner />;
+  if (!session) return <a href="/login">Sign in</a>;
+  return <p>Hi {session.identity.traits.first_name}</p>;
+}
+```
+
+## Server vs client
+
+The SDK works both server-side (Node, Bun, Deno) and browser. But:
+
+- `clientSecret` should ONLY be set in server-side init.
+- Admin URL methods (`olympus.admin.*`) should ONLY be called server-side.
+- Browser calls use cookies; server calls use bearer tokens.
+
+Don't import the same instance in both. Have two instances:
+
+```ts
+// server.ts
+export const olympusServer = new OlympusClient({ /* with admin */ });
+
+// client.ts
+export const olympusBrowser = new OlympusClient({ /* without admin */ });
+```
+
+## Frameworks
+
+### Next.js
+
+```tsx
+// app/api/whoami/route.ts
+import { olympusServer } from "@/lib/olympus";
+import { cookies } from "next/headers";
+
+export async function GET() {
+  const session = await olympusServer.toSession(cookies().toString());
+  return Response.json(session);
+}
+```
+
+### Express / Hono
+
+```ts
+app.use(olympus.middleware());  // sets req.session
+```
+
+### Other
+
+Any HTTP framework — call SDK methods in handlers.
+
+## Versioning
+
+SDK version tracks Olympus core. SDK v1.4 works with Olympus 1.4.
+
+For major changes (Hydra 2.x → 3.x), SDK bumps. Read CHANGELOG.
+
+## Bundle size
+
+SDK is ~30 KB minified for client. Tree-shakeable — only what you use.
+
+Server: no bundle concern.
+
+## Source
+
+`@olympusoss/sdk` lives in `sdk` repo. PRs welcome.
+
+## Related
+
+- [Develop — Working with SDK](/docs/develop/working-with-sdk)
+- [Develop — Working with Canvas](/docs/develop/working-with-canvas)
+- [Reference — SDK API](/docs/reference/sdk-api/index)
+- [Cookbook — Validate access token (Node)](/docs/cookbook/validate-token-node)

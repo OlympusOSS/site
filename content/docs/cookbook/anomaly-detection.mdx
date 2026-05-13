@@ -1,0 +1,209 @@
+---
+title: Anomaly detection on auth events
+description: Notice unusual patterns before they become incidents
+---
+
+Beyond rate limiting and per-user policies, look at the *shape* of auth traffic. Sudden changes often precede or accompany incidents.
+
+## Useful baselines
+
+Per user, per hour-of-day:
+- Login count (typically 0-10).
+- Failed login count (typically 0-2).
+- Distinct IPs (typically 1-2).
+- Distinct user agents (typically 1).
+
+Per service, hourly:
+- Total logins.
+- Total registrations.
+- 5xx rate.
+- Average latency.
+
+## Detection rules
+
+### Rule 1: Unusual hour
+
+A user typically logs in 9 AM - 5 PM. A login at 3 AM is unusual.
+
+```sql
+WITH user_baseline AS (
+  SELECT
+    identity_id,
+    AVG(EXTRACT(hour FROM created_at)) AS avg_hour,
+    STDDEV(EXTRACT(hour FROM created_at)) AS stddev_hour
+  FROM security_audit
+  WHERE event_type = 'login' AND outcome = 'success'
+    AND created_at > NOW() - INTERVAL '90 days'
+  GROUP BY identity_id
+  HAVING COUNT(*) > 20  -- only baseline established users
+)
+SELECT a.* 
+FROM security_audit a
+JOIN user_baseline b ON a.identity_id = b.identity_id
+WHERE a.event_type = 'login' 
+  AND a.created_at > NOW() - INTERVAL '1 hour'
+  AND ABS(EXTRACT(hour FROM a.created_at) - b.avg_hour) > 3 * b.stddev_hour;
+```
+
+3 std devs from typical = unusual.
+
+### Rule 2: Impossible travel
+
+User logs in from New York, then 10 minutes later from Tokyo. Physically impossible.
+
+```ts
+async function impossibleTravel(login: LoginEvent) {
+  const previous = await db`
+    SELECT source_ip, created_at FROM security_audit
+    WHERE identity_id = ${login.identity_id}
+      AND event_type = 'login' AND outcome = 'success'
+      AND id != ${login.id}
+    ORDER BY created_at DESC LIMIT 1
+  `.first();
+  
+  if (!previous) return false;
+  const distanceKm = geoDistance(previous.source_ip, login.source_ip);
+  const timeHours = (login.created_at - previous.created_at) / 3_600_000;
+  const requiredSpeed = distanceKm / timeHours;
+  return requiredSpeed > 1000;  // > Mach 0.8
+}
+```
+
+See [Cookbook — Detect impossible travel](/docs/cookbook/detect-impossible-travel) for the full recipe.
+
+### Rule 3: Burst registrations
+
+Normal: 10 registrations / hour. Suddenly: 1000 / hour.
+
+```sql
+WITH baseline AS (
+  SELECT AVG(c) AS avg_reg, STDDEV(c) AS stddev_reg
+  FROM (
+    SELECT DATE_TRUNC('hour', created_at) AS h, COUNT(*) AS c
+    FROM security_audit
+    WHERE event_type = 'registration_completed'
+      AND created_at BETWEEN NOW() - INTERVAL '30 days' AND NOW() - INTERVAL '1 hour'
+    GROUP BY 1
+  ) sub
+)
+SELECT COUNT(*) AS recent
+FROM security_audit
+WHERE event_type = 'registration_completed'
+  AND created_at > NOW() - INTERVAL '1 hour'
+HAVING COUNT(*) > (SELECT avg_reg + 3 * stddev_reg FROM baseline);
+```
+
+If today's count is 3 SDs above baseline: alert.
+
+### Rule 4: Geographic shift
+
+```sql
+SELECT
+  DATE_TRUNC('hour', created_at) AS hour,
+  (regexp_replace(metadata->>'geo', ',.*', ''))::text AS country,
+  COUNT(*)
+FROM security_audit
+WHERE event_type = 'login' AND outcome = 'success'
+  AND created_at > NOW() - INTERVAL '24 hours'
+GROUP BY 1, 2
+HAVING COUNT(*) > 100 AND country NOT IN ('US', 'CA', 'GB', 'DE')  -- your typical countries
+ORDER BY 3 DESC;
+```
+
+Suddenly hundreds of logins from a country you don't typically serve = investigate.
+
+### Rule 5: New user agents en masse
+
+```sql
+SELECT user_agent, COUNT(DISTINCT identity_id) AS unique_users
+FROM security_audit
+WHERE event_type = 'login' 
+  AND created_at > NOW() - INTERVAL '1 hour'
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 20;
+```
+
+If a brand new user_agent string accounts for many users, investigate. Might be a botnet using a new identifier.
+
+## Tooling
+
+### Simple: cron + email
+
+```bash
+# /etc/cron.d/anomaly-detection
+*/15 * * * * deploy node /opt/olympus/scripts/anomaly-detect.js | mail -s "Olympus anomalies" oncall@your-domain
+```
+
+Script runs SQL queries, emails findings if non-zero.
+
+### Sophisticated: Grafana alerts
+
+For metrics in Prometheus:
+
+```yaml
+- alert: AnomalousRegistrationRate
+  expr: rate(kratos_registration_total[1h]) > 10 * rate(kratos_registration_total[7d] offset 7d)
+  for: 10m
+  annotations:
+    summary: Registration rate 10x normal
+```
+
+Grafana fires alert; notifies via PagerDuty/Slack.
+
+### ML-based
+
+For high-volume, statistical anomaly detection works. Tools:
+- AWS GuardDuty — detects AWS account compromise patterns; less relevant for Olympus.
+- Custom Apache Spark / Pandas notebook on audit log.
+- DataDog Watchdog — paid.
+
+Most teams: rules are fine. ML is overkill.
+
+## Tuning
+
+False positives erode trust in alerts. Tune:
+
+1. Start with very loose rules (catches everything obvious).
+2. Tighten when too noisy.
+3. Document why each rule exists, with example.
+
+If a rule fires weekly but never indicates a problem: relax or remove.
+
+## What to do on alert
+
+### Low severity (info)
+
+- Log to dashboard.
+- Maybe Slack channel.
+- Daily review.
+
+### Medium (warning)
+
+- Slack ping.
+- Investigate within 1h.
+
+### High (page)
+
+- PagerDuty / phone call.
+- Investigate within 5 min.
+
+Match thresholds to your team's capacity.
+
+## When detection fails
+
+Sometimes attackers are subtler — small, distributed, mimicking normal traffic. Detection becomes signal-noise heavy.
+
+Don't rely on detection alone:
+- Strong prevention (MFA required, breach passwords blocked).
+- Defense in depth.
+
+Detection is the second-to-last layer, not the only one.
+
+## Related
+
+- [Cookbook — Detect impossible travel](/docs/cookbook/detect-impossible-travel)
+- [Cookbook — Bot detection strategies](/docs/cookbook/bot-detection-strategies)
+- [Cookbook — Password spray defense](/docs/cookbook/password-spray-defense)
+- [Cookbook — Risk-based auth](/docs/cookbook/risk-based-auth)
+- [Operate — Logs and observability](/docs/operate/logs-and-observability)

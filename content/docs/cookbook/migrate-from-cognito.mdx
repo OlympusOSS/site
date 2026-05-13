@@ -1,0 +1,220 @@
+---
+title: Migrate from AWS Cognito to Olympus
+description: Move your User Pool to Kratos
+---
+
+Cognito has unique features (User Pool, Identity Pool, AWS IAM integration). Migrating to Olympus replaces auth with control over your own data.
+
+## What translates
+
+| Cognito | Olympus |
+|---|---|
+| User Pool | Kratos identities |
+| Identity Pool (for AWS IAM) | Custom: Hydra issues token, exchange for IAM credentials |
+| App clients | Hydra OAuth2 clients |
+| Lambda triggers | Kratos web_hooks |
+| User attributes | Kratos traits |
+| Groups | Kratos role trait |
+
+## User export
+
+Cognito doesn't allow exporting password hashes (sealed). Two migration approaches:
+
+### Approach A: JIT migration via Cognito OIDC
+
+Keep Cognito as IdP, federate to Olympus:
+
+1. In Cognito, configure your domain as OIDC issuer.
+2. In Olympus, add Cognito as OIDC provider.
+3. Users sign in via Cognito → Olympus creates local identity.
+4. Decommission later.
+
+```yaml
+# kratos.yml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: cognito-legacy
+            provider: generic
+            issuer_url: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXX
+            client_id: ...
+            client_secret: ...
+            scope: [openid, email, profile]
+```
+
+### Approach B: Force password reset
+
+Export user attributes (email, name) — Cognito allows via CSV.
+
+```bash
+aws cognito-idp list-users --user-pool-id us-east-1_XXXXX > users.json
+```
+
+Import to Kratos with random passwords. Force everyone to reset.
+
+```ts
+// migrate.js
+for (const u of users.Users) {
+  await fetch(`${KRATOS_ADMIN}/admin/identities`, {
+    method: "POST",
+    body: JSON.stringify({
+      schema_id: "default",
+      traits: {
+        email: u.Attributes.find(a => a.Name === "email").Value,
+        first_name: u.Attributes.find(a => a.Name === "given_name")?.Value,
+      },
+      credentials: {
+        password: { config: { password: crypto.randomUUID() } }
+      },
+      state: "active",
+    }),
+  });
+}
+```
+
+Then bulk-send recovery emails.
+
+## Cognito-specific gotchas
+
+### Federated identities (Google/Facebook)
+
+If users signed up via Cognito's "Sign in with Google":
+- Cognito has its own subject (`cognito:username = google_1234567890`).
+- Olympus directly federates with Google.
+
+JIT migration handles this naturally — user signs in with Google → Olympus stores Google's subject directly. No "Cognito intermediary" needed.
+
+### MFA
+
+Cognito's SMS-based MFA is least secure. Olympus migration is good time to push users to WebAuthn / TOTP.
+
+Force re-enrollment after migration:
+
+```ts
+// pre-login hook
+if (!hasNonSmsMfa(identity)) {
+  return Response.json({
+    redirect_to: "/settings?required=upgrade_mfa",
+  });
+}
+```
+
+### Custom Cognito attributes
+
+Cognito allows custom attributes like `custom:tenant_id`. Map to Kratos traits:
+
+```json
+"traits": {
+  "type": "object",
+  "properties": {
+    "email": { "type": "string" },
+    "tenant_id": { "type": "string" }
+  }
+}
+```
+
+### Cognito groups
+
+Cognito groups → Kratos role traits:
+
+```ts
+// during import:
+const groups = await cognito.adminListGroupsForUser(...);
+const primaryGroup = groups[0]?.GroupName ?? "user";
+// Map to role
+const role = mapping[primaryGroup] ?? "user";
+```
+
+### AWS IAM credential exchange (Identity Pool)
+
+Cognito Identity Pool lets you exchange a User Pool token for AWS IAM credentials. Olympus doesn't directly replace this.
+
+If you need it:
+- Use AWS STS's `AssumeRoleWithWebIdentity` with your Olympus-issued OIDC token.
+- Configure AWS IAM role trust policy to trust your Olympus issuer.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Federated": "arn:aws:iam::ACCOUNT:oidc-provider/ciam.your-domain" },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "ciam.your-domain:aud": "your-app-client-id"
+      }
+    }
+  }]
+}
+```
+
+User flow:
+1. User signs in with Olympus → ID token.
+2. App calls AWS STS with ID token → temporary IAM credentials.
+3. Uses credentials to call AWS APIs directly.
+
+## Lambda triggers → Kratos hooks
+
+Cognito has triggers like "PreSignUp," "PostConfirmation," etc.
+
+Map to Kratos hook points:
+
+| Cognito Trigger | Kratos Hook |
+|---|---|
+| PreSignUp | registration.before |
+| PostConfirmation | registration.after |
+| PreAuthentication | login.before |
+| PostAuthentication | login.after |
+| CustomMessage | courier templates |
+
+Rewrite each Lambda as a Kratos webhook handler.
+
+## App SDK migration
+
+Cognito uses Amplify SDK (`aws-amplify`):
+
+```ts
+import { signIn } from "aws-amplify/auth";
+await signIn({ username, password });
+```
+
+Olympus is OAuth2 standard:
+
+```ts
+import { OlympusClient } from "@olympusoss/sdk";
+const client = new OlympusClient({ ... });
+await client.signIn(username, password);
+```
+
+Or use any OIDC library — Olympus is standard.
+
+## Domain migration
+
+If you used Cognito's hosted UI (`https://your-pool.auth.us-east-1.amazoncognito.com`), users have it bookmarked.
+
+Set up a 301 redirect or maintain that domain pointing at Olympus for a transition period.
+
+## Costs
+
+Cognito: ~$0.0055/MAU. At 100k MAU = $550/mo.
+Olympus self-hosted: ~$80/mo.
+
+Plus Cognito charges for advanced security ($0.05/MAU). Olympus has equivalent free.
+
+Migration ROI: under a year for most.
+
+## Compliance
+
+If you used Cognito for SOC 2 compliance evidence, that goes away. You inherit it from your own Olympus deployment, but you need to demonstrate equivalent controls.
+
+See [Compliance — SOC 2](/docs/security/compliance-soc2).
+
+## Related
+
+- [Migration — Cognito](/docs/migration/from-cognito)
+- [Cookbook — Bulk import identities](/docs/cookbook/bulk-import-identities)
+- [Cookbook — Migrate from Auth0](/docs/cookbook/migrate-from-auth0)
+- [Cookbook — Olympus as IdP — AWS](/docs/cookbook/olympus-as-idp-aws)
