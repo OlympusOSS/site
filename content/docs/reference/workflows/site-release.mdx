@@ -77,16 +77,16 @@ jobs:
   release:
     # workflow_run fires on every completion (success/failure/cancelled).
     # Gate to success-only so a red CI doesn't bump the version.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: $\{\{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' \}\}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: $\{\{ secrets.GITHUB_TOKEN \}\}
           # workflow_run runs against the default branch by default; pin to the
           # SHA that triggered CI so we tag the exact code that was tested.
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          ref: $\{\{ github.event.workflow_run.head_sha || github.ref \}\}
 
       - uses: 
 ... (truncated; see source link above)

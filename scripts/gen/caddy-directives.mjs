@@ -12,7 +12,7 @@ if (existsSync(OUT_DIR)) rmSync(OUT_DIR, { recursive: true, force: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
 const DIRECTIVES = [
-	{ slug: "reverse-proxy", name: "reverse_proxy", purpose: "Proxy requests to upstream services.", olympusUse: "Routes ciam.<domain> traffic to ciam-hera/athena/hydra. Routes iam.<domain> to the IAM counterparts." },
+	{ slug: "reverse-proxy", name: "reverse_proxy", purpose: "Proxy requests to upstream services.", olympusUse: "Routes ciam.YOUR-DOMAIN traffic to ciam-hera/athena/hydra. Routes iam.YOUR-DOMAIN to the IAM counterparts." },
 	{ slug: "rate-limit", name: "rate_limit", purpose: "Per-IP request throttling. Requires the caddy-ratelimit module.", olympusUse: "Caps login/registration/recovery attempts. See [Security — Rate Limiting](/docs/security/rate-limiting)." },
 	{ slug: "tls", name: "tls", purpose: "TLS termination with automatic Let's Encrypt or DNS-01 ACME.", olympusUse: "All ingress is HTTPS. Cert auto-renewal handled by Caddy." },
 	{ slug: "header", name: "header", purpose: "Set or remove HTTP headers on requests / responses.", olympusUse: "Sets HSTS, X-Frame-Options, CSP base, Referrer-Policy. See [Security — Security Headers](/docs/security/security-headers)." },

@@ -12,7 +12,7 @@ if (existsSync(OUT_DIR)) rmSync(OUT_DIR, { recursive: true, force: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
 const STEPS = [
-	{ n: 1, slug: "repository", title: "Repository", purpose: "Fork OlympusOSS/platform and clone locally.", inputs: ["GitHub PAT with `repo` + `workflow` scopes"], outputs: ["Local clone at ~/code/<your-org>-platform/", "Recorded fork URL in daedalus.json"] },
+	{ n: 1, slug: "repository", title: "Repository", purpose: "Fork OlympusOSS/platform and clone locally.", inputs: ["GitHub PAT with `repo` + `workflow` scopes"], outputs: ["Local clone at ~/code/YOUR-ORG-platform/", "Recorded fork URL in daedalus.json"] },
 	{ n: 2, slug: "domain", title: "Domain", purpose: "Configure apex + 3 subdomains (CIAM, IAM, Site).", inputs: ["Apex domain", "Subdomain names (defaults: ciam, iam, www)"], outputs: ["Edited prod kratos.yml, hydra.yml, Caddyfile with chosen domains"] },
 	{ n: 3, slug: "provider", title: "Provider", purpose: "Choose VPS provider.", inputs: ["Provider (DigitalOcean / Hostinger / Direct SSH)", "Provider API token"], outputs: ["Recorded provider config"] },
 	{ n: 4, slug: "email", title: "Email", purpose: "Configure outbound email for verification/recovery.", inputs: ["Provider (Resend / Postmark / Brevo / SMTP2GO / AWS SES / Custom SMTP)", "API key or SMTP credentials", "Sender address"], outputs: ["SMTP settings in both Kratos configs"] },

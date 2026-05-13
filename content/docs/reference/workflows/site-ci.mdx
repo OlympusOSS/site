@@ -59,7 +59,7 @@ jobs:
         # release workflow; auth with NPM_TOKEN (org-scoped read-only).
         run: |
           echo "@olympusoss:registry=https://registry.npmjs.org" >> .npmrc
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
+          echo "//registry.npmjs.org/:_authToken=$\{\{ secrets.NPM_TOKEN \}\}" >> .npmrc
       - run: bun install --frozen-lockfile
       # 'next build' generates the fumadocs '.source/' runtime AND runs the
       # full TypeScript check against the produced source — same engine the
