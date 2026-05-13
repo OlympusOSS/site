@@ -1,0 +1,172 @@
+---
+title: JWT vs opaque tokens
+description: Trade-offs in Hydra token format
+---
+
+Hydra can issue access tokens in two formats: JWT (signed JSON) or opaque (random bytes). Each has trade-offs.
+
+## Format defaults
+
+Olympus's Hydra default: **opaque**.
+
+```yaml
+# hydra.yml
+oauth2:
+  access_token_strategy: opaque  # or "jwt"
+```
+
+## How they look
+
+**Opaque**:
+```
+ory_at_1lUzdwQQ7gJxA8H2X9mvN5o3kPe4r2y8w7z
+```
+
+Short, random. Server must look up its meaning via introspection.
+
+**JWT**:
+```
+eyJhbGciOiJSUzI1NiIsImtpZCI6Ii4uLiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIuLi4iLCJleHAiOjE...
+```
+
+Long, contains claims (sub, scope, exp, iss, aud, etc.). Server can decode locally.
+
+## Trade-offs
+
+| | Opaque | JWT |
+|---|---|---|
+| Validation | Network call (introspection) | Local (signature check + JWKS) |
+| Revocation | Instant (DB lookup) | Hard (until expiry) |
+| Token size | ~64 bytes | ~1-2 KB |
+| Performance | Slower validation | Faster validation |
+| Resource server complexity | Just introspect | JWKS fetching, expiry, etc. |
+| Token contents | Hidden | Visible to anyone with the token |
+
+## When to use opaque
+
+- Sensitive APIs (financial, healthcare).
+- Quick revocation needed (regulatory, ATO response).
+- Small token size matters (some HTTP-header-size constrained environments).
+- You can tolerate ~30-100ms introspection latency.
+
+## When to use JWT
+
+- High-throughput APIs (millions of requests/second).
+- Microservices where each call does auth checks.
+- You can tolerate ~minutes of stale validity after revocation.
+- You want to embed claims for routing decisions without DB lookup.
+
+## Hybrid: introspect with cache
+
+The introspection + cache pattern hits a sweet spot:
+
+```ts
+async function validateToken(token: string) {
+  const cached = await redis.get(`intro:${hash(token)}`);
+  if (cached) return JSON.parse(cached);
+  
+  const intro = await hydra.introspectToken({ token });
+  await redis.setEx(`intro:${hash(token)}`, 60, JSON.stringify(intro));
+  return intro;
+}
+```
+
+- Latency: cached requests are fast (~1ms).
+- Revocation: clears cache on revoke → instant.
+
+This is the recommended default for Olympus.
+
+## JWT validation
+
+If you do use JWTs:
+
+```ts
+import { createRemoteJWKSet, jwtVerify } from "jose";
+
+const jwks = createRemoteJWKSet(new URL(`${HYDRA_URL}/.well-known/jwks.json`));
+
+async function validateJwt(token: string) {
+  const { payload } = await jwtVerify(token, jwks, {
+    issuer: HYDRA_URL,
+    audience: "https://your-api",
+  });
+  // payload.sub, .scope, .client_id, etc.
+  return payload;
+}
+```
+
+JWKS is cached locally; only re-fetched on key rotation (rare).
+
+## Revocation with JWTs
+
+If you must support revocation:
+
+### Option A: short expiry
+
+Set `access_token_lifespan: 5m`. After revoke, token still works for up to 5 min. Acceptable for some.
+
+### Option B: deny list
+
+```ts
+const deniedJtis = await redis.sMembers("denied_tokens");
+
+if (deniedJtis.includes(payload.jti)) {
+  throw new Error("revoked");
+}
+```
+
+On revoke:
+```ts
+await redis.sAdd("denied_tokens", token.jti);
+await redis.expire("denied_tokens", token.exp - Date.now());
+```
+
+Each API request checks deny list. Roughly defeats JWT's "no DB lookup" benefit. But denies are rare.
+
+### Option C: short JWT + opaque refresh
+
+JWT for access (5 min), opaque refresh (30 days). User's refresh hits opaque path. Best of both:
+- Most requests: fast JWT validation.
+- After revoke: refresh fails → access token expires quickly.
+
+## ID tokens are always JWT
+
+OIDC requires id_tokens be JWTs. No way around it. ID token expiry should be short (5-15 min).
+
+## Format mixing
+
+You can use different formats per client:
+
+```bash
+hydra create client \
+  --token-endpoint-auth-method client_secret_basic \
+  --metadata '{"access_token_format": "jwt"}'
+```
+
+(Implementation depends on Hydra version. Check docs.)
+
+## Performance benchmark
+
+In a 4-vCPU host:
+- Opaque introspection: ~5,000 req/s (no cache).
+- Opaque introspection cached: ~50,000 req/s.
+- JWT validation: ~30,000 req/s (signature check).
+
+For most apps, opaque + cache is enough. For very high-throughput (CDN-level), JWT.
+
+## Compatibility
+
+Some libraries expect JWT (they decode to extract claims). If you're switching to opaque, those libraries break.
+
+OAuth2 standard is format-agnostic — but many libraries assume JWT. Test compatibility.
+
+## Recommendation
+
+Default: opaque + cache. Switch to JWT only if you hit measurable bottlenecks.
+
+## Related
+
+- [Cookbook — Validate access token (Node)](/docs/cookbook/validate-token-node)
+- [Cookbook — Redis for session cache](/docs/cookbook/redis-for-session-cache)
+- [Reference — Diagrams — Token introspection](/docs/reference/diagrams/seq-token-introspection)
+- [Cookbook — API gateway pattern](/docs/cookbook/api-gateway-pattern)

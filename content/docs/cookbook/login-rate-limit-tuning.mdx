@@ -1,0 +1,234 @@
+---
+title: Tuning login rate limits
+description: Find the right thresholds for brute-force defense vs UX
+---
+
+Too strict: real users locked out after fat-fingering. Too lax: brute force succeeds. The tuning depends on your traffic patterns.
+
+## Defaults
+
+Olympus ships with:
+
+```caddy
+@login_post path /self-service/login method POST
+rate_limit @login_post {
+  zone login
+  events 10
+  window 1m
+  key {http.request.remote_host}
+}
+```
+
+Per-IP: 10 login attempts per minute. Generous for real users, restrictive for trivial brute force.
+
+## Account-level lockout
+
+In Kratos:
+
+```yaml
+selfservice:
+  methods:
+    password:
+      config:
+        # After 5 wrong passwords, lock for 5 min
+```
+
+(Olympus has custom logic for this; configure per requirements.)
+
+## Tuning per scenario
+
+### B2C consumer app
+
+- IP rate: 10/min (default).
+- Account lockout: 5 attempts, 15-min cooldown.
+- After cooldown, attempts reset.
+
+Real users rarely fat-finger more than 2-3 times.
+
+### B2B enterprise
+
+- IP rate: higher (corporate NAT — many users from same IP).
+- Account lockout: 10 attempts, 30-min cooldown.
+
+Adjust if behind Cloudflare, etc., where many users share egress IP.
+
+### Public API endpoints
+
+- Per-IP and per-token rate limits.
+- Lower thresholds (API consumers should know their limits).
+
+```caddy
+@api method POST
+rate_limit @api {
+  events 1000
+  window 1m
+  key {http.request.header.authorization}
+}
+```
+
+### Healthcare / financial
+
+- Stricter: 3 attempts before lockout.
+- Longer cooldown: 24h.
+- Notify user on each failure.
+
+## Don't enable enumeration
+
+Account lockout must NOT differ in observable behavior between "valid user, wrong password" and "non-existent user."
+
+```
+GOOD:
+- alice@example.com / wrong → "Invalid credentials"
+- nonexistent@x.com / anything → "Invalid credentials"
+
+BAD:
+- alice@example.com / wrong (lockout) → "Account temporarily locked"
+- nonexistent@x.com / anything → "Invalid credentials"
+
+The second reveals which emails are registered.
+```
+
+Olympus handles this — same response, same timing. Don't customize in ways that break it.
+
+## Distinguishing types of failures
+
+When deciding lockout:
+
+- Wrong password → count toward lockout.
+- Account not found → don't count (user might be typoing email).
+- MFA failure → separate counter.
+
+```ts
+async function recordFailedLogin(email: string, type: string) {
+  const id = await findIdentityByEmail(email);
+  if (!id) return;  // don't lock nonexistent account
+  
+  if (type === "wrong_password") {
+    await redis.incr(`failed_pw:${id}`);
+    await redis.expire(`failed_pw:${id}`, 900);  // 15 min
+  } else if (type === "mfa_failure") {
+    await redis.incr(`failed_mfa:${id}`);
+    await redis.expire(`failed_mfa:${id}`, 900);
+  }
+}
+```
+
+Different thresholds:
+- Wrong password: 5 → lock 15 min.
+- MFA failure: 10 → lock 1 hour.
+
+## Per-source rate limit
+
+Beyond IP, consider:
+
+- Per-account: lock after N attempts. Per-account counter.
+- Per-IP + account: locks if same IP attacks N accounts.
+- Per-ASN: if AS-level attack from one cloud.
+
+```ts
+async function shouldBlock(identityId, ip) {
+  const ipFails = await redis.get(`fails_ip:${ip}`);
+  const idFails = await redis.get(`fails_id:${identityId}`);
+  const asnFails = await redis.get(`fails_asn:${ipToAsn(ip)}`);
+  
+  return ipFails > 20 || idFails > 5 || asnFails > 100;
+}
+```
+
+Layered. One signal alone might be false positive; multiple converge.
+
+## Time-of-day patterns
+
+Real users follow circadian patterns. Logins peak ~9 AM in user's timezone.
+
+```sql
+SELECT EXTRACT(hour FROM created_at AT TIME ZONE 'UTC') AS hour, COUNT(*)
+FROM security_audit
+WHERE event_type = 'login' AND outcome = 'success'
+GROUP BY 1
+ORDER BY 1;
+```
+
+If logins are highest 9-17 in your customers' TZ, and you see 3 AM bursts: anomaly.
+
+## Lockout messaging
+
+Bad:
+```
+"Account locked. Try again in 15 min."
+```
+
+This says "try later" — invites a wait-and-retry attacker.
+
+Better:
+```
+"Too many failed attempts. Try resetting your password instead:"
+[Reset password]
+```
+
+User goes through recovery → password reset → defeats stuck-on-old-password issue.
+
+OR: if they keep failing, offer support contact: `support@your-domain.com`.
+
+## Notifications on lockout
+
+Email the user when their account is locked:
+
+```
+Subject: Your account was temporarily locked
+
+Hi,
+
+Multiple failed sign-in attempts triggered a temporary lock on your account.
+The lock auto-clears in 15 minutes.
+
+If this wasn't you, change your password now (link expires in 1 hour):
+  {{ resetLink }}
+
+If you're locked out due to forgetting your password, use the reset
+link above to set a new one.
+```
+
+Educates user. Gives a way forward.
+
+## Pre-emptive password reset
+
+For users with N failed attempts:
+
+```ts
+if (await failedAttempts(identityId) >= 3) {
+  await sendEmail(user.email, "Reset your password?", ...);
+}
+```
+
+User receives email mid-attempts. Realizes "oh, I forgot. Let me reset."
+
+## Resetting counters
+
+After successful login, reset:
+
+```ts
+async function onSuccessfulLogin(identityId) {
+  await redis.del(`failed_pw:${identityId}`);
+  // Don't reset MFA failed counter (paranoid: phish then MFA bypass)
+}
+```
+
+Or reset everything. Trade-off.
+
+## Logging
+
+```sql
+INSERT INTO security_audit (event_type, identity_id, source_ip, outcome, metadata)
+VALUES ('login', $id, $ip, 'failure', '{"reason": "wrong_password", "count_so_far": 3}');
+```
+
+Helps tuning later — was lockout effective? Did real users see it?
+
+## Related
+
+- [Security — Account lockout](/docs/security/account-lockout)
+- [Security — Brute force](/docs/security/brute-force)
+- [Security — Rate limiting](/docs/security/rate-limiting)
+- [Operate — Rate limiting tuning](/docs/operate/rate-limiting-tuning)
+- [Cookbook — Password spray defense](/docs/cookbook/password-spray-defense)
