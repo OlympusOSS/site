@@ -1,0 +1,237 @@
+---
+title: Idle session timeout
+description: Sign out users who go AFK
+---
+
+For higher-security environments (financial, healthcare), sessions shouldn't last forever. After N minutes of inactivity, sign out the user.
+
+## Different from session expiry
+
+- **Absolute expiry**: session valid for X hours regardless. Kratos default: 24h.
+- **Idle expiry**: session expires after Y minutes of inactivity. Resets on each action.
+
+Both useful, often combined: "logged out after 4h absolute OR 30 min idle."
+
+## Server-side enforcement
+
+Kratos's session has a fixed expiry. To add idle:
+
+```ts
+// On every request
+async function checkIdleSession(req) {
+  const session = await kratos.toSession(req);
+  if (!session) return null;
+  
+  const lastActivity = session.metadata?.last_activity ?? session.created_at;
+  const idleMinutes = (Date.now() - new Date(lastActivity).getTime()) / 60_000;
+  
+  if (idleMinutes > IDLE_TIMEOUT_MINUTES) {
+    await kratos.adminRevokeSession(session.id);
+    return null;
+  }
+  
+  // Update activity
+  await kratos.adminUpdateSession(session.id, { metadata: { last_activity: new Date().toISOString() } });
+  return session;
+}
+```
+
+Server tracks last activity. Auto-revokes after idle.
+
+## Client-side warning
+
+Show user a warning before session ends:
+
+```tsx
+"use client";
+useEffect(() => {
+  let idleSeconds = 0;
+  const reset = () => idleSeconds = 0;
+  document.addEventListener("mousemove", reset);
+  document.addEventListener("keypress", reset);
+  
+  const interval = setInterval(() => {
+    idleSeconds++;
+    if (idleSeconds === IDLE_TIMEOUT_SECONDS - 60) {
+      showWarningModal();  // "1 minute left"
+    }
+    if (idleSeconds >= IDLE_TIMEOUT_SECONDS) {
+      forceLogout();
+    }
+  }, 1000);
+  
+  return () => clearInterval(interval);
+}, []);
+```
+
+User clicks "Continue" in modal → reset.
+
+## Warning modal
+
+```tsx
+<Modal>
+  <h2>Are you still here?</h2>
+  <p>You'll be signed out in {countdown} seconds for security.</p>
+  <Button onClick={extend}>I'm here, keep me signed in</Button>
+  <Button variant="ghost" onClick={signOut}>Sign me out</Button>
+</Modal>
+```
+
+UX-friendly. Don't suddenly log them out without warning.
+
+## Tab visibility
+
+Don't penalize background tabs unfairly:
+
+```ts
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    // Just returned to tab. Reset idle.
+    idleSeconds = 0;
+  }
+});
+```
+
+User Alt-Tab'd; that doesn't mean they're AFK.
+
+## Per-app vs global
+
+If user has many tabs open:
+- Closing one tab shouldn't sign out all.
+- But all should reflect signed-out state if it occurs.
+
+```ts
+// In one tab on sign-out
+localStorage.setItem("session_ended", Date.now());
+
+// Other tabs:
+window.addEventListener("storage", (e) => {
+  if (e.key === "session_ended") {
+    forceSignOut();
+  }
+});
+```
+
+## Per-page timeout
+
+Some pages might have different idle policies:
+
+```ts
+const IDLE_TIMEOUT = {
+  "/billing": 5 * 60,        // 5 min on sensitive
+  "/admin": 10 * 60,         // 10 min on admin
+  "/dashboard": 30 * 60,     // 30 min normal
+  default: 30 * 60,
+};
+```
+
+Higher security → shorter idle.
+
+## Mobile considerations
+
+Mobile apps go to background a lot. Adjust:
+- Mobile: longer idle (60 min).
+- Desktop: shorter (30 min).
+
+```ts
+const isMobile = navigator.userAgent.match(/Mobile|Android|iPhone/);
+const IDLE_TIMEOUT = isMobile ? 60 * 60 : 30 * 60;
+```
+
+## Don't over-aggressively timeout
+
+For low-stakes apps, 30 min idle is friction without benefit. Adjust per:
+- User satisfaction surveys.
+- Customer complaints.
+- Industry norms.
+
+Banking: 5-15 min idle.
+SaaS: 60-240 min idle.
+Casual: rarely.
+
+## Step-up vs sign out
+
+For some sensitive actions, instead of full sign-out, just require re-auth:
+
+```ts
+async function deleteAccount() {
+  if (isSessionStale()) {
+    await stepUpAuth();  // re-enter password / MFA
+  }
+  // proceed
+}
+```
+
+User stays in app; just re-authenticates for the specific action.
+
+## Audit
+
+```sql
+INSERT INTO security_audit (event_type, identity_id, metadata)
+VALUES ('session_expired_idle', $id, '{"idle_minutes": $minutes}');
+```
+
+Track idle expirations. Pattern detection.
+
+## Settings: let user choose
+
+Some apps:
+
+```tsx
+<Select label="Auto sign-out after:">
+  <option value="0">Never (until I sign out)</option>
+  <option value="15">15 minutes</option>
+  <option value="30">30 minutes</option>
+  <option value="60">1 hour</option>
+</Select>
+```
+
+User picks their comfort. Store in traits.
+
+For admin / sensitive accounts: enforce minimum.
+
+## Sleep mode (mobile)
+
+When OS suspends app (mobile):
+- Visibility hidden / pagehide events fire.
+- App resumes: visibility visible.
+
+```ts
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) {
+    // App was in bfcache, came back. Re-check session.
+    refreshSession();
+  }
+});
+```
+
+## Don't timeout during long operations
+
+If user is uploading a 100MB file, don't sign them out mid-upload:
+
+```tsx
+const uploadInProgress = ...;
+if (uploadInProgress) {
+  idleSeconds = 0;  // reset
+}
+```
+
+Activity is happening, just not user-mouse activity.
+
+## Test
+
+Manually:
+- Sign in.
+- Walk away.
+- Verify warning appears.
+- Verify auto-sign-out.
+
+Confirm UX is acceptable.
+
+## Related
+
+- [Identity — Sessions](/docs/identity/sessions)
+- [Cookbook — Refresh on app foreground](/docs/cookbook/refresh-on-app-foreground)
+- [Cookbook — Enforce step-up auth](/docs/cookbook/enforce-step-up-auth)
+- [Reference — Diagrams — Session management](/docs/reference/diagrams/seq-session-management)
+- [Security — Session cookies](/docs/security/session-cookies)

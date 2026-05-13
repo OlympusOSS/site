@@ -1,0 +1,201 @@
+---
+title: Throttle by browser fingerprint
+description: Beyond IP-based — fingerprint as rate limit key
+---
+
+IP-based rate limiting fails when attacker uses residential proxies (each request from a different IP). Browser fingerprint as additional key catches more.
+
+## Why fingerprint matters
+
+```
+Attacker pool of 1000 residential IPs.
+Same browser / device / setup → same fingerprint.
+
+IP rate limit: ineffective (per-IP, scattered).
+Fingerprint rate limit: catches the cluster.
+```
+
+## Combine signals
+
+```ts
+function clientFingerprint(req) {
+  const ua = req.headers["user-agent"] ?? "";
+  const lang = req.headers["accept-language"] ?? "";
+  const enc = req.headers["accept-encoding"] ?? "";
+  const dnt = req.headers["dnt"] ?? "";
+  // Maybe canvas / WebGL fingerprint from cookie
+  return sha256(`${ua}|${lang}|${enc}|${dnt}`).slice(0, 16);
+}
+```
+
+Header-based: server-only. Mid-fidelity.
+
+For higher fidelity: FingerprintJS (client-side, sends fingerprint as cookie).
+
+## Layered rate limit
+
+```ts
+async function checkLogin(req) {
+  const ip = req.ip;
+  const fp = clientFingerprint(req);
+  const email = req.body.email;
+  
+  // Layer 1: per-email
+  if (await checkLimit(`email:${email}`, 5, 60)) ok = false;
+  
+  // Layer 2: per-IP
+  if (await checkLimit(`ip:${ip}`, 20, 60)) ok = false;
+  
+  // Layer 3: per-fingerprint
+  if (await checkLimit(`fp:${fp}`, 50, 60)) ok = false;
+  
+  // ALL must pass.
+  return ok;
+}
+```
+
+Attacker varies IP but same fingerprint → layer 3 catches.
+
+## Stronger fingerprints
+
+For more entropy, include client-supplied data:
+
+```html
+<script src="https://openfpcdn.io/fingerprintjs/v4"></script>
+<script>
+const fp = await FingerprintJS.load().then(fp => fp.get());
+document.cookie = `fp=${fp.visitorId}; max-age=2592000`;
+</script>
+```
+
+Visitor ID is stable across sessions, even after cookie clear.
+
+Server reads:
+```ts
+const fp = req.cookies.fp ?? clientFingerprint(req);
+```
+
+## Privacy
+
+Browser fingerprinting is tracking. Disclose:
+
+```
+"We use device characteristics to detect and prevent fraud."
+```
+
+Privacy policy section. EU users may need opt-out.
+
+For opt-out: don't fingerprint; rate limit by IP only. Less effective vs sophisticated attackers but cleaner UX.
+
+## False positives
+
+Multiple users on same device (kiosk, family computer) share fingerprint:
+- Library kiosk: many people use same Chromebook.
+- Family iPad.
+
+Don't be too aggressive. 50 logins/min from one fingerprint may be legit usage.
+
+```ts
+const FINGERPRINT_LIMIT = 50;  // per min
+const FINGERPRINT_DURATION = 60;  // 1 min
+```
+
+Generous threshold. Tighten if abuse observed.
+
+## When to apply
+
+- Login: high-value, attack target. Apply.
+- Recovery: similar. Apply.
+- Search: probably not (most users do many searches).
+- General API: depends.
+
+Per-endpoint:
+
+```ts
+const fingerprintLimits = {
+  "/login": 10,
+  "/recovery": 5,
+  "/register": 5,
+  default: 100,
+};
+```
+
+## Bot vs human
+
+Real users have:
+- Smooth mouse movements.
+- Typing rhythm.
+- Browser features active.
+
+Bots often lack. Behavioral fingerprints (rare to bypass) detect bots better than browser fingerprints (often spoofed).
+
+## Detection
+
+```sql
+SELECT fingerprint, COUNT(*) AS attempts
+FROM rate_limit_events
+WHERE event_type = 'login_attempt'
+  AND created_at > NOW() - INTERVAL '1 hour'
+GROUP BY 1
+HAVING COUNT(*) > 100
+ORDER BY 2 DESC;
+```
+
+Fingerprints with many attempts: suspicious. Block.
+
+## Block list
+
+```ts
+const blockedFingerprints = await getBlockList();
+if (blockedFingerprints.has(fp)) {
+  return res.status(403).send("blocked");
+}
+```
+
+After detection, add to list. Expire after some time (attacker might rotate fingerprint).
+
+## VPN / proxy detection
+
+If you also detect VPN / proxy IPs:
+
+```ts
+const isProxy = await checkProxyDb(req.ip);
+if (isProxy) {
+  // Higher scrutiny
+  rateLimit = rateLimit / 2;
+}
+```
+
+Tor, ProtonVPN, etc. — could be legit or attack. Apply more conservative limits.
+
+Don't outright block; many legit users use VPN.
+
+## Cost
+
+In-memory rate limiting: free.
+Redis: small.
+FingerprintJS: $0 to $300/mo (volume).
+
+For most Olympus deployments: in-memory or Redis is enough.
+
+## Limitations
+
+Sophisticated attackers:
+- Headless browser with rotating fingerprint extensions.
+- Real devices in click farms.
+
+You can't fingerprint your way to total safety. Combine with:
+- CAPTCHA at high risk.
+- Account lockout per-identity.
+- MFA enforcement.
+- Anomaly detection.
+
+Defense in depth.
+
+## Related
+
+- [Cookbook — Device fingerprinting](/docs/cookbook/device-fingerprinting)
+- [Cookbook — Bot detection strategies](/docs/cookbook/bot-detection-strategies)
+- [Cookbook — Password spray defense](/docs/cookbook/password-spray-defense)
+- [Cookbook — Login rate limit tuning](/docs/cookbook/login-rate-limit-tuning)
+- [Cookbook — Captcha strategies](/docs/cookbook/captcha-strategies)

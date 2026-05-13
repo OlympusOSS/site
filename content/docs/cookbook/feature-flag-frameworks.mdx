@@ -1,0 +1,269 @@
+---
+title: Feature flags for auth changes
+description: GrowthBook, LaunchDarkly, settings vault for risky changes
+---
+
+For controlled rollout of auth changes, feature flags are essential. Several options.
+
+## Why flags for auth
+
+- New flow rollout: see if it works for 10% before 100%.
+- A/B test: which login UX converts better?
+- Kill switch: turn off if breaking.
+- Per-user / per-tenant: enable for select cohort.
+
+## Built-in: settings vault
+
+Olympus's settings vault stores key-value config, editable in Athena.
+
+```
+olympus.feature.new_login_flow = true
+olympus.feature.passkey_promotion = false
+olympus.feature.mfa_required = false
+```
+
+Read at runtime:
+
+```ts
+const enabled = await getSetting("olympus.feature.new_login_flow");
+if (enabled) {
+  renderNewFlow();
+} else {
+  renderOldFlow();
+}
+```
+
+For simple global toggles: this is enough.
+
+## External: GrowthBook
+
+Open-source, self-hostable. Per-user / per-cohort flags.
+
+```bash
+docker run -p 3100:3100 growthbook/growthbook
+```
+
+```ts
+import { GrowthBook } from "@growthbook/growthbook-react";
+
+const gb = new GrowthBook({
+  apiHost: "https://growthbook.your-domain.com",
+  clientKey: "...",
+  attributes: {
+    id: user.id,
+    role: user.traits.role,
+    tenant: user.traits.tenant_id,
+  },
+});
+
+if (gb.isOn("new_login_flow")) {
+  renderNew();
+}
+```
+
+Per-user evaluation. % rollouts. Targeting rules.
+
+## LaunchDarkly
+
+Paid SaaS. Polished. Same concepts.
+
+```ts
+import { LDClient } from "launchdarkly-node-server-sdk";
+const ld = LDClient.init("...sdk-key");
+const enabled = await ld.variation("new-login-flow", { key: user.id }, false);
+```
+
+Mature targeting. Audit log. Approval workflows.
+
+Cost: $$ for orgs.
+
+## PostHog feature flags
+
+If you use PostHog for analytics, flags come free:
+
+```ts
+import { posthog } from "posthog-js";
+posthog.feature_flags.getFeatureFlag("new_login_flow");
+```
+
+Same identification as analytics. Unified.
+
+## Per-tenant flags
+
+For multi-tenant SaaS, sometimes you want per-tenant control:
+
+```ts
+const tenantFlags = await db`SELECT * FROM tenant_feature_flags WHERE tenant_id = ${tenantId}`;
+if (tenantFlags.passkey_required) {
+  enforcePasskey();
+}
+```
+
+Tenant admin enables passkey for their org via Athena.
+
+## Common patterns
+
+### Gradual rollout
+
+```yaml
+flag: new_login_flow
+rules:
+  - condition: user.id ends in [0,1]  # 20%
+    enabled: true
+  - default: false
+```
+
+Increase % over weeks.
+
+### Cohort
+
+```yaml
+flag: passkey_promotion
+rules:
+  - condition: user.created_at > 2026-04-01
+    enabled: true   # only new users see it
+```
+
+### Kill switch
+
+```yaml
+flag: new_payment_flow
+enabled: true
+
+# Emergency:
+enabled: false  # disables everywhere immediately
+```
+
+Always have a kill switch for risky changes.
+
+### A/B test
+
+```yaml
+flag: login_layout
+variants:
+  - id: A
+    weight: 50
+  - id: B
+    weight: 50
+```
+
+```ts
+const variant = gb.getFeatureValue("login_layout", "A");
+renderLayout(variant);
+```
+
+Track conversion per variant.
+
+## Flag lifecycle
+
+```
+1. Add flag, default off.
+2. Deploy code (uses flag).
+3. Enable for internal team.
+4. Enable for beta cohort.
+5. Gradual rollout: 1%, 10%, 50%, 100%.
+6. Confirm stable.
+7. Remove flag from code.
+8. Delete flag.
+```
+
+Don't leave dead flags. They accumulate.
+
+Audit:
+
+```bash
+grep -r "getFlag" src/ | grep -v "TODO: remove"
+```
+
+Cleanup quarterly.
+
+## Don't flag-check everywhere
+
+```ts
+// BAD - flag checked 100 times per render
+const Component = () => {
+  if (flag.isOn("X")) return <A />;
+  return <B />;
+};
+```
+
+Caching:
+
+```ts
+// At app init
+const flags = await loadAllFlags();
+
+// At runtime
+if (flags["X"]) ...
+```
+
+Or memoize.
+
+## Don't expose flag names to user
+
+```html
+<!-- BAD -->
+<div data-feature="new_login_flow">...</div>
+```
+
+Reveals internal feature names. Use generic class names.
+
+## Audit flag changes
+
+```sql
+INSERT INTO security_audit (event_type, actor_id, metadata)
+VALUES (
+  'feature_flag_changed',
+  $admin_id,
+  '{"flag": "$flag_name", "value": "$new_value", "previous": "$old_value"}'
+);
+```
+
+Who turned what on when. For incidents: was a flag change the cause?
+
+## Flags vs config
+
+Distinction:
+- **Config**: ops choice, doesn't usually toggle.
+- **Flag**: experimental, may toggle daily.
+
+Both are runtime values. But flags have shorter lifecycle.
+
+## Defaults
+
+Always have safe default:
+
+```ts
+const enabled = await getFlag("X", { defaultValue: false });
+```
+
+If flag service is down, fall back to default. Don't crash.
+
+## Don't flag security-critical
+
+```ts
+// BAD
+if (flag.isOn("require_mfa")) {
+  requireMfa();
+}
+```
+
+Security shouldn't depend on flag being checked correctly. Make security default; flag for *less* secure modes.
+
+```ts
+// GOOD
+if (flag.isOn("relaxed_mfa_for_beta")) {
+  // beta cohort: less strict
+} else {
+  requireMfa();
+}
+```
+
+Defaults to secure.
+
+## Related
+
+- [Cookbook — Add feature flag (settings vault)](/docs/cookbook/add-feature-flag-settings-vault)
+- [Cookbook — Dark launch feature](/docs/cookbook/dark-launch-feature)
+- [Cookbook — Feature flag MFA rollout](/docs/cookbook/feature-flag-mfa-rollout)
+- [Cookbook — Per-tenant config](/docs/cookbook/per-tenant-config)

@@ -1,0 +1,242 @@
+---
+title: Validating the `iss` claim
+description: One of OIDC's most-skipped checks — don't skip
+---
+
+OIDC tokens contain `iss` (issuer). Every consumer MUST verify it. Easy to skip; consequences are severe.
+
+## What `iss` is
+
+```json
+{
+  "iss": "https://ciam.your-domain.com",
+  "sub": "user-uuid",
+  ...
+}
+```
+
+URL of the issuer. Should match your Olympus instance.
+
+## Why verify
+
+Without verification, attacker can present a token from ANY OIDC provider as if it's from yours:
+
+```
+Attacker has account on attacker.com (an OIDC provider).
+Gets token with: iss = https://attacker.com, sub = victim's UUID.
+Sends to your API.
+Your API doesn't check iss → treats token as legit.
+Attacker now authorized as victim.
+```
+
+Real attack. Has happened.
+
+## Implementation
+
+```ts
+import { jwtVerify } from "jose";
+
+const { payload } = await jwtVerify(token, jwks, {
+  issuer: "https://ciam.your-domain.com",  // ← THIS
+  audience: "https://your-api.com",
+});
+```
+
+`issuer` param: jwtVerify throws if claim doesn't match.
+
+## What to compare
+
+Exact match. Including:
+- `https://` (not `http://`).
+- Hostname.
+- Path (if any).
+
+`https://ciam.your-domain.com` ≠ `https://ciam.your-domain.com/` (trailing slash).
+`https://ciam.your-domain.com` ≠ `https://CIAM.your-domain.com` (case).
+
+## Multi-tenant Olympus
+
+If different tenants have different OIDC issuers:
+
+```ts
+const tenantIssuers = {
+  "tenant-A": "https://ciam.tenant-a.com",
+  "tenant-B": "https://ciam.tenant-b.com",
+};
+
+const { payload } = await jwtVerify(token, getKeysForIssuer(claims.iss));
+if (!tenantIssuers[claims.tenant_id] || tenantIssuers[claims.tenant_id] !== payload.iss) {
+  throw new Error("issuer_mismatch");
+}
+```
+
+Each tenant: their own iss.
+
+## Federated IdPs
+
+If your service federates to multiple IdPs (Google, Apple, etc.):
+
+User signs in via Google → token has `iss = https://accounts.google.com`.
+
+Your service should:
+1. Pre-authorize known issuers (Google, Apple, etc.).
+2. Verify iss matches one of them.
+3. Use issuer-specific JWKS for signature.
+
+```ts
+const trustedIssuers = new Set([
+  "https://accounts.google.com",
+  "https://appleid.apple.com",
+  "https://login.microsoftonline.com/{tenant}/v2.0",
+]);
+
+if (!trustedIssuers.has(payload.iss)) {
+  throw new Error("untrusted_issuer");
+}
+```
+
+## JWKS per issuer
+
+```ts
+const jwksMap = {
+  "https://ciam.your-domain.com": createRemoteJWKSet(new URL("https://ciam.your-domain.com/.well-known/jwks.json")),
+  "https://accounts.google.com": createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs")),
+};
+
+const claims = decodeJwt(token);  // unverified, just to read iss
+const jwks = jwksMap[claims.iss];
+if (!jwks) throw new Error("unknown_issuer");
+
+const { payload } = await jwtVerify(token, jwks, { issuer: claims.iss });
+```
+
+For each issuer: keys from their JWKS endpoint.
+
+## OIDC discovery
+
+```bash
+curl https://ciam.your-domain.com/.well-known/openid-configuration | jq
+```
+
+Returns:
+```json
+{
+  "issuer": "https://ciam.your-domain.com",
+  "jwks_uri": "https://ciam.your-domain.com/.well-known/jwks.json",
+  ...
+}
+```
+
+Use this to bootstrap your validation config.
+
+## Wrong issuer common cases
+
+### Subdomain change
+
+Migrated `ciam.X` → `auth.X`. Old tokens still floating around with old issuer.
+
+```
+Old: iss = https://ciam.your-domain.com
+New: iss = https://auth.your-domain.com
+```
+
+For backward compat:
+
+```ts
+const acceptedIssuers = [
+  "https://auth.your-domain.com",
+  "https://ciam.your-domain.com",  // grandfathered
+];
+if (!acceptedIssuers.includes(payload.iss)) throw new Error();
+```
+
+After ~30 days, drop the old.
+
+### HTTP/HTTPS migration
+
+Switched to HTTPS. Old tokens have `http://...`. Now mismatched.
+
+```ts
+// Normalize
+const normalizedIss = payload.iss.replace(/^http:/, "https:");
+```
+
+Quick fix; for safety, prefer hard cut.
+
+### Cluster move
+
+Different Olympus instance / region. Different issuer URL.
+
+For consistency across regions: configure each region with its own issuer.
+
+## OAuth2 access tokens (not OIDC)
+
+If tokens are opaque, you can't read iss directly. Introspect endpoint returns:
+
+```json
+{
+  "active": true,
+  "iss": "https://ciam.your-domain.com",
+  ...
+}
+```
+
+Verify the introspect response's iss matches expected.
+
+For JWT access tokens (configurable): verify in the JWT.
+
+## ID token vs access token
+
+Both have `iss`. Check both.
+
+ID token: presented at sign-in flow. iss should be your Olympus issuer.
+
+Access token: API calls. Same.
+
+## Test
+
+```bash
+# Generate fake token with wrong iss
+node -e "console.log(jwt.sign({ iss: 'attacker.com', sub: 'X' }, 'secret'))"
+
+# Try to use against your API
+curl -H "Authorization: Bearer $FAKETOKEN" https://your-api.com/orders
+```
+
+Should return 401.
+
+## Common pitfalls
+
+### Skipping iss check
+
+```ts
+// BAD
+const { payload } = await jwtVerify(token, jwks);
+// No issuer param.
+```
+
+Verify is just signature + expiry. iss is not checked.
+
+```ts
+// GOOD
+const { payload } = await jwtVerify(token, jwks, { issuer });
+```
+
+### Trusting iss as a hint
+
+```ts
+// BAD
+const claims = decodeJwt(token);  // not verified!
+if (claims.iss === "https://...") {
+  return authorize();
+}
+```
+
+Anyone can write any iss. Always verify signature first.
+
+## Related
+
+- [Cookbook — Validate access token (Node)](/docs/cookbook/validate-token-node)
+- [Cookbook — JWT vs opaque tokens](/docs/cookbook/jwt-vs-opaque-tokens)
+- [Cookbook — OIDC token shapes](/docs/cookbook/oidc-token-shapes)
+- [Reference — Diagrams — Token introspection](/docs/reference/diagrams/seq-token-introspection)
