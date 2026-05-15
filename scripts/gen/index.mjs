@@ -48,12 +48,20 @@ for (const g of GENERATORS) {
 	}
 }
 
-if (failed > 0 && process.env.CI) {
+if (failed > 0 && (process.env.CI || process.env.OLYMPUS_GEN_TOLERATE_MISSING)) {
 	// Several generators read from sibling repos (../athena, ../platform,
-	// ../daedalus) that aren't checked out in CI. The output they would have
-	// produced is already committed to content/docs/, so a partial gen here
-	// is fine for the build. Warn but don't fail the run.
-	console.warn(`\n${failed} generator(s) failed in CI (likely missing sibling repos); continuing with committed content.`);
+	// ../daedalus) that aren't checked out in CI or inside `podman build`.
+	// The output they would have produced is already committed to
+	// content/docs/, so a partial gen here is fine for the build. Warn but
+	// don't fail the run.
+	//
+	// `CI=true` is set by GitHub Actions automatically. The container build
+	// runs `bun run build` inside `podman build`, where the GH-Actions env
+	// is NOT visible — that's why we also accept the explicit
+	// `OLYMPUS_GEN_TOLERATE_MISSING=1` flag, which the Containerfile sets in
+	// the builder stage.
+	const reason = process.env.CI ? "CI" : "OLYMPUS_GEN_TOLERATE_MISSING";
+	console.warn(`\n${failed} generator(s) failed under ${reason} (likely missing sibling repos); continuing with committed content.`);
 	process.exit(0);
 }
 if (failed > 0) {

@@ -8,6 +8,13 @@ RUN --mount=type=secret,id=npmrc,target=/app/.npmrc \
 FROM oven/bun:1-alpine AS builder
 WORKDIR /app
 ARG CACHE_BUST
+# Tell scripts/gen/index.mjs to tolerate missing sibling repos
+# (../athena, ../platform, ../sdk, ../daedalus). The doc generators write
+# into content/docs/ which is already committed; the per-build run is just
+# a refresh and is allowed to produce a partial set when running inside
+# `podman build`, where the GH-Actions `CI` env var is not visible. Mirrors
+# the existing CI tolerance in scripts/gen/index.mjs.
+ENV OLYMPUS_GEN_TOLERATE_MISSING=1
 COPY package.json ./
 RUN --mount=type=secret,id=npmrc,target=/app/.npmrc \
     bun install
