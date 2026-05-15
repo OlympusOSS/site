@@ -48,6 +48,14 @@ for (const g of GENERATORS) {
 	}
 }
 
+if (failed > 0 && process.env.CI) {
+	// Several generators read from sibling repos (../athena, ../platform,
+	// ../daedalus) that aren't checked out in CI. The output they would have
+	// produced is already committed to content/docs/, so a partial gen here
+	// is fine for the build. Warn but don't fail the run.
+	console.warn(`\n${failed} generator(s) failed in CI (likely missing sibling repos); continuing with committed content.`);
+	process.exit(0);
+}
 if (failed > 0) {
 	console.error(`\n${failed} generator(s) failed.`);
 	process.exit(1);
