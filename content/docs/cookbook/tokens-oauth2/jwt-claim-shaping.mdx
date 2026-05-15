@@ -1,0 +1,210 @@
+---
+title: Custom claims in JWTs
+description: Add your own data to ID tokens and access tokens
+---
+
+OIDC ID tokens contain claims (sub, email, etc.). Sometimes you want more (tenant_id, role, plan). Hydra supports custom claims via session shaping.
+
+## Where to add claims
+
+### ID token claims
+
+Visible to the OAuth2 client. Used at login.
+
+### Access token claims
+
+Visible to resource servers (your APIs). Used per request.
+
+Different audiences, shape independently.
+
+## Hydra session customizer
+
+Hydra delegates claim-shaping to a consent app (Hera's `/consent` endpoint).
+
+```tsx
+// hera/app/consent/page.tsx
+import { hydraAdmin, kratos } from "@/lib/clients";
+
+export async function POST(req: Request) {
+  const { challenge } = await req.json();
+  const consent = await hydraAdmin.getOAuth2ConsentRequest({ challenge });
+  
+  // Look up identity for additional claims
+  const identity = await kratos.adminGetIdentity({ id: consent.subject });
+  
+  const session = {
+    access_token: {
+      tenant_id: identity.traits.tenant_id,
+      role: identity.traits.role,
+      // Custom claim namespaces avoid collision:
+      "https://your-app.com/plan": identity.metadata_public?.plan ?? "free",
+    },
+    id_token: {
+      tenant_id: identity.traits.tenant_id,
+      preferred_username: identity.traits.email,
+      // Standard OIDC claims:
+      name: `${identity.traits.first_name} ${identity.traits.last_name}`,
+    },
+  };
+  
+  const accept = await hydraAdmin.acceptOAuth2ConsentRequest({
+    challenge,
+    acceptOAuth2ConsentRequest: {
+      grant_scope: consent.requested_scope,
+      session,
+    },
+  });
+  
+  return Response.redirect(accept.redirect_to);
+}
+```
+
+## Custom claim namespaces
+
+Public claim names (sub, email, iss, aud) are reserved. For custom: prefix with URL:
+
+```json
+{
+  "https://your-app.com/tenant_id": "tenant-A",
+  "https://your-app.com/role": "admin"
+}
+```
+
+This avoids future conflicts if OIDC adds a standard `tenant_id` claim.
+
+Internally, you can use short names if you fully control consumers:
+
+```json
+{
+  "tenant_id": "tenant-A",
+  "role": "admin"
+}
+```
+
+But this is technically non-standard. Long-namespaced is safer.
+
+## Reading claims
+
+In your app:
+
+```ts
+// From id_token (after sign-in)
+const idToken = await getIdToken();
+const claims = jwt.decode(idToken);
+const tenantId = claims["https://your-app.com/tenant_id"];
+
+// From access_token (in API handler)
+const accessToken = req.headers.authorization?.slice(7);
+const intro = await introspect(accessToken);
+const role = intro["https://your-app.com/role"];
+```
+
+## Avoid sensitive claims
+
+Tokens are often logged, cached, sent to browsers (id_token). Don't include:
+
+- Password hashes.
+- MFA secrets.
+- Private internal IDs (use opaque ones if exposed).
+- PII beyond what client needs (don't include full name in access tokens used by 3rd party APIs).
+
+Minimum necessary.
+
+## Claim freshness
+
+Claims are baked at token issue. Don't change for that token's lifetime.
+
+If user's role changes:
+- ID token: still old role until expiry.
+- Access token: same.
+- Refresh token: when used, new access token with new role.
+
+Lifespans:
+- ID token: 1h.
+- Access token: 15 min.
+- Refresh: 30d.
+
+Stale roles tolerable for short periods. For instant changes, use revocation + introspection.
+
+## Per-client claims
+
+Different clients might need different claims. Configure per:
+
+```ts
+// Hera consent page
+const client = consent.client.client_id;
+const customClaims = clientClaimMap[client] ?? {};
+
+session.id_token = { ...baseClaims, ...customClaims };
+```
+
+E.g., billing client gets `subscription_status`; orders client doesn't need.
+
+## Hydra metadata (alternative)
+
+Some claims aren't dynamic per-user, they're per-client. Store in client metadata:
+
+```bash
+hydra update client my-app --metadata '{"feature_flags": ["X", "Y"]}'
+```
+
+Available to your consent app:
+
+```ts
+const flags = consent.client.metadata.feature_flags;
+session.access_token.flags = flags;
+```
+
+## Limits
+
+JWTs grow with claims. Practical limit: ~4 KB total. Don't pack everything.
+
+Browser limits (URL fragments) further constrain ID tokens to a few KB.
+
+Trim sparingly.
+
+## Audit on changes
+
+Claim shaping happens at token issue. Log:
+
+```ts
+audit({
+  event: "claims_issued",
+  identity_id: identity.id,
+  client_id: client.client_id,
+  claims: Object.keys(session.access_token),
+});
+```
+
+When tokens are misused, you can see who got what claims when.
+
+## Standard OIDC claims
+
+Don't reinvent standard claims:
+
+| Claim | Meaning |
+|---|---|
+| sub | Identity ID |
+| iss | Issuer URL |
+| aud | Audience (client_id) |
+| exp | Expiry |
+| iat | Issued at |
+| nbf | Not before |
+| jti | JWT ID (unique) |
+| email | Email |
+| email_verified | Boolean |
+| preferred_username | Username |
+| name | Full name |
+| given_name | First name |
+| family_name | Last name |
+| picture | URL to photo |
+| locale | Language preference |
+
+Use these for things they're designed for.
+
+## Related
+
+- [Cookbook, Add custom claim to ID token](/docs/cookbook/tokens-oauth2/add-custom-claim-id-token)
+- [Cookbook, Map roles to scopes](/docs/cookbook/tokens-oauth2/map-roles-to-scopes)
+- [Reference, OAuth2 endpoints, token](/docs/reference/oauth2/endpoint-token)
+- [Reference, OIDC claims](/docs/reference/oidc/claims-overview)

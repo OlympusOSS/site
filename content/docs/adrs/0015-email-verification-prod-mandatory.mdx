@@ -1,5 +1,5 @@
 ---
-title: "0015 — Email verification mandatory in production"
+title: "0015, Email verification mandatory in production"
 description: Why production Olympus enforces email verification before granting session access
 ---
 
@@ -25,12 +25,12 @@ A user who registers but doesn't verify cannot log in until verified. Their iden
 ## Consequences
 
 - **Some friction.** Users who type an email they can't access can't proceed.
-- **Email provider must be reliable.** Deliverability matters — see [Operate — Email Deliverability](/docs/operate/email-deliverability).
+- **Email provider must be reliable.** Deliverability matters, see [Operate, Email Deliverability](/docs/operate/performance/email-deliverability).
 - **Tighter cohort.** Every active identity is reachable via email.
 - **Dev exception.** Verification is optional in dev (`compose.dev.yml` doesn't enable the hook). MailSlurper captures the email so testing the flow is easy.
 
 ## Related
 
-- [Security — Email verification](/docs/security/email-verification)
-- [Identity — Flow verification](/docs/identity/flow-verification)
-- [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust)
+- [Security, Email verification](/docs/security/identity-protection/email-verification)
+- [Identity, Flow verification](/docs/identity/flow-verification)
+- [Security, OIDC email_verified trust](/docs/security/identity-protection/oidc-email-verified-trust)

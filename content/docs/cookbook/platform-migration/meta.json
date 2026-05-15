@@ -1,0 +1,11 @@
+{
+  "title": "Platform migration",
+  "pages": [
+    "migrate-from-auth0",
+    "migrate-from-cognito",
+    "migrate-password-hash",
+    "migration-from-clerk",
+    "migration-from-firebase",
+    "migration-from-okta"
+  ]
+}

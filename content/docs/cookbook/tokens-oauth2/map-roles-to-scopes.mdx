@@ -1,0 +1,111 @@
+---
+title: Map roles to scopes via Hydra introspection
+description: Translate user roles to API permissions
+---
+
+Scopes describe what a token can do; roles describe what a user is. The two are related but distinct. This recipe wires them together.
+
+## The pattern
+
+1. User has `role: "admin"` in their Kratos identity traits.
+2. When they get an OAuth2 token, the ID token includes `role: "admin"` (since Hydra includes traits).
+3. Your backend, on every API call, reads `role` from the token and computes which actions are permitted.
+
+So roles → scopes is **computed in your backend**, not in OAuth2. Token introspection doesn't change scopes based on roles.
+
+## Why not encode roles as scopes
+
+You could try:
+- `role: "admin"` → token has `admin:read admin:write` scopes.
+
+Problems:
+- A token's scope set is fixed at issuance. If the user's role changes, their existing tokens still have the old scopes.
+- More moving parts: now scopes are derived from roles in some opaque mapper.
+- Scope enforcement happens in your APIs anyway; the scope→role mapping is just indirection.
+
+Cleaner: read `role` from the token claims directly in your backend, treat it as the authorization signal.
+
+## Code
+
+```ts
+async function authorize(req: Request, action: string): Promise<{user: string; role: string}> {
+  const auth = req.headers.get("authorization");
+  if (!auth?.startsWith("Bearer ")) throw new HTTPError(401, "missing token");
+
+  const info = await introspect(auth.slice(7));
+  if (!info.active) throw new HTTPError(401, "inactive");
+
+  const role = info.ext?.role ?? "user"; // role from claims
+  const sub = info.sub;
+
+  if (!isPermitted(role, action)) {
+    throw new HTTPError(403, "insufficient_role");
+  }
+
+  return { user: sub, role };
+}
+
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  admin: ["read", "write", "delete", "manage_users"],
+  operator: ["read", "write"],
+  user: ["read"],
+};
+
+function isPermitted(role: string, action: string): boolean {
+  return ROLE_PERMISSIONS[role]?.includes(action) ?? false;
+}
+```
+
+## Where role is in the token
+
+If you've configured Hydra to include identity traits in the ID token (default in Olympus), `role` appears in:
+- ID token (`iat`, `exp`, `sub`, ..., `role`).
+- Userinfo response.
+- Introspection response (`ext.role` typically; depends on Hydra's claim mapping).
+
+Check via:
+
+```bash
+ID_TOKEN=...
+echo "$ID_TOKEN" | cut -d. -f2 | base64 -d | jq
+```
+
+You should see `"role": "admin"`.
+
+## Group-based authorization
+
+Same pattern with arrays:
+
+```ts
+const groups: string[] = info.ext?.groups ?? [];
+if (!groups.includes("engineers")) throw new HTTPError(403);
+```
+
+## What if the role isn't in the token
+
+Reasons it might not be:
+- The user's identity doesn't have a `role` trait.
+- Hydra's claim mapper isn't configured to include `role`.
+- Your client requests scopes that exclude profile/traits.
+
+For (1): ensure your IAM/CIAM identity schema declares `role` and your seed includes default roles.
+
+For (2): see [Cookbook, Add custom claim](/docs/cookbook/tokens-oauth2/add-custom-claim-id-token).
+
+For (3): include `profile` or your custom scope when requesting tokens.
+
+## Token revocation when role changes
+
+Changing a user's role doesn't automatically revoke their tokens. Their old tokens keep their old role until they expire.
+
+For immediate effect:
+1. Update the role in Kratos.
+2. Revoke all of that user's Hydra sessions: `DELETE /admin/oauth2/auth/sessions/login?subject=<sub>`.
+3. User must re-authenticate; the new token has the updated role.
+
+## Related
+
+- [Cookbook, Add custom claim to ID token](/docs/cookbook/tokens-oauth2/add-custom-claim-id-token)
+- [Cookbook, Add OAuth2 scope](/docs/cookbook/tokens-oauth2/add-oauth2-scope)
+- [Cookbook, Validate access token (Node)](/docs/cookbook/tokens-oauth2/validate-token-node)
+- [Integrate, OAuth2 overview](/docs/integrate/oauth2/oauth2-overview)

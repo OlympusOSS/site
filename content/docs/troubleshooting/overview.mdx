@@ -3,30 +3,30 @@ title: Overview
 description: Diagnostics for known failure modes
 ---
 
-This section is the troubleshooting tree. Pages are organized by **observed symptom** (or by **error code**, when one is emitted) rather than by service — because the user knows what they see, not what's wrong.
+This section is the troubleshooting tree. Pages are organized by **observed symptom** (or by **error code**, when one is emitted) rather than by service, because the user knows what they see, not what's wrong.
 
 ## By symptom
 
-- [`podman compose up` fails](/docs/troubleshooting/podman-compose-fails)
-- [Login loops](/docs/troubleshooting/login-loops)
-- [Consent screen shows for every request](/docs/troubleshooting/consent-screen-every-request)
-- [Email not sending](/docs/troubleshooting/email-not-sending)
-- [Locked out of admin](/docs/troubleshooting/locked-out-of-admin)
-- [pgAdmin SSO fails](/docs/troubleshooting/pgadmin-sso-fails)
-- [Cookies not persisting cross-port](/docs/troubleshooting/cookies-not-persisting)
+- [`podman compose up` fails](/docs/troubleshooting/infrastructure-issues/podman-compose-fails)
+- [Login loops](/docs/troubleshooting/auth-issues/login-loops)
+- [Consent screen shows for every request](/docs/troubleshooting/auth-issues/consent-screen-every-request)
+- [Email not sending](/docs/troubleshooting/infrastructure-issues/email-not-sending)
+- [Locked out of admin](/docs/troubleshooting/auth-issues/locked-out-of-admin)
+- [pgAdmin SSO fails](/docs/troubleshooting/infrastructure-issues/pgadmin-sso-fails)
+- [Cookies not persisting cross-port](/docs/troubleshooting/auth-issues/cookies-not-persisting)
 
 ## By error
 
-- [`encryption_key_not_set` startup failure](/docs/troubleshooting/encryption-key-startup-failure)
-- [Certificate expired](/docs/troubleshooting/cert-expired)
-- [Database SSL mismatch](/docs/troubleshooting/database-ssl-mismatch)
-- [Reload API key invalid](/docs/troubleshooting/reload-api-key-invalid)
-- [`redirect_uri` localhost in prod](/docs/troubleshooting/redirect-uri-localhost-in-prod)
-- [OAuth2 `invalid_grant`](/docs/troubleshooting/oauth2-invalid-grant)
-- [OAuth2 `pkce_required`](/docs/troubleshooting/oauth2-pkce-required)
-- [Kratos flow expired](/docs/troubleshooting/kratos-flow-expired)
-- [Kratos CSRF violation](/docs/troubleshooting/kratos-csrf-violation)
-- [Kratos session AAL too low](/docs/troubleshooting/kratos-session-aal-too-low)
+- [`encryption_key_not_set` startup failure](/docs/troubleshooting/infrastructure-issues/encryption-key-startup-failure)
+- [Certificate expired](/docs/troubleshooting/infrastructure-issues/cert-expired)
+- [Database SSL mismatch](/docs/troubleshooting/infrastructure-issues/database-ssl-mismatch)
+- [Reload API key invalid](/docs/troubleshooting/infrastructure-issues/reload-api-key-invalid)
+- [`redirect_uri` localhost in prod](/docs/troubleshooting/oauth2-issues/redirect-uri-localhost-in-prod)
+- [OAuth2 `invalid_grant`](/docs/troubleshooting/oauth2-issues/oauth2-invalid-grant)
+- [OAuth2 `pkce_required`](/docs/troubleshooting/oauth2-issues/oauth2-pkce-required)
+- [Kratos flow expired](/docs/troubleshooting/auth-issues/kratos-flow-expired)
+- [Kratos CSRF violation](/docs/troubleshooting/auth-issues/kratos-csrf-violation)
+- [Kratos session AAL too low](/docs/troubleshooting/auth-issues/kratos-session-aal-too-low)
 
 ## Status
 

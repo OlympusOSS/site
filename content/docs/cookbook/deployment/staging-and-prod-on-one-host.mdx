@@ -1,0 +1,106 @@
+---
+title: Staging and prod on one host
+description: Run a staging Olympus alongside production on the same VPS
+---
+
+For solo / small teams: one VPS, two Olympus deployments (prod + staging). This recipe covers the gotchas.
+
+## Approach
+
+Two complete Compose stacks on the same Podman host, on different ports + domains.
+
+```
+VPS
+├── Caddy (prod)        :80 :443  → ciam.example.com, iam.example.com
+├── ... prod stack
+└── Caddy (staging)     :8080 :8443 → ciam.staging.example.com, iam.staging.example.com
+└── ... staging stack
+```
+
+Or use port 80/443 only for prod, with staging behind a wildcard subdomain on a different VPS / Tailscale.
+
+The simpler choice: **separate VPSes**. Adds ~$5/month for staging. Worth it.
+
+## If you really want them on one VPS
+
+### Compose project names
+
+Use distinct Compose project names so containers don't collide:
+
+```bash
+podman compose -p olympus-prod -f compose.prod.yml up -d
+podman compose -p olympus-staging -f compose.staging.yml up -d
+```
+
+### Port conflicts
+
+Both stacks include Postgres (port 5432). To run both:
+- Prod uses 5432 (or self-hosted on a non-default port).
+- Staging uses 5433 (host-bind on a different port) or its own Postgres container with different volume.
+
+For Caddy, only one can own ports 80/443. Either:
+- Prod gets 80/443; staging gets 8080/8443.
+- A single shared Caddy reverse-proxies to both stacks' internal services.
+
+The shared-Caddy approach is cleaner for many deployments, one TLS, one rate-limit zone, route via hostname.
+
+### Shared Caddy config
+
+```text
+ciam.example.com {
+  reverse_proxy ciam-hera-prod:3000
+}
+ciam.staging.example.com {
+  reverse_proxy ciam-hera-staging:3000
+}
+```
+
+Both stacks reside in the same `intranet` Compose network so Caddy can reach all upstream service names.
+
+### Database isolation
+
+Crucial: prod and staging must have **separate Postgres databases**. Either:
+- Two Postgres containers, separate volumes.
+- One Postgres container, separate databases (prefix table names or DBs).
+
+The latter saves resources but mixes prod and staging data physically, riskier.
+
+### Domain DNS
+
+Two sets of subdomains:
+- Prod: `ciam.example.com`, `iam.example.com`.
+- Staging: `ciam.staging.example.com`, `iam.staging.example.com`.
+
+Both A-records point to the same VPS IP.
+
+## Operational impact
+
+- **Resource usage**: doubles. A VPS that was fine for prod alone may slow.
+- **Deploy isolation**: a deploy of staging shouldn't break prod. But shared resources (Caddy, Postgres if collocated) can.
+- **Backups**: separate prod and staging backups. Restoring prod backup to staging is a useful regular drill.
+
+## Promoting staging to prod
+
+A typical flow:
+1. Develop a change on staging branch.
+2. Deploy to staging via `gh workflow run deploy.yml -f env=staging`.
+3. Verify.
+4. Merge staging branch to main.
+5. Deploy workflow runs against prod.
+
+The platform repo can have multiple `compose.<env>.yml` files; the deploy workflow accepts an `env` input.
+
+## When two VPSes is cleaner
+
+The added cost is small; isolation is real:
+- Staging deploy doesn't risk prod.
+- A staging VPS reboot doesn't affect prod.
+- Resource contention is impossible.
+
+Recommend two VPSes unless cost is genuinely a constraint.
+
+## Related
+
+- [Deploy, Without Daedalus, manual](/docs/deploy/wizards/without-daedalus-manual)
+- [Internals, Platform compose layering](/docs/internals/platform/platform-compose-layering)
+- [Internals, Platform deploy pipeline](/docs/internals/platform/platform-deploy-pipeline)

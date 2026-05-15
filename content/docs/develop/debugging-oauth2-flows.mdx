@@ -38,7 +38,7 @@ If the chain breaks at any step, look at:
 
 ## Common breaks
 
-### Step 2 — Hydra returns 400
+### Step 2, Hydra returns 400
 
 ```
 error: invalid_client
@@ -47,24 +47,24 @@ error_description: Client authentication failed
 
 The client_id is wrong or the client doesn't have the requested grant. Check Athena → OAuth2 Clients.
 
-### Step 5 — Kratos returns 422
+### Step 5, Kratos returns 422
 
 ```json
 { "error": { "id": "session_aal2_required" } }
 ```
 
-The user's session needs step-up. Follow [Troubleshooting — Session AAL too low](/docs/troubleshooting/kratos-session-aal-too-low).
+The user's session needs step-up. Follow [Troubleshooting, Session AAL too low](/docs/troubleshooting/auth-issues/kratos-session-aal-too-low).
 
-### Step 5 — Kratos returns 400 with CSRF violation
+### Step 5, Kratos returns 400 with CSRF violation
 
-See [Troubleshooting — Kratos CSRF violation](/docs/troubleshooting/kratos-csrf-violation).
+See [Troubleshooting, Kratos CSRF violation](/docs/troubleshooting/auth-issues/kratos-csrf-violation).
 
-### Step 8 — Your app's callback fails
+### Step 8, Your app's callback fails
 
 Check what your callback received:
 - Did `code` arrive in the URL? If not, Hydra is rejecting the consent / redirect.
-- Did your `/oauth2/token` exchange succeed? Look at the response. See [Troubleshooting — OAuth2 invalid_grant](/docs/troubleshooting/oauth2-invalid-grant).
-- Did PKCE verifier match? See [Troubleshooting — OAuth2 pkce_required](/docs/troubleshooting/oauth2-pkce-required).
+- Did your `/oauth2/token` exchange succeed? Look at the response. See [Troubleshooting, OAuth2 invalid_grant](/docs/troubleshooting/oauth2-issues/oauth2-invalid-grant).
+- Did PKCE verifier match? See [Troubleshooting, OAuth2 pkce_required](/docs/troubleshooting/oauth2-issues/oauth2-pkce-required).
 
 ## Server-side logs
 
@@ -106,7 +106,7 @@ Shows whether the challenge is accepted, rejected, expired, etc.
 
 ## Related
 
-- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview)
-- [Get Started — Your first OAuth2 client](/docs/get-started/first-oauth-client)
-- [Troubleshooting — OAuth2 invalid_grant](/docs/troubleshooting/oauth2-invalid-grant)
-- [Troubleshooting — Login loops](/docs/troubleshooting/login-loops)
+- [Integrate, OAuth2 overview](/docs/integrate/oauth2/oauth2-overview)
+- [Get Started, Your first OAuth2 client](/docs/get-started/first-oauth-client)
+- [Troubleshooting, OAuth2 invalid_grant](/docs/troubleshooting/oauth2-issues/oauth2-invalid-grant)
+- [Troubleshooting, Login loops](/docs/troubleshooting/auth-issues/login-loops)

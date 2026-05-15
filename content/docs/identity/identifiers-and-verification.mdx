@@ -3,7 +3,7 @@ title: Identifiers and verification
 description: How Kratos identifies users and confirms their addresses
 ---
 
-A Kratos identity has zero or more **identifiers** — fields that let the user log in. The most common is `email`, but a schema can declare any trait as an identifier.
+A Kratos identity has zero or more **identifiers**, fields that let the user log in. The most common is `email`, but a schema can declare any trait as an identifier.
 
 ## Identifier extension
 
@@ -57,7 +57,7 @@ The user can submit `identifier: "alice"` or `identifier: "alice@example.com"` a
 
 ## Identifier uniqueness
 
-Identifiers are **globally unique within a domain** (per Kratos instance). Two identities cannot have the same email in CIAM, but the same email can exist in CIAM and IAM (different Kratos instances, different domains — see [CIAM/IAM isolation](/docs/security/ciam-iam-isolation)).
+Identifiers are **globally unique within a domain** (per Kratos instance). Two identities cannot have the same email in CIAM, but the same email can exist in CIAM and IAM (different Kratos instances, different domains, see [CIAM/IAM isolation](/docs/security/infrastructure/ciam-iam-isolation)).
 
 Case sensitivity: emails are normalized to lowercase. Custom username identifiers are case-sensitive unless the schema sets a `format` or `pattern` that normalizes.
 
@@ -105,7 +105,7 @@ selfservice:
             - hook: require_verified_address
 ```
 
-Every login checks; unverified users redirect to the verification flow. Olympus production enables this (see [Security — Email verification](/docs/security/email-verification)).
+Every login checks; unverified users redirect to the verification flow. Olympus production enables this (see [Security, Email verification](/docs/security/identity-protection/email-verification)).
 
 ## Recovery
 
@@ -116,20 +116,20 @@ POST /self-service/recovery?flow=...
 { "email": "user@example.com" }
 ```
 
-If the email is a recovery-enabled identifier, Kratos sends a recovery code. See [Identity — Flow recovery](/docs/identity/flow-recovery).
+If the email is a recovery-enabled identifier, Kratos sends a recovery code. See [Identity, Flow recovery](/docs/identity/flow-recovery).
 
 ## Olympus-specific: do not trust OIDC `email_verified`
 
 When a user logs in via Google / GitHub / Apple, the OIDC ID token may include `email_verified=true`. **Olympus does not trust this.** Kratos always runs its own verification.
 
-The reasoning: an attacker who controls a mailbox via DNS takeover or registrar compromise could obtain Auth0/Google credentials with `email_verified=true` matching an Olympus identity's email — then use pre-linking to steal access. By requiring Olympus's own verification, we eliminate this path.
+The reasoning: an attacker who controls a mailbox via DNS takeover or registrar compromise could obtain Auth0/Google credentials with `email_verified=true` matching an Olympus identity's email, then use pre-linking to steal access. By requiring Olympus's own verification, we eliminate this path.
 
-See [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust).
+See [Security, OIDC email_verified trust](/docs/security/identity-protection/oidc-email-verified-trust).
 
 ## Related
 
-- [Identity — Identity schemas](/docs/identity/identity-schemas)
-- [Identity — Flow verification](/docs/identity/flow-verification)
-- [Identity — Flow recovery](/docs/identity/flow-recovery)
-- [Security — Email verification](/docs/security/email-verification)
-- [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust)
+- [Identity, Identity schemas](/docs/identity/identity-schemas)
+- [Identity, Flow verification](/docs/identity/flow-verification)
+- [Identity, Flow recovery](/docs/identity/flow-recovery)
+- [Security, Email verification](/docs/security/identity-protection/email-verification)
+- [Security, OIDC email_verified trust](/docs/security/identity-protection/oidc-email-verified-trust)

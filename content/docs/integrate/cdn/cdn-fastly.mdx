@@ -1,0 +1,79 @@
+---
+title: Fastly in front of Olympus
+description: Add Fastly as a CDN and edge compute layer
+---
+
+Fastly + Olympus: Fastly caches at the edge, terminates TLS, optionally runs VCL or Compute@Edge.
+
+## Architecture
+
+```
+User → Fastly POP → Caddy on origin → Olympus services
+```
+
+## Setup
+
+### Service config
+
+1. Create a Fastly service of type "Delivery."
+2. Origins → add your origin (Caddy host) → HTTPS port 443.
+3. Hosts → add `ciam.example.com`, `iam.example.com`, `www.example.com`.
+4. TLS → upload or generate cert for your hosts.
+
+### Cache rules
+
+Fastly default-caches everything. For Olympus, override per path:
+
+```vcl
+sub vcl_recv {
+  # Never cache auth-sensitive paths
+  if (req.url ~ "^/(oauth2|login|registration|recovery|verification|consent|logout)") {
+    return(pass);
+  }
+
+  # Short-cache discovery
+  if (req.url ~ "^/\.well-known/") {
+    set req.http.X-Cache-TTL = "300";
+  }
+}
+```
+
+### Real IP
+
+Fastly adds `Fastly-Client-IP` and `X-Forwarded-For`. Configure Caddy:
+
+```caddy
+servers {
+  trusted_proxies static <fastly-ip-ranges>
+}
+```
+
+Fastly publishes their IPs.
+
+## Compute@Edge
+
+For more sophisticated edge logic, Fastly Compute@Edge runs Rust / JS / Go / AssemblyScript at the edge.
+
+Useful for Olympus:
+- Validate JWT access tokens at the edge, reject obvious invalid tokens before they hit your origin.
+- Rate limit by ASN (more granular than per-IP).
+- Reject known-bad user agents.
+
+## Cost
+
+- $50/mo minimum for the Delivery product.
+- Compute@Edge: additional cost.
+- Generally pricier than Cloudflare or CloudFront for low-volume use; competitive at scale.
+
+## When Fastly fits
+
+- Existing Fastly customer.
+- Need Compute@Edge.
+- Performance-critical streaming/video sites (not Olympus's core case).
+
+For most Olympus deployments, Cloudflare is simpler and cheaper.
+
+## Related
+
+- [Cookbook, Cloudflare in front](/docs/cookbook/deployment/cloudflare-in-front)
+- [Integrate, CloudFront integration](/docs/integrate/cdn/cdn-cloudfront)

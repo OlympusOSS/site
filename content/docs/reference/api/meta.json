@@ -2,15 +2,10 @@
   "title": "APIs",
   "pages": [
     "overview",
-    "---Athena---",
-    "...athena",
-    "---SDK---",
-    "...sdk",
-    "---MCP---",
-    "...mcp",
-    "---Hydra---",
-    "...hydra",
-    "---Kratos---",
-    "...kratos"
+    "athena",
+    "sdk",
+    "mcp",
+    "hydra",
+    "kratos"
   ]
 }

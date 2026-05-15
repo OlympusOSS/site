@@ -1,0 +1,10 @@
+{
+  "title": "SPA & mobile",
+  "pages": [
+    "mobile-integration",
+    "spa-integration",
+    "spa-nextjs",
+    "spa-svelte",
+    "spa-vue"
+  ]
+}

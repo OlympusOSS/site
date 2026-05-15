@@ -1,0 +1,109 @@
+---
+title: Backups, Postgres
+description: Strategy for backing up the five Olympus databases
+---
+
+Olympus has **five Postgres databases**: `ciam_kratos`, `ciam_hydra`, `iam_kratos`, `iam_hydra`, `olympus`. Each must be backed up.
+
+## Strategy depends on Postgres host
+
+### Neon (managed)
+
+Neon retains every commit for 7 days (free) or 30 days (paid). You can restore to any point in that window via the Neon dashboard.
+
+You still want belt-and-suspenders dumps. Run nightly:
+
+```bash
+# Iterate the five databases
+for db in ciam_kratos ciam_hydra iam_kratos iam_hydra olympus; do
+  pg_dump \
+    "postgres://reader:<pass>@<host>.neon.tech/$db?sslmode=verify-full" \
+    --format=custom \
+    --compress=9 \
+    -f /backups/$(date +%Y%m%d)-$db.dump
+done
+```
+
+Stash the dumps off-host:
+
+```bash
+rclone copy /backups/ s3:olympus-backups/$(date +%Y%m%d)/
+```
+
+### Self-hosted
+
+```bash
+podman exec olympus-postgres pg_dumpall -U postgres \
+  --globals-only > /backups/$(date +%Y%m%d)-globals.sql
+
+for db in ciam_kratos ciam_hydra iam_kratos iam_hydra olympus; do
+  podman exec olympus-postgres pg_dump \
+    -U postgres \
+    --format=custom \
+    --compress=9 \
+    --dbname=$db \
+    > /backups/$(date +%Y%m%d)-$db.dump
+done
+
+rclone copy /backups/ b2:olympus-backups/$(date +%Y%m%d)/
+```
+
+Schedule via cron:
+```
+0 3 * * * /usr/local/bin/olympus-pgbackup
+```
+
+## Retention
+
+Recommended:
+- **Daily** dumps: keep 14 days.
+- **Weekly** dumps (one full per week): keep 90 days.
+- **Monthly** dumps: keep 12 months.
+- **Yearly**: indefinite.
+
+```bash
+# Daily prune
+find /backups -name "*.dump" -mtime +14 -delete
+```
+
+Total storage: ~100MB per snapshot × 14 daily + 12 weekly + 12 monthly ≈ 4GB. Trivial.
+
+## Restore drill (quarterly)
+
+Test that you can actually restore. Real disasters reveal forgotten edge cases.
+
+```bash
+# On a separate VPS / staging env
+podman run --name pg-restore-test -e POSTGRES_PASSWORD=test -d postgres:17
+podman cp ./20260301-ciam_kratos.dump pg-restore-test:/tmp/
+podman exec pg-restore-test pg_restore -U postgres -d postgres /tmp/20260301-ciam_kratos.dump
+```
+
+Verify a few queries against the restored DB to confirm data is intact.
+
+Document the actual restore time. RTO (recovery time objective) for Olympus production should be ~30 minutes for the database alone, plus another 30 for redeploying apps.
+
+## Encryption
+
+Backups contain encrypted secrets (the SDK encrypts settings before they hit Postgres), but they also contain:
+- OAuth2 client secrets (Hydra encrypts these too).
+- Identity traits (PII).
+- Recovery codes (HMAC-signed but the cipher secret is also in the secrets store).
+
+**Encrypt backups at rest.** Either:
+- Provider-managed encryption (S3 SSE, B2 encryption-at-rest enabled by default).
+- Client-side: `pg_dump | gpg --encrypt > backup.dump.gpg`. Distribute the key separately.
+
+Test the key recovery, losing the backup encryption key is the same as losing the backup.
+
+## What's NOT in backups
+
+- Caddy ACME state and certificates. See [Operate, Backups (Caddy data)](/docs/operate/backups-recovery/backups-caddy-data).
+- Container images. These come from GHCR by digest.
+- The compose configs. These are in your platform Git fork.
+
+## Related
+
+- [Operate, Backups (Caddy data)](/docs/operate/backups-recovery/backups-caddy-data)
+- [Operate, Incident response](/docs/operate/backups-recovery/incident-response)
+- [Operate, Cert rotation](/docs/operate/rotation/cert-rotation)

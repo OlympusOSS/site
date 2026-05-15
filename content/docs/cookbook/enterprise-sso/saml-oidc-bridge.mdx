@@ -1,0 +1,117 @@
+---
+title: SAML to OIDC bridge
+description: Federate SAML-only apps with Olympus
+---
+
+Some legacy enterprise apps only speak SAML 2.0. Olympus is OIDC-first. Bridge with a SAML-to-OIDC translator.
+
+## Architecture
+
+```
+SAML SP (your legacy app) → SAML IdP (the bridge) → OIDC RP (the bridge again) → Olympus Hydra
+```
+
+The bridge acts as:
+- A **SAML Identity Provider** to your legacy app.
+- An **OIDC Relying Party** to Olympus Hydra.
+
+## Bridge options
+
+- [SAMLify](https://github.com/tngan/samlify), Node.js library to build your own.
+- [DEX](https://dexidp.io/), Go, supports multiple connectors including SAML on one side, OIDC on the other (with custom config).
+- [Authentik](https://goauthentik.io/), full IdP that can speak SAML and OIDC; deploy alongside.
+- [Keycloak](https://www.keycloak.org/), overkill but works.
+
+## DEX as the bridge
+
+Probably the cleanest option:
+
+```yaml
+# dex-config.yaml
+issuer: https://saml-bridge.example.com
+storage:
+  type: postgres
+  config:
+    host: postgres
+    database: dex
+
+# DEX speaks OIDC to clients (this is where SAML apps would NOT work, DEX is OIDC-only).
+# For SAML, you'd need to combine DEX with SAML signing on the client side.
+```
+
+Actually, **DEX is OIDC-only** as a public interface. For SAML, look at:
+
+- **Authentik**, flexible, supports SAML SP + IdP.
+- **Keycloak**, supports SAML and OIDC bidirectionally.
+- **Custom code**, Node.js SAML library + custom OIDC client to Olympus.
+
+## Custom bridge
+
+```ts
+// pseudo-code
+import * as saml from "samlify";
+import { Issuer } from "openid-client";
+
+const olympus = await Issuer.discover(process.env.OLYMPUS_ISSUER);
+const olympusClient = new olympus.Client({
+  client_id: process.env.BRIDGE_CLIENT_ID,
+  client_secret: process.env.BRIDGE_CLIENT_SECRET,
+});
+
+const samlIdP = saml.IdentityProvider({
+  // bridge identity provider metadata
+});
+
+app.get("/saml/sso", async (req, res) => {
+  // 1. SAML AuthnRequest comes in from the SP
+  const samlReq = await samlIdP.parseLoginRequest(saml.spExternal, "redirect", req);
+
+  // 2. Redirect to Olympus OIDC
+  const url = olympusClient.authorizationUrl({
+    scope: "openid email profile",
+    state: samlReq.relayState,
+    code_challenge: ...,
+  });
+  res.redirect(url);
+});
+
+app.get("/oidc/callback", async (req, res) => {
+  // 3. Olympus returns
+  const tokens = await olympusClient.callback("/oidc/callback", req.query);
+  const userinfo = await olympusClient.userinfo(tokens.access_token);
+
+  // 4. Issue SAML response back to the SAML SP
+  const samlResp = await samlIdP.createLoginResponse(saml.spExternal, ..., "post", {
+    NameID: userinfo.sub,
+    email: userinfo.email,
+  });
+  res.send(samlResp.context); // auto-POST form
+});
+```
+
+Fragile if you write from scratch. Prefer Authentik or Keycloak.
+
+## When to bridge vs. drop the SAML SP
+
+Modern enterprise apps support OIDC. Old ones don't:
+- Atlassian Cloud, OIDC supported.
+- Salesforce, OIDC supported.
+- Workday, SAP, typically SAML.
+- AWS IAM Identity Center, SAML or OIDC.
+
+If you can update the SP to use OIDC, do that instead of running a bridge.
+
+## Operational cost
+
+A bridge is another service to operate:
+- More cert rotation.
+- More IdP metadata to manage.
+- Failure point in the auth path.
+
+Justify only if you have multiple SAML-only SPs.
+
+## Related
+
+- [Migration, From Okta](/docs/migration/from-okta), SAML migration story.
+- [Cookbook, Use Olympus as IdP for AWS](/docs/cookbook/tools/olympus-as-idp-aws), direct OIDC instead.
+- [ADR 0002, Kratos+Hydra over Keycloak](/docs/adrs/0002-kratos-hydra-over-keycloak), why Olympus is OIDC-first.

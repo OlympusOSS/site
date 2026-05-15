@@ -1,16 +1,6 @@
 {
   "title": "kratos.yml",
   "pages": [
-    "overview",
-    "ciphers",
-    "courier",
-    "dsn",
-    "hashers",
-    "identity",
-    "log",
-    "secrets",
-    "selfservice",
-    "serve",
-    "version"
+    "overview"
   ]
 }

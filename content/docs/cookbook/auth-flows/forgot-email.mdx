@@ -1,0 +1,186 @@
+---
+title: "I forgot my email address"
+description: Helping users who don't remember which email they signed up with
+---
+
+Variation on "forgot password", user remembers their password but not which email they used. Common when users have many email accounts.
+
+## Why this happens
+
+- User has multiple emails (work, personal, alias).
+- Signed up months ago, forgot.
+- Used a one-time email for signup.
+
+## What you should NOT do
+
+Don't allow email enumeration:
+
+```
+"Tell us your name and we'll send your email to any of your accounts."
+```
+
+Bad. Lets attackers harvest emails.
+
+## What you should do
+
+### Approach A: alternative identifier
+
+Allow username login as an alternative:
+
+```
+Sign in:
+  [ Email or username ]
+  [ Password         ]
+```
+
+If user remembers their username, they can sign in.
+
+Configure Kratos:
+
+```json
+"username": {
+  "type": "string",
+  "ory.sh/kratos": {
+    "credentials": {
+      "password": { "identifier": true }
+    }
+  }
+}
+```
+
+Both email and username can identify.
+
+### Approach B: account recovery via SMS
+
+If user enrolled phone number:
+
+```
+"Sign in by phone:
+[ +1-555-... ]
+[ Continue ]"
+```
+
+System sends SMS code to that phone. User enters → signed in.
+
+In Kratos: phone as identifier requires custom schema and code-based method.
+
+### Approach C: external memory aids
+
+Suggest they check:
+- Email-search tools (1Password, etc., remembering signups).
+- Email account directories ("alice* in @gmail.com inbox").
+- Order confirmations.
+
+Don't directly tell them; nudge.
+
+### Approach D: support escalation
+
+```
+"Can't remember which email? Contact support:
+support@your-domain.com
+
+Include any details you can: name, when you signed up,
+what you remember about the account."
+```
+
+Support agent looks up by name / other clues, verifies via out-of-band proof, then either:
+- Tells them their email (if they prove identity).
+- Resets account if needed.
+
+This is the most secure path but high-touch.
+
+## Don't email-confirm
+
+```
+"Enter your name and phone number; we'll email you the account email."
+```
+
+Bad, enumeration risk, weak verification.
+
+## Anti-pattern: "by name"
+
+```
+"Enter your full name. We'll look up your account."
+```
+
+Names aren't unique. And name → email exposure is a privacy issue.
+
+## Combine identifier paths
+
+If you support multiple identifiers (email, username, phone), display in login:
+
+```
+Sign in with:
+[ ] Email
+[ ] Username
+[ ] Phone
+```
+
+User picks the one they remember. Each is a path to sign-in.
+
+In Kratos schema:
+
+```json
+"traits": {
+  "email": { "ory.sh/kratos": { "credentials": { "password": { "identifier": true } } } },
+  "username": { "ory.sh/kratos": { "credentials": { "password": { "identifier": true } } } },
+  "phone": { "ory.sh/kratos": { "credentials": { "code": { "identifier": true } } } }
+}
+```
+
+All three identifiers; user picks one.
+
+## Conversational support
+
+If support is doing this often, build a flow:
+
+```
+Support agent: "Can you confirm your full name?"
+User: "Alice Smith"
+Support agent: looks up "Alice Smith" in identities
+
+If exactly one match:
+  Agent: "Confirm: did you sign up around [Month Year]? Is your phone +1-***-1234?"
+  User: "Yes."
+  Agent: "Your email is alice.s****@example.com. Try signing in."
+
+If multiple matches:
+  Agent asks for more identifiers (street address from billing, phone, etc.)
+```
+
+Use out-of-band verification before disclosing email.
+
+## Account merging post-recovery
+
+If user finds they have TWO accounts (one in @work, one in @personal), they want to merge:
+
+- See [Cookbook, Identity merging](/docs/cookbook/auth-flows/identity-merging).
+
+## Education
+
+In the signup flow, encourage users to write down which email they used:
+
+```
+"Pro tip: save your sign-in email in your password manager so you
+never lose it."
+```
+
+Or just: "We sent a welcome email to alice@example.com. Save this so you know which email to use later."
+
+## Email change history
+
+Athena tracks email change events. Old emails are searchable:
+
+```sql
+SELECT identity_id FROM email_changes WHERE old_email = 'lost-email@example.com';
+```
+
+Even after a user has changed their email, search history reveals their current identity.
+
+## Related
+
+- [Cookbook, Multi-factor recovery](/docs/cookbook/auth-flows/multi-factor-recovery)
+- [Identity, Recovery flow](/docs/identity/recovery-flow)
+- [Cookbook, Identity merging](/docs/cookbook/auth-flows/identity-merging)
+- [Operate, Locked account unlock](/docs/operate/backups-recovery/locked-account-unlock)
+- [Cookbook, Customer support tooling](/docs/cookbook/tools/customer-support-tooling)

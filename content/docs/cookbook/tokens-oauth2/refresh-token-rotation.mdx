@@ -1,0 +1,177 @@
+---
+title: Refresh token rotation explained
+description: How Olympus handles refresh tokens and what to watch for
+---
+
+OAuth2's refresh token has been a thorny security topic. Olympus's Hydra implements **rotation with reuse detection**, the modern best practice.
+
+## What rotation means
+
+Each time a refresh token is used:
+1. The OLD refresh token is invalidated.
+2. A NEW refresh token is issued alongside the access token.
+3. Future refreshes use the new one.
+
+```
+T+0:   user logs in
+       Issued: AT-1, RT-1
+
+T+15m: AT-1 expires; client uses RT-1
+       Issued: AT-2, RT-2
+       Invalidated: RT-1
+
+T+30m: AT-2 expires; client uses RT-2
+       Issued: AT-3, RT-3
+       Invalidated: RT-2
+
+...
+```
+
+## Reuse detection
+
+If anyone uses an *invalidated* refresh token (e.g., RT-1 after RT-2 was issued), Hydra:
+
+1. Recognizes the token was already used.
+2. Invalidates the *entire token family* (RT-1 through RT-N).
+3. Forces the user to log in again.
+
+This catches token theft. Specifically:
+
+```
+Attacker steals RT-2.
+Attacker uses RT-2 → gets AT-2', RT-3' (Hydra issues, doesn't know it's an attack yet).
+
+User's client uses RT-2 (still has old refresh token cached).
+Hydra: "RT-2 was already used. This is a reuse → revoke all RT-X."
+Both attacker AND user are logged out.
+```
+
+The user notices: they're forced to re-log-in. Investigation reveals theft. Attacker can no longer use even RT-3'.
+
+## Without rotation
+
+The "old" OAuth2 way: same refresh token used forever. Stolen refresh token = persistent access until expiration.
+
+Olympus doesn't allow this, rotation is the default.
+
+## Hydra config
+
+```yaml
+# hydra.yml
+oauth2:
+  refresh_token_rotation: true  # default
+  refresh_token_lifespan: 720h  # 30 days
+```
+
+180-day refresh tokens are also common, adjust per your security policy.
+
+## Client implementation requirements
+
+Your client MUST:
+
+1. **Use the new refresh token on every refresh**. Don't keep the old.
+2. **Atomically swap**: write the new RT before deleting the old, in case the storage fails.
+3. **Handle reuse-detection logout gracefully**: if your refresh fails with `token_inactive`, log the user out and ask them to sign in again.
+
+```ts
+async function refreshAccessToken() {
+  const oldRT = await store.get("refresh_token");
+  const res = await fetch(`${HYDRA_URL}/oauth2/token`, {
+    method: "POST",
+    body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: oldRT, client_id: CLIENT_ID }),
+  });
+  if (!res.ok) {
+    if ((await res.json()).error === "invalid_grant") {
+      await store.clear();
+      window.location.href = "/login?reason=token_revoked";
+    }
+    throw new Error("refresh_failed");
+  }
+  const { access_token, refresh_token: newRT } = await res.json();
+  await store.atomicSwap("refresh_token", oldRT, newRT);
+  await store.set("access_token", access_token);
+}
+```
+
+## Race conditions
+
+Two requests happen simultaneously:
+
+```
+Thread A: GET /api/orders → 401 → refresh RT-1 → AT-2, RT-2
+Thread B: GET /api/users  → 401 → refresh RT-1 → reuse detected (RT-1 already used by A)
+                                                → token family revoked
+                                                → user logged out
+```
+
+Avoid by single-flight refresh:
+
+```ts
+let refreshInFlight: Promise<string> | null = null;
+
+async function getValidAccessToken() {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshAccessToken().finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
+}
+```
+
+All concurrent refresh requests await the same promise.
+
+## Mobile apps
+
+iOS / Android apps face the same race. Use OS-level mutexes:
+
+```swift
+// Swift example
+private let refreshSerialQueue = DispatchQueue(label: "olympus.refresh")
+private var inFlight: Promise<String>?
+
+func getAccessToken() -> Promise<String> {
+  refreshSerialQueue.sync {
+    if let p = inFlight { return p }
+    inFlight = doRefresh().always { self.refreshSerialQueue.sync { self.inFlight = nil } }
+    return inFlight!
+  }
+}
+```
+
+## Backend services
+
+If a service uses Authorization Code grant on behalf of users (rare, but possible), same rules apply. Lock around refresh.
+
+For pure machine-to-machine (Client Credentials), there's no refresh token. You get a new access token directly. No rotation issue.
+
+## Storage choices
+
+Where to put refresh tokens:
+
+| Storage | Survives | XSS-safe |
+|---|---|---|
+| localStorage | Tab close, browser restart | NO |
+| sessionStorage | Tab close only | NO |
+| Memory (JS variable) | Page reload, NO | YES |
+| HttpOnly cookie | Tab close, restart | YES |
+| BFF session | Tab close, restart | YES |
+
+For SPAs, BFF (refresh token in HttpOnly cookie) is best.
+
+## Token lifetime trade-offs
+
+Longer refresh tokens (30+ days):
+- User logs in less often.
+- Stolen token is valuable longer.
+
+Shorter (1-7 days):
+- Users re-login weekly.
+- Smaller theft window.
+
+Olympus default: 30 days. For high-stakes, shorten.
+
+## Related
+
+- [Cookbook, SPA token refresh](/docs/cookbook/tokens-oauth2/spa-token-refresh)
+- [Reference, Diagrams, Refresh token](/docs/reference/diagrams/seq-refresh-token)
+- [Reference, OAuth2 grants, refresh-token](/docs/reference/oauth2/grant-refresh-token)
+- [Cookbook, Account takeover response](/docs/cookbook/defensive-security/account-takeover-response)

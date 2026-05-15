@@ -11,7 +11,7 @@ Account linking lets users connect a social provider (Google, GitHub) to an exis
 
 ### Link flow (two-phase)
 
-Account linking uses Kratos' self-service settings flow and requires two explicit user steps. Kratos does not auto-commit OIDC credentials after the OAuth2 callback — the pending credential stays in `show_form` state until the user confirms.
+Account linking uses Kratos' self-service settings flow and requires two explicit user steps. Kratos does not auto-commit OIDC credentials after the OAuth2 callback, the pending credential stays in `show_form` state until the user confirms.
 
 ```
 User clicks "Connect" on Settings > Security > Connected Accounts
@@ -49,7 +49,7 @@ When a user attempts to sign in with a social provider and the provider email ma
 
 ```
 New sign-in attempt with social provider
-  → Provider email matches an existing Olympus account (platform#15 — Kratos conflict redirect)
+  → Provider email matches an existing Olympus account (platform#15, Kratos conflict redirect)
   → Kratos redirects to /link-conflict?provider={provider}
   → LinkConflictPage renders numbered instructions:
       1. Sign in with your existing Olympus account (email and password)
@@ -73,7 +73,7 @@ All three actions follow the Next.js `useActionState` contract: the first parame
 | `confirmLinkAction` | `actions.ts` | "Connect [Provider]" on confirmation screen | `flow_id`, `provider` |
 | `unlinkAction` | `actions.ts` | "Disconnect" button | `provider` |
 
-**`flow_id` vs Kratos `flow` parameter**: The hidden field is named `flow_id` (underscore). The Kratos API accepts it as the `flowId` path or query parameter. The field name diverges from the Kratos URL param name intentionally — `flow_id` is the form field, not a raw Kratos query parameter.
+**`flow_id` vs Kratos `flow` parameter**: The hidden field is named `flow_id` (underscore). The Kratos API accepts it as the `flowId` path or query parameter. The field name diverges from the Kratos URL param name intentionally, `flow_id` is the form field, not a raw Kratos query parameter.
 
 ### URL-based state after redirect
 
@@ -113,7 +113,7 @@ When both `flow` and `provider` are present, the page renders the confirmation s
 
 Providers are validated in two locations with different enforcement mechanisms:
 
-**`settings/security/page.tsx` — compile-time enforcement**
+**`settings/security/page.tsx`, compile-time enforcement**
 
 ```typescript
 const KNOWN_PROVIDERS = ["google", "github"] as const;
@@ -126,7 +126,7 @@ const PROVIDER_LABELS: Record<KnownProvider, string> = {
 
 `PROVIDER_LABELS` is typed as `Record<KnownProvider, string>`. Adding a provider to `KNOWN_PROVIDERS` without adding it to `PROVIDER_LABELS` (or vice versa) produces a TypeScript compile error. This is the canonical, compiler-enforced definition.
 
-**`link-conflict/page.tsx` — runtime enforcement**
+**`link-conflict/page.tsx`, runtime enforcement**
 
 ```typescript
 const PROVIDER_LABELS: Record<string, string> = {
@@ -140,7 +140,7 @@ const knownProvider = provider && Object.prototype.hasOwnProperty.call(PROVIDER_
 const providerLabel = knownProvider ? PROVIDER_LABELS[knownProvider] : "Unknown Provider";
 ```
 
-The `link-conflict` page uses a `Record<string, string>` type with an explicit `hasOwnProperty` runtime check. An unknown provider value renders as "Unknown Provider" rather than being interpolated raw into the page. The TypeScript type is weaker — no compile-time guarantee that `PROVIDER_LABELS` here matches `PROVIDER_LABELS` in `page.tsx`.
+The `link-conflict` page uses a `Record<string, string>` type with an explicit `hasOwnProperty` runtime check. An unknown provider value renders as "Unknown Provider" rather than being interpolated raw into the page. The TypeScript type is weaker, no compile-time guarantee that `PROVIDER_LABELS` here matches `PROVIDER_LABELS` in `page.tsx`.
 
 These are two separate definitions. DX-2 tracks deduplicating them into a shared `@/lib/providers.ts` constant when a third provider is added.
 
@@ -150,7 +150,7 @@ When no social providers are linked yet (`providers.every(p => !p.linked)`), the
 
 > "Social login connections require platform configuration (platform#15). The interface below shows the current state of your linked accounts. Connecting new providers will be available once social login is configured."
 
-This notice appears only when `providers.every(p => !p.linked)` is true. Once any provider is linked, the notice is suppressed — it would be misleading to show it to a user who already has a linked account.
+This notice appears only when `providers.every(p => !p.linked)` is true. Once any provider is linked, the notice is suppressed, it would be misleading to show it to a user who already has a linked account.
 
 ### Credential count and last-login protection
 
@@ -221,17 +221,17 @@ On success, the browser is redirected to `/settings/security?unlinked=github`.
 - **Session mismatch on confirm**: If the flow ID was created by a different session (e.g., the user signed in as a different identity in another tab), `confirmLinkAction` compares `flow.identity.id` against the current session identity ID. A mismatch returns "Invalid confirmation request." without leaking which identity the flow belongs to.
 - **Concurrent unlink**: `unlinkAction` holds an in-process lock keyed by identity ID. A second simultaneous unlink request returns "Another account operation is in progress. Please try again in a moment." The lock is released in a `finally` block and is not persisted across process restarts. **Limitation**: this lock is in-process only and does not protect against concurrent requests hitting different Hera instances. Multi-instance deployments require a distributed lock (e.g., Redis `SETNX`). The current single-instance production deployment is covered.
 - **Provider email not available on confirmation screen**: The confirmation screen attempts to read the OIDC subject from the Kratos settings flow `ui.nodes`. If the node is absent or the fetch fails, the screen renders without the provider email. The confirmation is still functional.
-- **Unknown provider in URL params**: `pendingProviderLabel` falls back to the raw provider ID string if the provider is not in `KNOWN_PROVIDERS`. The confirmation screen renders with the raw ID as the label. The link action itself validates the provider via Kratos — the label fallback is cosmetic only.
+- **Unknown provider in URL params**: `pendingProviderLabel` falls back to the raw provider ID string if the provider is not in `KNOWN_PROVIDERS`. The confirmation screen renders with the raw ID as the label. The link action itself validates the provider via Kratos, the label fallback is cosmetic only.
 - **Unknown provider on `/link-conflict`**: The `hasOwnProperty` check in `link-conflict/page.tsx` ensures an unknown `?provider=` value renders as "Unknown Provider" rather than being interpolated into the page. This prevents reflected content injection.
-- **Credentials fetch failure on page load**: `getIdentityCredentials` is called in a try/catch. If it fails, the page renders with empty OIDC credentials and `hasPassword: false`. This means the "Disconnect" button is suppressed for all providers (they appear as unlinked) and the amber notice is shown. The page degrades gracefully — no crash, no data leak.
+- **Credentials fetch failure on page load**: `getIdentityCredentials` is called in a try/catch. If it fails, the page renders with empty OIDC credentials and `hasPassword: false`. This means the "Disconnect" button is suppressed for all providers (they appear as unlinked) and the amber notice is shown. The page degrades gracefully, no crash, no data leak.
 
 ## Security Considerations
 
 - **Authentication required**: The settings page and all three server actions verify an active Kratos session. Unauthenticated requests are redirected to `/login`. This is enforced both by Kratos natively (settings flows require a session) and by explicit `getSession` checks in the actions (defense-in-depth, SR-1).
 - **Flow ownership validation**: `confirmLinkAction` fetches the Kratos settings flow by ID and validates that `flow.identity.id` matches the current session identity. An attacker cannot confirm a link by replaying a flow ID from another session (SR-7).
 - **No auto-linking**: The conflict resolution flow (`/link-conflict`) never auto-links accounts. A user arriving with a social provider whose email matches an existing account is shown instructions to sign in with their existing credentials and link manually. This prevents pre-linking attacks where an attacker creates a social account with a victim's email before the victim registers (Security Expert threat model, hera#31).
-- **Email enumeration on conflict page**: The `/link-conflict` copy is intentionally ambiguous — "If an Olympus account with this email exists..." — rather than confirming that an account exists. Do not change this wording (Security V3).
-- **Last credential protection**: The unlink flow is blocked server-side if `totalCredentials <= 1`. The UI also suppresses the button. Both checks are required — the UI check is UX, the server check is the actual guard (SR-4).
+- **Email enumeration on conflict page**: The `/link-conflict` copy is intentionally ambiguous, "If an Olympus account with this email exists...", rather than confirming that an account exists. Do not change this wording (Security V3).
+- **Last credential protection**: The unlink flow is blocked server-side if `totalCredentials <= 1`. The UI also suppresses the button. Both checks are required, the UI check is UX, the server check is the actual guard (SR-4).
 - **Concurrent unlink race condition**: The per-identity in-process lock in `unlinkLocks` prevents two simultaneous unlink requests from both passing the credential count check and leaving the user with zero credentials. See the Edge Cases section for the multi-instance limitation (SR-8).
 - **Audit log**: Every link and unlink action is logged with identity ID, provider, action type, timestamp, and source IP. No PII beyond identity ID is included in the log (SR-5, GDPR Art. 5(2), SOC2 CC6.3).
 - **Session token rotation**: After a successful link, Kratos rotates the session token. The `ory_kratos_session` cookie value changes. Any pre-link cookie is invalidated (S8).
@@ -239,7 +239,7 @@ On success, the browser is redirected to `/settings/security?unlinked=github`.
 
 ## platform#15 Dependency
 
-This feature ships the UI scaffolding for account linking. End-to-end functionality — live OAuth2 callbacks, actual provider linking and unlinking through Kratos OIDC, and the conflict redirect from Kratos — requires `platform#15` (Social Login Connections: Ory OIDC configuration).
+This feature ships the UI scaffolding for account linking. End-to-end functionality, live OAuth2 callbacks, actual provider linking and unlinking through Kratos OIDC, and the conflict redirect from Kratos, requires `platform#15` (Social Login Connections: Ory OIDC configuration).
 
 **What works without platform#15:**
 - Connected Accounts section renders in Settings > Security
@@ -255,7 +255,7 @@ This feature ships the UI scaffolding for account linking. End-to-end functional
 - `confirmLinkAction` submitting a real OIDC credential to Kratos
 - Kratos conflict redirect triggering `/link-conflict` in production
 
-The `oidc_not_configured` error code is specifically designed for the pre-platform#15 state — developers running in dev without OIDC configured will see this message rather than a silent failure.
+The `oidc_not_configured` error code is specifically designed for the pre-platform#15 state, developers running in dev without OIDC configured will see this message rather than a silent failure.
 
 The `/link-conflict` page fires during OAuth2 conflict resolution as part of the platform#15 flow. It cannot be triggered end-to-end in dev without platform#15.
 
@@ -271,6 +271,6 @@ These items were identified during DX review but do not block this story.
 
 ## Test Notes
 
-- **S8 (session token rotation)**: To verify that the session token is rotated after a successful link, capture the `ory_kratos_session` cookie value in DevTools (Application > Cookies) before submitting the confirmation form. After redirect to `/settings/security?linked={provider}`, verify the `ory_kratos_session` cookie has a different value. Requires a live link operation — blocked on platform#15 for end-to-end execution.
+- **S8 (session token rotation)**: To verify that the session token is rotated after a successful link, capture the `ory_kratos_session` cookie value in DevTools (Application > Cookies) before submitting the confirmation form. After redirect to `/settings/security?linked={provider}`, verify the `ory_kratos_session` cookie has a different value. Requires a live link operation, blocked on platform#15 for end-to-end execution.
 - **Tests blocked on platform#15**: F3 (full OAuth2 callback), F4 (null provider email from provider), F5 (actual Kratos OIDC link commit), F15, F16 (post-link sign-in with provider), and the `/link-conflict` conflict redirect path. These require a live OIDC-configured Kratos instance.
 - **E3, E4 (DevTools manipulation)**: Test cases for client-side form manipulation (e.g., changing the `provider` hidden field value) are achievable in a browser session with DevTools and do not require platform#15.

@@ -1,0 +1,257 @@
+---
+title: Link Olympus identity to Stripe customer
+description: Keep your billing system in sync with auth
+---
+
+When a user signs up in your app, you typically want a Stripe customer record too. This is a recipe for that linkage.
+
+## Pattern
+
+```
+User signs up → Kratos identity created (UUID-A)
+              → Stripe customer created (cus_B)
+              → Athena identity has `metadata.stripe_customer_id = cus_B`
+```
+
+Each side knows about the other.
+
+## Post-registration hook
+
+```yaml
+# kratos.yml
+selfservice:
+  flows:
+    registration:
+      after:
+        password:
+          hooks:
+            - hook: web_hook
+              config:
+                url: http://your-backend/internal/create-stripe-customer
+                response:
+                  ignore: true  # fire-and-forget; don't block signup if fails
+```
+
+Your handler:
+
+```ts
+import Stripe from "stripe";
+const stripe = new Stripe(process.env.STRIPE_SECRET);
+
+export async function POST(req: Request) {
+  const { identity } = await req.json();
+  
+  const customer = await stripe.customers.create({
+    email: identity.traits.email,
+    name: `${identity.traits.first_name} ${identity.traits.last_name}`,
+    metadata: { olympus_identity_id: identity.id },
+  });
+  
+  // Patch identity with Stripe ID
+  await fetch(`${KRATOS_ADMIN}/admin/identities/${identity.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify([
+      { op: "add", path: "/metadata_admin/stripe_customer_id", value: customer.id }
+    ]),
+  });
+  
+  return Response.json({ ok: true });
+}
+```
+
+## Reading the link
+
+In your app:
+
+```ts
+const identity = await kratos.toSession(cookie);
+const stripeCustomerId = identity.identity.metadata_admin?.stripe_customer_id;
+
+const subscriptions = await stripe.subscriptions.list({ customer: stripeCustomerId });
+```
+
+## Updating
+
+If user changes email, propagate to Stripe:
+
+```yaml
+selfservice:
+  flows:
+    settings:
+      after:
+        profile:
+          hooks:
+            - hook: web_hook
+              config:
+                url: http://your-backend/internal/sync-stripe
+```
+
+```ts
+const { identity } = await req.json();
+const stripeId = identity.metadata_admin?.stripe_customer_id;
+if (stripeId) {
+  await stripe.customers.update(stripeId, { email: identity.traits.email });
+}
+```
+
+## On account deletion
+
+When user deletes account:
+
+```ts
+// pre-deletion hook
+const { identity_id } = await req.json();
+const identity = await kratos.adminGetIdentity(identity_id);
+const stripeId = identity.metadata_admin?.stripe_customer_id;
+
+if (stripeId) {
+  // Cancel subscriptions
+  const subs = await stripe.subscriptions.list({ customer: stripeId });
+  for (const sub of subs.data) {
+    await stripe.subscriptions.cancel(sub.id);
+  }
+  // Delete customer (or keep for tax record)
+  // await stripe.customers.del(stripeId);  // careful: deletes payment methods
+}
+```
+
+## Webhook from Stripe
+
+When Stripe events happen (subscription created, payment failed), update Olympus side:
+
+```ts
+// stripe-webhook.ts
+export async function POST(req: Request) {
+  const sig = req.headers.get("stripe-signature");
+  const body = await req.text();
+  const event = stripe.webhooks.constructEvent(body, sig!, WEBHOOK_SECRET);
+  
+  if (event.type === "customer.subscription.deleted") {
+    const sub = event.data.object as Stripe.Subscription;
+    const customerId = sub.customer as string;
+    const customer = await stripe.customers.retrieve(customerId);
+    const olympusId = (customer as Stripe.Customer).metadata.olympus_identity_id;
+    
+    // Update identity in Olympus
+    await fetch(`${KRATOS_ADMIN}/admin/identities/${olympusId}`, {
+      method: "PATCH",
+      body: JSON.stringify([
+        { op: "replace", path: "/metadata_public/plan", value: "free" }
+      ]),
+    });
+    
+    // Or use Stripe customer.metadata as source of truth, see below
+  }
+  
+  return Response.json({ received: true });
+}
+```
+
+## Source-of-truth decision
+
+Decide: which system holds the canonical plan?
+
+### Option A: Olympus identity holds plan
+
+`identity.metadata_public.plan = "pro"`.
+
+Pro: easy to gate features (`if identity.plan === 'pro'`).
+Con: must sync from Stripe every time plan changes.
+
+### Option B: Stripe customer holds plan
+
+Query Stripe at decision time.
+
+Pro: always current.
+Con: latency + cost per check.
+
+### Option C: Hybrid
+
+Cache plan in identity, refresh hourly + on Stripe webhook events.
+
+Most apps: Option C.
+
+## Feature gating
+
+```ts
+async function canAccess(identityId: string, feature: string) {
+  const identity = await kratos.getIdentity(identityId);
+  const plan = identity.metadata_public?.plan ?? "free";
+  const limits = {
+    free: ["basic_feature"],
+    pro: ["basic_feature", "premium_feature"],
+  };
+  return limits[plan]?.includes(feature) ?? false;
+}
+```
+
+Or use scopes (more OAuth2-native): the access token carries the plan via custom claim.
+
+## Trial logic
+
+When user starts a trial:
+
+```ts
+const customer = await stripe.customers.update(stripeId, {
+  metadata: { trial_started: new Date().toISOString() }
+});
+```
+
+In your app, calculate trial expiration:
+
+```ts
+const trialStart = customer.metadata.trial_started;
+const trialEnded = new Date(trialStart).getTime() < Date.now() - 14 * 24 * 3600 * 1000;
+```
+
+Soft block features post-trial.
+
+## Common pitfalls
+
+### Two customers per user
+
+Hook fires twice (Kratos retry). You get two Stripe customers, second one orphan.
+
+Fix: idempotency. Check before creating.
+
+```ts
+const existing = await stripe.customers.search({
+  query: `metadata['olympus_identity_id']:'${identity.id}'`,
+});
+if (existing.data.length > 0) return existing.data[0];
+return stripe.customers.create(...);
+```
+
+### Stripe customer without Olympus identity
+
+User created in Stripe directly (admin tool, import). No matching Kratos identity → orphan.
+
+Periodic reconciliation:
+```ts
+const customers = await stripe.customers.list({ limit: 100 });
+for (const c of customers.data) {
+  if (!c.metadata.olympus_identity_id) {
+    // Find or create Olympus identity by email
+  }
+}
+```
+
+### Sandbox / test customers
+
+Stripe has test mode (`sk_test_...`). Olympus dev / staging should use test mode. Don't mix.
+
+Use env-aware key:
+```ts
+const stripe = new Stripe(
+  process.env.NODE_ENV === "production" 
+    ? process.env.STRIPE_SECRET_LIVE 
+    : process.env.STRIPE_SECRET_TEST
+);
+```
+
+## Related
+
+- [Cookbook, Stripe subscription gate](/docs/cookbook/integrations-billing/stripe-subscription-gate)
+- [Cookbook, Custom Kratos webhook](/docs/cookbook/integrations-billing/custom-kratos-webhook)
+- [Cookbook, Webhook signature verification](/docs/cookbook/integrations-billing/webhook-signature-verification)

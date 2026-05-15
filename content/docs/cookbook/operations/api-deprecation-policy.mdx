@@ -1,0 +1,194 @@
+---
+title: API deprecation policy
+description: How to deprecate and remove endpoints gracefully
+---
+
+You have a public API. Need to evolve, remove old, add new. How to do it without breaking consumers.
+
+## Versioning approach
+
+Path-based versioning:
+```
+/api/v1/...
+/api/v2/...
+```
+
+New behavior in v2. v1 stays available during deprecation.
+
+See [API versioning with scopes](/docs/cookbook/tokens-oauth2/api-versioning-with-scopes).
+
+## Deprecation timeline
+
+```
+T+0:    Announce v2 launch (v1 deprecated).
+T+30:   v1 returns Deprecation header (warning, still works).
+T+90:   v1 returns Warning header + deprecation email.
+T+180:  v1 throttled or returns 410 Gone for new clients.
+T+365:  v1 removed entirely.
+```
+
+12 months is generous; 6 months minimum for paid APIs.
+
+## Deprecation headers
+
+```http
+HTTP/1.1 200 OK
+Deprecation: Sat, 31 Dec 2026 00:00:00 GMT
+Sunset: Mon, 31 Dec 2027 00:00:00 GMT
+Link: <https://api.example.com/api/v2/this-endpoint>; rel="successor-version"
+```
+
+`Deprecation`: deprecated since.
+`Sunset`: when it'll be removed.
+`Link rel="successor-version"`: where to find replacement.
+
+## Per-endpoint deprecation
+
+Some v1 endpoints have v2 equivalents; some v1 endpoints might be permanently removed.
+
+```ts
+const deprecations = {
+  "GET /api/v1/users": { successor: "/api/v2/users", removed_at: "2027-12-31" },
+  "POST /api/v1/old-endpoint": { successor: null, removed_at: "2026-12-31" },
+};
+```
+
+Apply per-endpoint headers.
+
+## Consumer notification
+
+For each OAuth2 client, you have an email (client metadata):
+
+```bash
+hydra create client --metadata '{"contact_email": "team@customer.com"}'
+```
+
+Send deprecation notices:
+
+```ts
+const usage = await getClientUsage(clientId);
+const oldEndpoints = usage.filter(u => deprecations[u.endpoint]);
+if (oldEndpoints.length > 0) {
+  await sendEmail(client.metadata.contact_email, "API deprecation notice", `
+    Your application is calling deprecated endpoints:
+    ${oldEndpoints.map(e => `- ${e.endpoint} (sunset: ${deprecations[e.endpoint].removed_at})`).join("\n")}
+    
+    Migrate to v2: https://docs.your-app.com/migration-v1-to-v2
+  `);
+}
+```
+
+Monthly until usage drops.
+
+## Tracking usage
+
+```sql
+INSERT INTO api_calls (client_id, endpoint, status_code, called_at)
+VALUES (...);
+
+-- Top deprecated endpoints
+SELECT endpoint, COUNT(DISTINCT client_id) AS clients, COUNT(*) AS calls
+FROM api_calls
+WHERE endpoint LIKE '/api/v1/%'
+  AND called_at > NOW() - INTERVAL '30 days'
+GROUP BY 1
+ORDER BY 2 DESC;
+```
+
+Identify who's still on v1.
+
+## Forced migration
+
+Some customers won't migrate until forced:
+
+1. Send last warning 30 days before removal.
+2. T+0: endpoint returns 410 Gone.
+
+```http
+HTTP/1.1 410 Gone
+Content-Type: application/json
+
+{
+  "error": "endpoint_removed",
+  "message": "This endpoint was sunset on 2027-12-31.",
+  "successor": "/api/v2/users",
+  "docs": "https://docs.your-app.com/migration-v1-to-v2"
+}
+```
+
+Most will migrate then.
+
+## Grandfathering
+
+Some enterprise contracts require longer support. Per-customer extensions:
+
+```ts
+const customExtensions = {
+  "client-acme": { v1_extended_until: "2028-12-31" },
+};
+
+if (customExtensions[clientId]?.v1_extended_until && new Date() < new Date(customExtensions[clientId].v1_extended_until)) {
+  // Allow v1
+}
+```
+
+Cost of doing business.
+
+## Removal vs disable
+
+Soft removal:
+- Endpoint returns 410.
+- Code is still in repo.
+
+Hard removal:
+- Endpoint code deleted.
+- Tests removed.
+
+Soft first; hard after another quarter or two.
+
+## Documentation
+
+Mark deprecated endpoints in docs:
+
+```markdown
+## GET /api/v1/users
+
+> **Deprecated**: This endpoint is deprecated since 2026-12-31 and will be removed 2027-12-31.
+> Use [GET /api/v2/users](/api/v2/users) instead.
+
+Returns the user list...
+```
+
+Don't delete the docs until the endpoint is gone, old client devs need to understand it.
+
+## Pricing changes via deprecation
+
+If you raise prices, do it through versioning:
+- v1: legacy pricing for existing customers.
+- v2: new pricing.
+
+New customers go to v2. Existing on v1 grandfathered. Eventually deprecate v1 (with notice).
+
+## Client SDK deprecations
+
+If you ship SDKs (`@your-corp/sdk`):
+- Minor version: backward compat.
+- Major version: breaking. Like API v1 → v2.
+
+Provide migration guides per major bump.
+
+## Telemetry
+
+In SDK:
+```ts
+this.logger.warn(`Deprecated method called: ${method}. See [migration guide].`);
+```
+
+Visible to developers in their console.
+
+## Related
+
+- [Cookbook, API versioning with scopes](/docs/cookbook/tokens-oauth2/api-versioning-with-scopes)
+- [Operate, Upgrades](/docs/operate/administration/upgrades)
+- [Cookbook, Dev team onboarding](/docs/cookbook/tools/dev-team-onboarding)
+- [Cookbook, Migrate to new domain](/docs/cookbook/deployment/migrate-to-new-domain)

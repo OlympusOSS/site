@@ -1,0 +1,9 @@
+{
+  "title": "Database",
+  "pages": [
+    "database-managed-neon",
+    "database-self-hosted",
+    "database-ssl-overview",
+    "database-ssl-verify-full"
+  ]
+}

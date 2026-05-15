@@ -16,18 +16,18 @@ This guide moves an AWS Cognito user pool to Olympus.
 | App client | Hydra OAuth2 client |
 | User pool client secret | Hydra client_secret |
 | Group | Trait (array) |
-| Identity pool | Not used — IAM roles are AWS-specific |
+| Identity pool | Not used, IAM roles are AWS-specific |
 | Hosted UI | Hera |
 | Pre/Post triggers (Lambda) | Kratos flow webhooks |
 | MFA (SMS, TOTP) | Kratos TOTP/WebAuthn |
-| Custom auth challenge | Not directly portable — custom flow in Hera |
+| Custom auth challenge | Not directly portable, custom flow in Hera |
 
 ## Identity export → Kratos import
 
 ### Step 1: Export from Cognito
 
 ```bash
-# Cognito doesn't have a clean export — paginate ListUsers
+# Cognito doesn't have a clean export, paginate ListUsers
 aws cognito-idp list-users --user-pool-id us-east-1_abc123 \
   --pagination-token $TOKEN \
   --max-results 60
@@ -86,14 +86,14 @@ hydra create client \
   --redirect-uri https://app.example.com/callback
 ```
 
-Cognito's `client_secret` doesn't transfer — generate new ones in Hydra.
+Cognito's `client_secret` doesn't transfer, generate new ones in Hydra.
 
 ## Things that don't directly map
 
-- **Cognito Identity Pools (federated AWS IAM roles)** — Olympus doesn't issue AWS IAM credentials. Use AWS STS AssumeRoleWithWebIdentity manually if you need this, with the Olympus ID token.
-- **Cognito Lambda triggers** — translate to Kratos hooks (HTTP webhooks).
-- **Cognito Advanced Security** (adaptive auth, risk-based MFA) — Olympus has rule-based equivalents (brute-force lockout, breach checks) but not the ML-based adaptive flow.
-- **Cognito sync** (cross-device data sync) — out of scope for Olympus.
+- **Cognito Identity Pools (federated AWS IAM roles)**, Olympus doesn't issue AWS IAM credentials. Use AWS STS AssumeRoleWithWebIdentity manually if you need this, with the Olympus ID token.
+- **Cognito Lambda triggers**, translate to Kratos hooks (HTTP webhooks).
+- **Cognito Advanced Security** (adaptive auth, risk-based MFA), Olympus has rule-based equivalents (brute-force lockout, breach checks) but not the ML-based adaptive flow.
+- **Cognito sync** (cross-device data sync), out of scope for Olympus.
 
 ## Validation
 
@@ -104,5 +104,5 @@ Cognito's `client_secret` doesn't transfer — generate new ones in Hydra.
 
 ## Related
 
-- [Migration — From Auth0](/docs/migration/from-auth0)
-- [Get Started — Your first OAuth2 client](/docs/get-started/first-oauth-client)
+- [Migration, From Auth0](/docs/migration/from-auth0)
+- [Get Started, Your first OAuth2 client](/docs/get-started/first-oauth-client)

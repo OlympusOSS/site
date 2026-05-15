@@ -1,0 +1,131 @@
+---
+title: Use managed Postgres (Neon)
+description: Run Olympus with Neon as the Postgres backend
+---
+
+Neon is the recommended Postgres for Olympus production. This recipe shows the setup.
+
+## Quick path: Daedalus
+
+Daedalus's Database step has a Neon option. Enter your Neon API key; Daedalus creates the project, five databases, and the per-database users automatically.
+
+## Manual path
+
+If you're not using Daedalus:
+
+### Step 1: Create the Neon project
+
+[console.neon.tech](https://console.neon.tech) → New Project. Choose region close to your VPS.
+
+### Step 2: Create five databases
+
+Via Neon console or API:
+
+```bash
+NEON_TOKEN=...
+PROJECT_ID=...
+
+for db in ciam_kratos ciam_hydra iam_kratos iam_hydra olympus; do
+  curl -X POST "https://console.neon.tech/api/v2/projects/$PROJECT_ID/databases" \
+    -H "authorization: Bearer $NEON_TOKEN" \
+    -H "content-type: application/json" \
+    -d "{\"database\": {\"name\": \"$db\", \"owner_name\": \"olympus\"}}"
+done
+```
+
+### Step 3: Get connection strings
+
+```bash
+for db in ciam_kratos ciam_hydra iam_kratos iam_hydra olympus; do
+  curl -s "https://console.neon.tech/api/v2/projects/$PROJECT_ID/databases/$db/connection_uri?role_name=olympus&pooled=false" \
+    -H "authorization: Bearer $NEON_TOKEN" | jq -r .uri
+done
+```
+
+Output: five Postgres URIs with `sslmode=require` by default.
+
+### Step 4: Upgrade to `verify-full`
+
+Neon provides a CA cert. Download and bundle:
+
+```bash
+curl -O https://neon.tech/static/neon-ca.crt
+```
+
+In each DSN, change `sslmode=require` to `sslmode=verify-full` and add `&sslrootcert=/etc/ssl/certs/neon-ca.crt`:
+
+```
+postgres://olympus:...@<host>.neon.tech/ciam_kratos?sslmode=verify-full&sslrootcert=/etc/ssl/certs/neon-ca.crt
+```
+
+### Step 5: Mount the CA into containers
+
+Compose-side mount:
+
+```yaml
+ciam-kratos:
+  volumes:
+    - ./neon-ca.crt:/etc/ssl/certs/neon-ca.crt:ro
+```
+
+Repeat for every service.
+
+### Step 6: Set DATABASE_URL secrets
+
+```bash
+gh secret set DATABASE_URL_CIAM_KRATOS --body "$CIAM_KRATOS_DSN"
+gh secret set DATABASE_URL_CIAM_HYDRA --body "$CIAM_HYDRA_DSN"
+# ... and so on
+```
+
+### Step 7: Deploy
+
+`gh workflow run deploy.yml` and wait for healthchecks.
+
+## Connection pooling
+
+Neon supports two endpoints per database:
+- **Direct** (`pooled=false`): direct Postgres connection. Each connection has a startup cost.
+- **Pooled** (`pooled=true`): PgBouncer in front. Faster connection, but no prepared statements.
+
+Olympus uses **direct** because Kratos and Hydra use prepared statements internally. PgBouncer's pooling would break those.
+
+If you need PgBouncer (extreme connection counts), use Neon's "transaction pooler", but ensure your Kratos/Hydra config doesn't rely on prepared statements (it does by default, so this is rare).
+
+## Free tier
+
+Neon's free tier (as of writing):
+- 0.5 vCPU compute, 1GB RAM.
+- 0.5 GB storage.
+- 7 days of point-in-time recovery.
+
+Sufficient for ~1k MAU. Beyond, upgrade to "Launch" tier (~$19/mo) or higher.
+
+## Branching for migration testing
+
+Neon's branching feature lets you create a copy-on-write branch of your production database, run migrations against it, then drop the branch.
+
+```bash
+# Create branch
+neonctl branch create --name pre-migration-test
+
+# Run migrations against the branch (point a separate compose at the branch's DSN)
+# Verify
+# Delete
+neonctl branch delete pre-migration-test
+```
+
+Useful for testing Kratos / Hydra major version upgrades without touching production.
+
+## Monitoring
+
+- Neon dashboard shows query latency, connection count, storage growth.
+- Set alerts on:
+  - Storage approaching plan limit.
+  - Sustained high latency (>100ms p99 on simple queries).
+
+## Related
+
+- [Deploy, Database, Managed Neon](/docs/deploy/database/database-managed-neon), fuller treatment.
+- [Deploy, Database SSL verify-full](/docs/deploy/database/database-ssl-verify-full)
+- [Operate, Backups (Postgres)](/docs/operate/backups-recovery/backups-postgres)

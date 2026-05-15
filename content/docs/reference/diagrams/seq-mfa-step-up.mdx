@@ -33,7 +33,7 @@ sequenceDiagram
         Hera-->>User: 302 back to App (via return_to)
 
         User->>App: Retry sensitive operation
-        App->>App: Check session — now aal2
+        App->>App: Check session, now aal2
         App-->>User: Success
     end
 ```
@@ -50,7 +50,7 @@ Your app can require AAL2 for its own sensitive operations following the pattern
 
 ## Where to learn more
 
-- [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)
-- [Identity — MFA policy](/docs/identity/mfa-policy)
-- [Cookbook — Enforce step-up auth](/docs/cookbook/enforce-step-up-auth)
-- [Troubleshooting — Session AAL too low](/docs/troubleshooting/kratos-session-aal-too-low)
+- [Identity, Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)
+- [Identity, MFA policy](/docs/identity/mfa-policy)
+- [Cookbook, Enforce step-up auth](/docs/cookbook/mfa/enforce-step-up-auth)
+- [Troubleshooting, Session AAL too low](/docs/troubleshooting/auth-issues/kratos-session-aal-too-low)

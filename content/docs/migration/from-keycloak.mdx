@@ -14,7 +14,7 @@ This guide moves a Keycloak realm to a self-hosted Olympus deployment.
 | User attributes | Identity `traits` |
 | Required actions (VERIFY_EMAIL, etc.) | Kratos flow hooks / states |
 | Client | Hydra OAuth2 client |
-| Role | Identity trait (`role: "admin"`) — Olympus doesn't have a separate role table |
+| Role | Identity trait (`role: "admin"`), Olympus doesn't have a separate role table |
 | Group | Identity trait (array of group names) |
 | Identity provider (Google, GitHub, etc.) | OIDC IdP configured per-domain in `kratos.yml` |
 | Authentication flow | Kratos flow config |
@@ -59,7 +59,7 @@ Each Keycloak user → one Kratos identity:
 }
 ```
 
-Keycloak password hashes are typically `pbkdf2-sha256` with embedded salt. Kratos supports importing pbkdf2 hashes — see Kratos's [hash format docs](https://www.ory.sh/docs/kratos/manage-identities/import-user-accounts-identities). Map Keycloak's hash representation to Kratos's expected format.
+Keycloak password hashes are typically `pbkdf2-sha256` with embedded salt. Kratos supports importing pbkdf2 hashes, see Kratos's [hash format docs](https://www.ory.sh/docs/kratos/manage-identities/import-user-accounts-identities). Map Keycloak's hash representation to Kratos's expected format.
 
 If hashes can't be re-imported, fall back: force a password reset for every user via Kratos's recovery flow on first login.
 
@@ -125,7 +125,7 @@ Re-create the upstream Google/GitHub OAuth2 apps with Olympus's redirect URI.
 
 ## Themes / branding
 
-Keycloak themes don't port to Hera. Hera is a Next.js app — branding is a fork of Hera with your CSS/components.
+Keycloak themes don't port to Hera. Hera is a Next.js app, branding is a fork of Hera with your CSS/components.
 
 ## Cutover patterns
 
@@ -135,9 +135,9 @@ For Keycloak specifically, the dual-write pattern is harder because Keycloak's "
 
 ## Things that don't directly map
 
-- **Keycloak Authorization Services (UMA, fine-grained permissions)** — Olympus doesn't support. Implement in your app or via OPA / Cedar in front.
-- **Keycloak Required Actions for custom flows** — translate to Kratos hooks.
-- **Keycloak SAML federation** — Olympus is OIDC-first. For SAML, run a SAML→OIDC bridge.
+- **Keycloak Authorization Services (UMA, fine-grained permissions)**, Olympus doesn't support. Implement in your app or via OPA / Cedar in front.
+- **Keycloak Required Actions for custom flows**, translate to Kratos hooks.
+- **Keycloak SAML federation**, Olympus is OIDC-first. For SAML, run a SAML→OIDC bridge.
 
 ## Validation
 
@@ -149,6 +149,6 @@ For Keycloak specifically, the dual-write pattern is harder because Keycloak's "
 
 ## Related
 
-- [Migration — From Auth0](/docs/migration/from-auth0)
-- [Identity — Identity schemas](/docs/identity/identity-schemas)
-- [Get Started — Your first OAuth2 client](/docs/get-started/first-oauth-client)
+- [Migration, From Auth0](/docs/migration/from-auth0)
+- [Identity, Identity schemas](/docs/identity/identity-schemas)
+- [Get Started, Your first OAuth2 client](/docs/get-started/first-oauth-client)

@@ -1,0 +1,208 @@
+---
+title: Email-based IdP discovery
+description: Auto-route users to their organization's IdP
+---
+
+For B2B SaaS with multi-tenant SSO: a user types their email at login, and you auto-redirect them to their organization's IdP (Okta, Entra, Google Workspace).
+
+## Why
+
+If you have 50 customers each with their own SSO, showing 50 "Sign in with X" buttons is bad UX. Instead: one email input, you figure out the right path.
+
+## Pattern
+
+```
+1. User types email at /login.
+2. Backend checks: does this email's domain map to an SSO provider?
+3. If yes: redirect to that provider.
+4. If no: continue with password flow.
+```
+
+## Configuration
+
+Store per-domain mappings in Athena's settings vault or your tenant DB:
+
+```sql
+CREATE TABLE sso_domains (
+  domain TEXT PRIMARY KEY,    -- "acme.com"
+  tenant_id UUID NOT NULL,
+  provider_id TEXT NOT NULL,  -- "okta-acme" (matches Kratos OIDC provider id)
+  display_name TEXT
+);
+
+INSERT INTO sso_domains VALUES 
+  ('acme.com', 'tenant-1', 'okta-acme', 'Acme'),
+  ('bigcorp.com', 'tenant-2', 'okta-bigcorp', 'BigCorp');
+```
+
+## Frontend
+
+```tsx
+// app/login/page.tsx
+"use client";
+import { useState } from "react";
+
+export default function Login() {
+  const [email, setEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  
+  async function checkEmail() {
+    const res = await fetch(`/api/idp-lookup?email=${encodeURIComponent(email)}`);
+    const { provider } = await res.json();
+    if (provider) {
+      window.location.href = `/self-service/methods/oidc/auth/${provider}`;
+    } else {
+      setShowPassword(true);
+    }
+  }
+  
+  return (
+    <div>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        onBlur={checkEmail}
+      />
+      {showPassword && <PasswordInput />}
+    </div>
+  );
+}
+```
+
+## Backend
+
+```ts
+// /api/idp-lookup
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const email = url.searchParams.get("email")!;
+  const domain = email.split("@")[1]?.toLowerCase();
+  if (!domain) return Response.json({ provider: null });
+  
+  const mapping = await db`SELECT provider_id FROM sso_domains WHERE domain = ${domain}`.first();
+  return Response.json({ provider: mapping?.provider_id ?? null });
+}
+```
+
+## Avoiding enumeration
+
+If you reveal "yes, this domain has SSO," you've leaked something. Mitigation:
+
+For low-sensitivity: not a problem. Domain-level mapping is often public info.
+For high: respond identically regardless of email; trigger flow client-side without telling user.
+
+## Hera integration
+
+Hera's standard login page can call out to this API:
+
+```tsx
+// hera/app/login/page.tsx
+"use client";
+import { useDebouncedCallback } from "use-debounce";
+
+const checkSso = useDebouncedCallback(async (email: string) => {
+  const res = await fetch(`/api/idp-lookup?email=${email}`);
+  const { provider } = await res.json();
+  if (provider) {
+    // Auto-redirect or show button
+    setProvider(provider);
+  }
+}, 500);
+
+<input type="email" onChange={(e) => checkSso(e.target.value)} />
+{provider ? (
+  <button>Sign in with {provider.display_name}</button>
+) : (
+  <PasswordField />
+)}
+```
+
+## Account linking on first SSO
+
+User types `alice@acme.com`. They've signed up with password previously. SSO sends them to Acme's IdP → identity returned.
+
+Two cases:
+- New identity from this OIDC: no problem.
+- Email matches existing password identity: link or reject? See [Account linking strategies](/docs/cookbook/auth-flows/account-linking-strategies).
+
+For B2B: trust the corporate IdP. Auto-link if email matches.
+
+## SAML domains
+
+For SAML-bridged SSO:
+
+```
+sso_domains:
+  acme.com → saml-acme (a SAML connector, bridged via Dex)
+```
+
+Same pattern. Different backend connector type.
+
+## Discovery UX
+
+User in `acme.com` accidentally arrives at your password-login page. Two options:
+
+### Option A: silent redirect
+
+Type email → instantly redirected to Okta. Surprise but useful.
+
+### Option B: explicit
+
+Type email → "Acme uses single sign-on. Continue with Okta?" → button.
+
+Option B is more transparent. Option A is faster.
+
+## Caching
+
+The domain → provider lookup is frequent. Cache:
+
+```ts
+const cache = new Map<string, string | null>();
+
+async function lookupProvider(domain: string) {
+  if (cache.has(domain)) return cache.get(domain);
+  const result = await db`SELECT provider_id FROM sso_domains WHERE domain = ${domain}`.first();
+  cache.set(domain, result?.provider_id ?? null);
+  setTimeout(() => cache.delete(domain), 5 * 60_000);  // 5 min
+  return cache.get(domain);
+}
+```
+
+Settings vault edits → invalidate cache via pub/sub.
+
+## Self-service for tenants
+
+Let tenant admins configure their domain → provider mapping themselves:
+
+```tsx
+// Athena tenant admin page
+<form action={saveDomain}>
+  <input name="domain" placeholder="acme.com" />
+  <input name="provider_url" placeholder="https://acme.okta.com" />
+  <Select name="provider_type" options={["oidc", "saml"]} />
+  <button>Add SSO domain</button>
+</form>
+```
+
+Validates the domain (DNS TXT verification), tests the IdP discovery, then adds to mapping.
+
+## Discovery for invitations
+
+When tenant admin invites a user via email, automatically associate the invitation with their tenant's SSO:
+
+```ts
+const inv = await sendInvite("alice@acme.com");
+// On click, /accept-invite?token=...&domain=acme.com
+//  → backend looks up: acme.com → okta-acme
+//  → redirects to /self-service/methods/oidc/auth/okta-acme
+//  → after auth, identity is in tenant-1, role from invitation.
+```
+
+## Related
+
+- [Cookbook, SSO with Okta as IdP](/docs/cookbook/enterprise-sso/sso-with-okta-as-idp)
+- [Cookbook, SAML JIT provisioning](/docs/cookbook/enterprise-sso/saml-just-in-time-provisioning)
+- [Cookbook, Account linking strategies](/docs/cookbook/auth-flows/account-linking-strategies)
+- [Cookbook, Multi-tenant soft isolation](/docs/cookbook/multi-tenant/multi-tenant-soft-isolation)
+- [Cookbook, Invitation-based signup](/docs/cookbook/auth-flows/invitation-based-signup)

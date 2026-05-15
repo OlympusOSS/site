@@ -1,0 +1,75 @@
+---
+title: Provider, AWS EC2
+description: Deploy Olympus on an AWS EC2 instance
+---
+
+AWS isn't natively supported by Daedalus. Use [Direct SSH](/docs/deploy/providers/provider-direct-ssh).
+
+## EC2 instance
+
+```bash
+aws ec2 run-instances \
+  --image-id ami-xxxxxxxxxxxxxxxxx \
+  --count 1 \
+  --instance-type t3.small \
+  --key-name olympus-key \
+  --security-group-ids sg-xxxxxxxxxxxxxxxxx \
+  --subnet-id subnet-xxxxxxxxxxxxxxxxx
+```
+
+`t3.small` (2 vCPU, 2GB RAM): ~$15/month. Burst-capable; works for Olympus's bursty auth traffic.
+
+For self-hosted Postgres on the same instance: prefer `t3.medium` (2 vCPU, 4GB RAM) for ~$30/month.
+
+## Security group
+
+```
+inbound:
+  22/tcp from <your-ip>/32     # SSH
+  80/tcp from 0.0.0.0/0         # HTTP → HTTPS redirect
+  443/tcp from 0.0.0.0/0        # HTTPS
+
+outbound:
+  all (default)
+```
+
+## RDS for managed Postgres
+
+For managed Postgres, use Amazon RDS PostgreSQL:
+
+```bash
+aws rds create-db-instance \
+  --db-instance-identifier olympus-db \
+  --db-instance-class db.t4g.micro \
+  --engine postgres \
+  --engine-version 17 \
+  --allocated-storage 20 \
+  --master-username olympus \
+  --master-user-password <strong>
+```
+
+`db.t4g.micro`: ~$15/mo. Configure `sslmode=verify-full`, RDS provides the CA cert at `rds-ca-2019-root.pem`.
+
+## SES for email
+
+If using AWS SES for transactional email:
+1. Request production access (out of sandbox).
+2. Verify your sending domain.
+3. Use the SMTP credentials in Kratos courier config, see [Deploy, Email, Custom SMTP](/docs/deploy/email/email-custom-smtp).
+
+## Cost estimate (1k MAU)
+
+- t3.small EC2: $15/mo
+- RDS t4g.micro: $15/mo
+- EBS 20GB: $2/mo
+- Egress (10GB): $0.90
+- SES (transactional): $0.10 per 1000 emails
+- **Total: ~$33/mo + email**
+
+Plus AWS Free Tier covers some of this in the first 12 months.
+
+## Where next
+
+- [Deploy, Provider, Direct SSH](/docs/deploy/providers/provider-direct-ssh)
+- [Deploy, Email, Custom SMTP](/docs/deploy/email/email-custom-smtp)
+- [Cookbook, Use Olympus as IdP for AWS IAM Identity Center](/docs/cookbook/tools/olympus-as-idp-aws)

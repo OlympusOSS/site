@@ -1,0 +1,20 @@
+{
+  "title": "Data & compliance",
+  "pages": [
+    "aclu-data-policy",
+    "automated-deprovisioning",
+    "bulk-import-identities",
+    "compliance-audit-export",
+    "csv-import-users",
+    "customer-data-export",
+    "data-deletion-pipeline",
+    "data-residency-eu",
+    "gdpr-dsr-export",
+    "grace-period-deletion",
+    "identity-bulk-operations",
+    "jit-data-classification",
+    "privacy-policy-template",
+    "self-service-account-deletion",
+    "terms-of-service-template"
+  ]
+}

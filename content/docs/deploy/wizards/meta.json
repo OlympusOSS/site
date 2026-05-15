@@ -1,0 +1,7 @@
+{
+  "title": "Deploy wizards",
+  "pages": [
+    "with-daedalus-wizard",
+    "without-daedalus-manual"
+  ]
+}

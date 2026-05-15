@@ -1,0 +1,107 @@
+---
+title: Flask (Python) integration
+description: Authenticate Flask routes against Olympus
+---
+
+Flask + Olympus via [Authlib](https://docs.authlib.org/) for OIDC.
+
+## Setup
+
+```bash
+pip install flask authlib requests
+```
+
+## OIDC login
+
+```python
+from flask import Flask, redirect, url_for, session
+from authlib.integrations.flask_client import OAuth
+
+app = Flask(__name__)
+app.secret_key = os.environ["SESSION_SECRET"]
+
+oauth = OAuth(app)
+oauth.register(
+    name="olympus",
+    server_metadata_url=f"{os.environ['OLYMPUS_ISSUER']}/.well-known/openid-configuration",
+    client_id=os.environ["OLYMPUS_CLIENT_ID"],
+    client_secret=os.environ["OLYMPUS_CLIENT_SECRET"],
+    client_kwargs={"scope": "openid profile email"},
+)
+
+@app.route("/auth/login")
+def login():
+    return oauth.olympus.authorize_redirect(url_for("auth_callback", _external=True))
+
+@app.route("/auth/callback")
+def auth_callback():
+    token = oauth.olympus.authorize_access_token()
+    user = token["userinfo"]
+    session["user"] = dict(user)
+    return redirect("/")
+
+@app.route("/auth/logout", methods=["POST"])
+def logout():
+    session.pop("user", None)
+    return redirect(f"{os.environ['OLYMPUS_ISSUER']}/oauth2/sessions/logout")
+
+@app.route("/")
+def home():
+    if "user" in session:
+        return f"Hi {session['user']['email']}"
+    return '<a href="/auth/login">Log in</a>'
+```
+
+## API token introspection
+
+```python
+from functools import wraps
+import requests
+
+def require_token(scope=None):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            auth = request.headers.get("Authorization", "")
+            if not auth.startswith("Bearer "):
+                return {"error": "missing_token"}, 401
+            token = auth[7:]
+
+            r = requests.post(
+                f"{os.environ['OLYMPUS_ISSUER']}/admin/oauth2/introspect",
+                data={"token": token},
+                auth=(os.environ["HYDRA_ADMIN_USER"], os.environ["HYDRA_ADMIN_PASS"]),
+            )
+            info = r.json()
+            if not info.get("active"):
+                return {"error": "inactive"}, 401
+
+            if scope and scope not in info.get("scope", "").split():
+                return {"error": "insufficient_scope"}, 403
+
+            request.user_sub = info["sub"]
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+@app.route("/api/widgets")
+@require_token(scope="read:widgets")
+def list_widgets():
+    return {"user": request.user_sub, "widgets": []}
+```
+
+## Quart (async Flask)
+
+Same pattern, `async`/`await`:
+
+```python
+from quart import Quart
+from authlib.integrations.starlette_client import OAuth
+# ... (Starlette client works in Quart contexts too)
+```
+
+## Related
+
+- [Integrate, Django integration](/docs/integrate/backends/backend-django)
+- [Integrate, FastAPI integration](/docs/integrate/backends/backend-fastapi)
+- [Cookbook, Validate access token (Python)](/docs/cookbook/tokens-oauth2/validate-token-python)

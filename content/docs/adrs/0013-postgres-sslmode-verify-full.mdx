@@ -1,5 +1,5 @@
 ---
-title: "0013 — Postgres sslmode=verify-full mandatory in production"
+title: "0013, Postgres sslmode=verify-full mandatory in production"
 description: Why production Olympus requires the strictest Postgres TLS mode
 ---
 
@@ -13,9 +13,9 @@ PostgreSQL's `libpq` supports six `sslmode` values:
 
 | Mode | TLS used | Cert verified | Hostname verified |
 |---|---|---|---|
-| `disable` | no | — | — |
-| `allow` | sometimes | — | — |
-| `prefer` | sometimes | — | — |
+| `disable` | no | - |, |
+| `allow` | sometimes | - |, |
+| `prefer` | sometimes | - |, |
 | `require` | yes | no | no |
 | `verify-ca` | yes | yes | no |
 | **`verify-full`** | yes | yes | yes |
@@ -35,6 +35,6 @@ Only `verify-full` defends against MITM attacks where an attacker positioned bet
 
 ## Related
 
-- [Deploy — Database SSL verify-full](/docs/deploy/database-ssl-verify-full)
-- [Operate — Cert rotation](/docs/operate/cert-rotation)
-- [Security — Threat model](/docs/security/threat-model)
+- [Deploy, Database SSL verify-full](/docs/deploy/database/database-ssl-verify-full)
+- [Operate, Cert rotation](/docs/operate/rotation/cert-rotation)
+- [Security, Threat model](/docs/security/infrastructure/threat-model)

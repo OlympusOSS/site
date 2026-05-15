@@ -1,0 +1,78 @@
+---
+title: OIDC userinfo
+description: Get user profile claims after authentication
+---
+
+OIDC's `userinfo` endpoint returns claims about the authenticated user. Useful when the ID token doesn't include all the data you need, or when you want to refresh the profile data without re-authenticating.
+
+## Endpoint
+
+```
+GET https://<hydra-host>/userinfo
+Authorization: Bearer <access_token>
+```
+
+The access token must have the `openid` scope (and `profile`, `email` for those respective claim sets).
+
+## Response
+
+```json
+{
+  "sub": "01H8...",
+  "email": "user@example.com",
+  "email_verified": true,
+  "name": "Ada Lovelace",
+  "given_name": "Ada",
+  "family_name": "Lovelace",
+  "preferred_username": "alice"
+}
+```
+
+The exact claims depend on:
+- The scopes the token has.
+- The traits on the identity (which traits → claims is configured per-deployment).
+
+## What scopes return what
+
+- `openid`, required to get any userinfo response. Returns `sub`.
+- `email`, adds `email`, `email_verified`.
+- `profile`, adds `name`, `given_name`, `family_name`, and any other "profile-like" claims.
+
+Custom scopes can add custom claims via Hydra's claim mapper. See [Cookbook, Add a custom claim to the ID token](/docs/cookbook/tokens-oauth2/add-custom-claim-id-token).
+
+## Userinfo vs ID token
+
+| | Userinfo endpoint | ID token |
+|---|---|---|
+| When fetched | Anytime with a valid access token | At login |
+| Always fresh? | Yes (live read from Kratos identity) | No (snapshot at issuance) |
+| Network call needed? | Yes | No (JWT decode) |
+| Useful for | Refreshing profile data | First load after login |
+
+## Code example
+
+```ts
+async function getUserInfo(accessToken: string) {
+  const response = await fetch(
+    `https://ciam.your-domain/userinfo`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!response.ok) throw new Error('userinfo failed');
+  return await response.json();
+}
+```
+
+## Cache lifetime
+
+Userinfo responses don't include caching guidance. Treat as freshly read every time you call. If you don't want frequent network calls, cache locally for ~1 minute.
+
+## Privacy
+
+Userinfo returns all claims the access token's scope grants. If your access token has `email`, the userinfo response includes the user's email, don't share this token with frontend code that shouldn't see emails.
+
+## Related
+
+- [Integrate, OAuth2 overview](/docs/integrate/oauth2/oauth2-overview)
+- [Integrate, OIDC discovery](/docs/integrate/oauth2/oidc-discovery)
+- [Cookbook, Add custom claim](/docs/cookbook/tokens-oauth2/add-custom-claim-id-token)
+- [Reference, Hydra get OIDC userinfo](/docs/reference/api/hydra/oidc/getoidcuserinfo)

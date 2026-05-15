@@ -1,0 +1,189 @@
+---
+title: Health checks and uptime monitoring
+description: External and internal health monitoring
+---
+
+A health check is "is the service reachable and responsive?" Different stakeholders need different checks.
+
+## Levels of health check
+
+### Liveness
+
+"Is the process running?"
+
+```
+GET /healthz
+→ 200 (process answers)
+```
+
+Used by container orchestrator (Podman, K8s) to decide whether to restart. Cheap, always 200 unless the process is wedged.
+
+### Readiness
+
+"Can the service handle requests right now?"
+
+```
+GET /healthz/ready
+→ Checks DB connection, Kratos/Hydra reachable, etc.
+→ 200 only if all OK
+```
+
+Used by load balancer to decide whether to send traffic. If unready, LB routes away.
+
+### Deep health
+
+"Is everything internally consistent?"
+
+```
+GET /healthz/deep
+→ Runs a test query, calls upstream APIs, checks cache
+→ 200 if all green, 503 with details otherwise
+```
+
+Slower. Run from monitoring, not from LB.
+
+## What Olympus exposes
+
+| Endpoint | Service | Returns |
+|---|---|---|
+| `/health/alive` | Kratos | 200 always |
+| `/health/ready` | Kratos | 200 if DB up |
+| `/health/alive` | Hydra | 200 always |
+| `/health/ready` | Hydra | 200 if DB up |
+| `/healthz` | Hera | 200 if process running |
+| `/healthz` | Athena | 200 if process running |
+| `/healthz` | Caddy | 200 if it can respond |
+
+See [Health endpoints](/docs/operate/monitoring/health-endpoints) for details.
+
+## External monitoring
+
+### Uptime monitor
+
+Free / cheap services that hit your endpoint periodically:
+- [UptimeRobot](https://uptimerobot.com): free for 50 monitors, 5-min interval.
+- [BetterUptime](https://betterstack.com/better-uptime): nicer UI, free tier.
+- [Pingdom](https://www.pingdom.com): mature, paid.
+- [Cronitor](https://cronitor.io): cron-aware.
+
+Each pings `/healthz/ready` every 1-5 minutes. Alert on failure.
+
+### What to monitor
+
+| Monitor | Endpoint | Threshold |
+|---|---|---|
+| Hera up | `https://ciam.your-domain.com/healthz` | Down > 1 min |
+| Hydra up | `https://ciam.your-domain.com/health/ready` | Down > 1 min |
+| Login works | Synthetic test (real login) | Failure > 1 sample |
+| Cert validity | `openssl s_client` check | < 14 days |
+
+### Synthetic tests
+
+Pure HTTP up-check is useful but doesn't catch logical breakage. Synthetic tests simulate real user flows:
+
+```ts
+// scripts/synth-login.ts (cron every 5 min)
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto("https://ciam.your-domain.com/login");
+await page.fill('input[name="identifier"]', "synth@your-domain.com");
+await page.fill('input[name="password"]', process.env.SYNTH_PASSWORD);
+await page.click('button[type="submit"]');
+await page.waitForURL(/\/dashboard/);
+console.log("login OK");
+await browser.close();
+```
+
+Alert if it fails. Catches: cert expiry, DB issues, broken UI, code regressions.
+
+## Internal monitoring
+
+For each service, expose `/metrics` (Prometheus):
+
+```
+http_requests_total{path="/login",status="200"} 1234
+http_request_duration_seconds_bucket{...}
+```
+
+Scrape with Prometheus. Visualize with Grafana.
+
+Alerts:
+
+```yaml
+# alerts.yml
+groups:
+  - name: olympus
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        annotations:
+          summary: "5xx rate above 5%"
+      
+      - alert: KratosDown
+        expr: up{job="kratos"} == 0
+        for: 2m
+        annotations:
+          summary: "Kratos has been down for 2+ minutes"
+```
+
+## Status page
+
+Public-facing: status.your-domain.com.
+
+Tools:
+- [Statuspage](https://www.statuspage.io) (Atlassian): paid.
+- [Status.io](https://status.io): paid.
+- [Cstate](https://github.com/cstate/cstate): free, static-generated.
+- [Atlassian Statuspage](https://www.atlassian.com/software/statuspage) → free tier.
+
+Host the status page OUTSIDE your main infrastructure, if your infra is down, status should still work.
+
+## Incident notification
+
+Tie monitor failures to notifications:
+
+```
+UptimeRobot detects down
+   ↓
+PagerDuty / OpsGenie / Pushover
+   ↓
+On-call gets paged
+```
+
+For non-critical:
+- Slack notification.
+- Email.
+
+For critical (auth completely down):
+- Phone call, SMS.
+
+## Test your monitoring
+
+Regularly:
+- Kill a service for 30 seconds, did alerts fire?
+- Trigger a synthetic failure, was it caught?
+
+If alerts didn't fire, fix the monitoring. Untested monitoring is no monitoring.
+
+## SLOs
+
+Set Service Level Objectives:
+
+| SLO | Target |
+|---|---|
+| Login success rate | > 99.5% over 30 days |
+| Login latency p99 | < 300ms |
+| Uptime (overall) | > 99.9% per month |
+
+Measure against these. Discuss with stakeholders when missed.
+
+Track SLO burn rates, fast burn (1h) vs slow burn (1d). Distinguishes alert urgency.
+
+## Related
+
+- [Operate, Health endpoints](/docs/operate/monitoring/health-endpoints)
+- [Operate, Logs and observability](/docs/operate/monitoring/logs-and-observability)
+- [Operate, Incident response](/docs/operate/backups-recovery/incident-response)
+- [Cookbook, Monitoring Grafana](/docs/cookbook/monitoring-grafana)
+- [Operate, Chaos engineering](/docs/operate/performance/chaos-engineering)

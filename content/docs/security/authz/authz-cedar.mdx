@@ -1,0 +1,111 @@
+---
+title: Authorization, Cedar integration
+description: AWS Cedar policy language with Olympus
+---
+
+[Cedar](https://www.cedarpolicy.com/) is AWS's open-source policy language. Cleaner syntax than OPA's Rego, with stronger type system. Pairs well with Olympus's auth.
+
+## When Cedar fits
+
+- You're already in the AWS ecosystem.
+- You want strong typing and a less mathematical language than Rego.
+- You prefer JSON-shaped policies.
+
+## Example policy
+
+```cedar
+permit (
+  principal == User::"alice",
+  action == Action::"view",
+  resource in Folder::"public"
+);
+
+forbid (
+  principal,
+  action == Action::"delete",
+  resource is Document
+) when {
+  resource.classification == "confidential" &&
+  principal.clearance_level < 3
+};
+```
+
+## Integration
+
+Cedar provides Rust, Java, and TypeScript libraries.
+
+```ts
+import { Authorizer } from "@cedar-policy/cedar-wasm";
+
+const auth = new Authorizer({
+  policies: cedarPoliciesString,
+  entities: {
+    users: [{ uid: "User::\"alice\"", attrs: { clearance_level: 2 } }],
+    folders: [{ uid: "Folder::\"public\"" }],
+  },
+});
+
+const decision = auth.isAuthorized({
+  principal: "User::\"alice\"",
+  action: "Action::\"view\"",
+  resource: "Folder::\"public\"",
+});
+// decision.decision === "Allow" | "Deny"
+```
+
+## Map Olympus subjects to Cedar entities
+
+Translate the OIDC ID token claims into Cedar's entity format:
+
+```ts
+const principal: CedarEntity = {
+  uid: `User::"${idToken.sub}"`,
+  attrs: {
+    role: idToken.role,
+    department: idToken.department,
+    clearance_level: idToken.clearance_level,
+  }
+};
+```
+
+## Schema-first
+
+Cedar's strong typing comes from a schema:
+
+```cedar
+namespace App {
+  entity User in [Group] = {
+    role: String,
+    department: String,
+    clearance_level: Long,
+  };
+  entity Document = {
+    owner: User,
+    classification: String,
+  };
+  action "view", "edit", "delete" appliesTo {
+    principal: [User],
+    resource: [Document],
+  };
+}
+```
+
+The schema validates policies and entities at policy-build time, Cedar catches "you wrote `clearance_lvel`" before deploy.
+
+## Cedar vs OPA
+
+| | Cedar | OPA |
+|---|---|---|
+| Language | Cedar (declarative, JSON-friendly) | Rego (mathematical, datalog-like) |
+| Typing | Strong, schema-first | Dynamic |
+| Tooling | Younger (AWS-backed) | Mature, large ecosystem |
+| Decision logs | Built-in | Built-in |
+| Bundle distribution | Less mature | Mature |
+
+Both work. Pick on team preference.
+
+## Where to learn more
+
+- [Cedar policy language docs](https://www.cedarpolicy.com/docs)
+- [Security, Authorization, OPA integration](/docs/security/authz/authz-opa)
+- [Security, Authorization, ABAC](/docs/security/authz/authz-abac)

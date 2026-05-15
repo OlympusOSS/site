@@ -1,5 +1,5 @@
 ---
-title: "0019 — PKCE mandatory for all public clients"
+title: "0019, PKCE mandatory for all public clients"
 description: Why Olympus rejects authorization-code flows without PKCE for public clients
 ---
 
@@ -11,9 +11,9 @@ description: Why Olympus rejects authorization-code flows without PKCE for publi
 
 OAuth 2.0's Authorization Code grant uses a short-lived **authorization code** that the client exchanges for tokens. The code is transmitted via the user's browser (in the redirect URL), creating opportunities for interception:
 
-1. **Mixed-up redirect URI** — phishing pages that capture codes meant for legitimate apps.
-2. **HTTP referer leakage** — the redirect URL ending up in `Referer` headers to third-party scripts.
-3. **App-shared device storage** — on mobile, another app reading the URL via custom URL scheme handling.
+1. **Mixed-up redirect URI**, phishing pages that capture codes meant for legitimate apps.
+2. **HTTP referer leakage**, the redirect URL ending up in `Referer` headers to third-party scripts.
+3. **App-shared device storage**, on mobile, another app reading the URL via custom URL scheme handling.
 
 RFC 7636 (Proof Key for Code Exchange, PKCE) defends against these. The flow:
 1. Client generates a random `code_verifier` and its SHA-256 hash, the `code_challenge`.
@@ -24,25 +24,25 @@ RFC 7636 (Proof Key for Code Exchange, PKCE) defends against these. The flow:
 
 An attacker who intercepts the code cannot redeem it without the verifier.
 
-RFC 9700 (OAuth 2.0 Security Best Current Practice, 2024) explicitly recommends PKCE for all OAuth2 clients — public and confidential.
+RFC 9700 (OAuth 2.0 Security Best Current Practice, 2024) explicitly recommends PKCE for all OAuth2 clients, public and confidential.
 
 ## Considered alternatives
 
-### Option A — PKCE optional, per-client setting
+### Option A, PKCE optional, per-client setting
 
 Allow public clients to register without PKCE if they prefer. This is Hydra's default.
 
 - *Pros*: Maximum interoperability with legacy clients.
 - *Cons*: Olympus deployments would be vulnerable to authorization-code interception against clients that didn't enable PKCE. The decision lives with each client developer, not the platform.
 
-### Option B — PKCE required for public clients, optional for confidential ✓
+### Option B, PKCE required for public clients, optional for confidential ✓
 
 Public clients (SPAs, mobile, CLIs) **must** use PKCE. Confidential clients (server-side apps with secrets) may use PKCE (and benefit) but are not required to.
 
 - *Pros*: Aligns with RFC 9700. The case where PKCE matters most (public clients) is enforced. Confidential clients retain compatibility with libraries that don't yet emit PKCE.
 - *Cons*: Any existing public client without PKCE breaks.
 
-### Option C — PKCE required for **all** clients (public and confidential)
+### Option C, PKCE required for **all** clients (public and confidential)
 
 Per RFC 9700's strongest recommendation.
 
@@ -51,11 +51,11 @@ Per RFC 9700's strongest recommendation.
 
 ## Decision
 
-**Option B — PKCE required for public clients.** Confidential clients should use PKCE but aren't blocked from registration without it.
+**Option B, PKCE required for public clients.** Confidential clients should use PKCE but aren't blocked from registration without it.
 
 Enforcement happens in Hydra's `token_endpoint_auth_method=none` flow (public clients): without PKCE, the authorization code exchange fails with `pkce_required`.
 
-The Athena admin UI prevents accidental misconfiguration — when creating a public client, the PKCE field is checked and not editable.
+The Athena admin UI prevents accidental misconfiguration, when creating a public client, the PKCE field is checked and not editable.
 
 Olympus only accepts **S256** as the challenge method (not the deprecated `plain`).
 
@@ -68,9 +68,9 @@ Olympus only accepts **S256** as the challenge method (not the deprecated `plain
 
 ### Documentation
 
-- The [PKCE integration guide](/docs/integrate/oauth2-pkce) is the canonical reference.
+- The [PKCE integration guide](/docs/integrate/oauth2/oauth2-pkce) is the canonical reference.
 - [Your first OAuth2 client](/docs/get-started/first-oauth-client) walks through a PKCE-protected flow.
-- [Troubleshooting — `pkce_required`](/docs/troubleshooting/oauth2-pkce-required) covers the common misconfiguration.
+- [Troubleshooting, `pkce_required`](/docs/troubleshooting/oauth2-issues/oauth2-pkce-required) covers the common misconfiguration.
 
 ### Performance
 
@@ -82,16 +82,16 @@ Olympus only accepts **S256** as the challenge method (not the deprecated `plain
 
 ## Enforcement points
 
-1. **Hydra config** — `oauth2.pkce.enforced_for_public_clients: true` in [`hydra.yml`](/docs/reference/config/hydra-yml).
-2. **Hydra config** — `oauth2.pkce.enforced: false` for confidential clients (default; can be turned on at deployment time).
-3. **Athena UI** — `is_public_client=true` forces PKCE flags on.
-4. **`verify-prod-config.yml`** CI workflow — fails the build if PKCE enforcement is turned off in production config.
+1. **Hydra config**, `oauth2.pkce.enforced_for_public_clients: true` in [`hydra.yml`](/docs/reference/config/hydra-yml).
+2. **Hydra config**, `oauth2.pkce.enforced: false` for confidential clients (default; can be turned on at deployment time).
+3. **Athena UI**, `is_public_client=true` forces PKCE flags on.
+4. **`verify-prod-config.yml`** CI workflow, fails the build if PKCE enforcement is turned off in production config.
 
 ## Related
 
-- [Security — PKCE Enforcement](/docs/security/pkce-enforcement) — the enforcement details.
-- [Integrate — OAuth2 PKCE](/docs/integrate/oauth2-pkce) — implementation guide.
-- [Troubleshooting — `pkce_required`](/docs/troubleshooting/oauth2-pkce-required) — common error case.
+- [Security, PKCE Enforcement](/docs/security/identity-protection/pkce-enforcement), the enforcement details.
+- [Integrate, OAuth2 PKCE](/docs/integrate/oauth2/oauth2-pkce), implementation guide.
+- [Troubleshooting, `pkce_required`](/docs/troubleshooting/oauth2-issues/oauth2-pkce-required), common error case.
 
 ## Revisit triggers
 

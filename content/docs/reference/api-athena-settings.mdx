@@ -13,7 +13,7 @@ Settings are stored in the `ciam_settings` table of the `olympus` PostgreSQL dat
 
 ### Single-Key Fetch
 
-`GET /api/settings/:key` calls `getSetting(key)` directly in the SDK — one SQL query, one row. It does NOT call `listSettings()` and filter client-side.
+`GET /api/settings/:key` calls `getSetting(key)` directly in the SDK, one SQL query, one row. It does NOT call `listSettings()` and filter client-side.
 
 The response includes the `encrypted` boolean field so consumers can determine whether the stored value is ciphertext or plaintext.
 
@@ -162,11 +162,11 @@ const captchaEnabled = await getSettingOrDefault("captcha.enabled", "false");
 
 ### Encrypted values on list
 
-`GET /api/settings` returns encrypted values as ciphertext with `encrypted: true`. The plaintext is never returned on listing — use `GET /api/settings/:key?decrypt=true` to read the decrypted value.
+`GET /api/settings` returns encrypted values as ciphertext with `encrypted: true`. The plaintext is never returned on listing, use `GET /api/settings/:key?decrypt=true` to read the decrypted value.
 
 ### Cache staleness
 
-Setting changes take effect within the SDK cache TTL (default 60 seconds). Services that have cached a setting value will see the updated value within 60 seconds of the change. This is expected behavior — Athena does not push change notifications to consuming services.
+Setting changes take effect within the SDK cache TTL (default 60 seconds). Services that have cached a setting value will see the updated value within 60 seconds of the change. This is expected behavior, Athena does not push change notifications to consuming services.
 
 ### Category filter
 
@@ -175,7 +175,7 @@ Setting changes take effect within the SDK cache TTL (default 60 seconds). Servi
 ## Security Considerations
 
 - All endpoints require an authenticated admin session. The Athena middleware gate validates the session before any route handler runs.
-- Encrypted values are stored as AES-256-GCM ciphertext. The `ENCRYPTION_KEY` environment variable must be set correctly on the Athena container — if it changes, existing encrypted values cannot be decrypted.
+- Encrypted values are stored as AES-256-GCM ciphertext. The `ENCRYPTION_KEY` environment variable must be set correctly on the Athena container, if it changes, existing encrypted values cannot be decrypted.
 - The `encrypted` boolean field on the response allows API consumers to correctly identify whether a returned value is ciphertext or plaintext. Do not interpret a value as plaintext when `encrypted: true` without calling the decrypt path.
 - Do not log the response from `GET /api/settings/:key?decrypt=true`. Decrypted values are sensitive.
 - The settings table contains operational secrets (OAuth2 client IDs, CAPTCHA keys, SMTP credentials). Restrict admin session access accordingly.

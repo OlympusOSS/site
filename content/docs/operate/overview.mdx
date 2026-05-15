@@ -3,38 +3,38 @@ title: Overview
 description: Orientation for the Operate section
 ---
 
-Operating an identity platform is a different shape of work from building one. This section is the runbook collection — the things you do on a Tuesday afternoon when something breaks, when a key needs to rotate, when an account is locked.
+Operating an identity platform is a different shape of work from building one. This section is the runbook collection, the things you do on a Tuesday afternoon when something breaks, when a key needs to rotate, when an account is locked.
 
 ## When you are paged
 
-- [Incident Response](/docs/operate/incident-response) — the on-call playbook.
-- [Health Endpoints](/docs/operate/health-endpoints) — what each service's `/health` does and doesn't tell you.
-- [Network Topology](/docs/operate/network-topology) — which ports must be firewalled, and which exist for in-cluster traffic only.
+- [Incident Response](/docs/operate/backups-recovery/incident-response), the on-call playbook.
+- [Health Endpoints](/docs/operate/monitoring/health-endpoints), what each service's `/health` does and doesn't tell you.
+- [Network Topology](/docs/operate/administration/network-topology), which ports must be firewalled, and which exist for in-cluster traffic only.
 
 ## Scheduled rotations
 
-- [Certificate rotation](/docs/operate/cert-rotation) — Caddy + database TLS certs.
-- [Session signing key rotation](/docs/operate/session-signing-key-rotation) — zero-downtime.
-- [Encryption key rotation](/docs/operate/encryption-key-rotation) — for the SDK settings vault.
-- [Reload API key rotation](/docs/operate/reload-api-key-rotation) — for the Kratos schema reload sidecar.
-- [Secrets audit](/docs/operate/secrets-audit) — quarterly inventory.
+- [Certificate rotation](/docs/operate/rotation/cert-rotation), Caddy + database TLS certs.
+- [Session signing key rotation](/docs/operate/rotation/session-signing-key-rotation), zero-downtime.
+- [Encryption key rotation](/docs/operate/rotation/encryption-key-rotation), for the SDK settings vault.
+- [Reload API key rotation](/docs/operate/rotation/reload-api-key-rotation), for the Kratos schema reload sidecar.
+- [Secrets audit](/docs/operate/monitoring/secrets-audit), quarterly inventory.
 
 ## User support
 
-- [Locked account unlock](/docs/operate/locked-account-unlock) — diagnose and unlock a customer or employee.
-- [pgAdmin DBA offboarding](/docs/operate/pgadmin-dba-offboarding) — remove a departing DBA's database access cleanly.
+- [Locked account unlock](/docs/operate/backups-recovery/locked-account-unlock), diagnose and unlock a customer or employee.
+- [pgAdmin DBA offboarding](/docs/operate/administration/pgadmin-dba-offboarding), remove a departing DBA's database access cleanly.
 
 ## Observability
 
-- [Monitoring — PKCE analytics](/docs/operate/monitoring-pkce-analytics) — PKCE-protected OAuth2 traffic.
-- [Monitoring — MFA stats](/docs/operate/monitoring-mfa-stats) — second-factor enrollment and challenge rates.
-- [Logs and observability](/docs/operate/logs-and-observability) — what's logged, where it goes, retention.
+- [Monitoring, PKCE analytics](/docs/operate/monitoring/monitoring-pkce-analytics), PKCE-protected OAuth2 traffic.
+- [Monitoring, MFA stats](/docs/operate/monitoring/monitoring-mfa-stats), second-factor enrollment and challenge rates.
+- [Logs and observability](/docs/operate/monitoring/logs-and-observability), what's logged, where it goes, retention.
 
 ## Capacity
 
-- [Backups — Postgres](/docs/operate/backups-postgres)
-- [Backups — Caddy data](/docs/operate/backups-caddy-data)
-- [Email deliverability](/docs/operate/email-deliverability)
-- [Rate limiting — tuning](/docs/operate/rate-limiting-tuning)
-- [Captcha — tuning](/docs/operate/captcha-tuning)
-- [Audit log retention](/docs/operate/audit-log-retention)
+- [Backups, Postgres](/docs/operate/backups-recovery/backups-postgres)
+- [Backups, Caddy data](/docs/operate/backups-recovery/backups-caddy-data)
+- [Email deliverability](/docs/operate/performance/email-deliverability)
+- [Rate limiting, tuning](/docs/operate/performance/rate-limiting-tuning)
+- [Captcha, tuning](/docs/operate/performance/captcha-tuning)
+- [Audit log retention](/docs/operate/monitoring/audit-log-retention)

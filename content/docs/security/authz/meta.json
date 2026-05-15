@@ -1,0 +1,11 @@
+{
+  "title": "Authorization",
+  "pages": [
+    "authz-abac",
+    "authz-casbin",
+    "authz-cedar",
+    "authz-opa",
+    "authz-rbac",
+    "authz-rebac"
+  ]
+}

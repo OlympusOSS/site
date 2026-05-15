@@ -1,0 +1,122 @@
+---
+title: NestJS integration
+description: Olympus auth in a NestJS application
+---
+
+NestJS uses Passport strategies for auth. We'll wire up a JWT strategy that validates Olympus access tokens via the introspection endpoint or local JWKS.
+
+## Install
+
+```bash
+npm i @nestjs/passport @nestjs/jwt passport passport-jwt jwks-rsa
+```
+
+## Strategy
+
+```ts
+// src/auth/jwt.strategy.ts
+import { Injectable } from "@nestjs/common";
+import { PassportStrategy } from "@nestjs/passport";
+import { ExtractJwt, Strategy } from "passport-jwt";
+import { passportJwtSecret } from "jwks-rsa";
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor() {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      secretOrKeyProvider: passportJwtSecret({
+        cache: true,
+        rateLimit: true,
+        jwksRequestsPerMinute: 10,
+        jwksUri: `${process.env.HYDRA_PUBLIC_URL}/.well-known/jwks.json`,
+      }),
+      issuer: process.env.HYDRA_PUBLIC_URL,
+      algorithms: ["RS256"],
+    });
+  }
+
+  validate(payload: any) {
+    return { sub: payload.sub, scopes: payload.scp ?? [] };
+  }
+}
+```
+
+## Module
+
+```ts
+// src/auth/auth.module.ts
+import { Module } from "@nestjs/common";
+import { PassportModule } from "@nestjs/passport";
+import { JwtStrategy } from "./jwt.strategy";
+
+@Module({
+  imports: [PassportModule],
+  providers: [JwtStrategy],
+})
+export class AuthModule {}
+```
+
+## Guard
+
+```ts
+// src/auth/jwt.guard.ts
+import { Injectable } from "@nestjs/common";
+import { AuthGuard } from "@nestjs/passport";
+
+@Injectable()
+export class JwtGuard extends AuthGuard("jwt") {}
+```
+
+## Use it
+
+```ts
+import { UseGuards, Controller, Get, Req } from "@nestjs/common";
+import { JwtGuard } from "../auth/jwt.guard";
+
+@Controller("orders")
+@UseGuards(JwtGuard)
+export class OrdersController {
+  @Get()
+  list(@Req() req: any) {
+    return { user: req.user.sub, scopes: req.user.scopes };
+  }
+}
+```
+
+## Scope decorator
+
+For scope checks:
+
+```ts
+// src/auth/scopes.decorator.ts
+import { SetMetadata } from "@nestjs/common";
+export const RequireScopes = (...scopes: string[]) => SetMetadata("scopes", scopes);
+
+// src/auth/scopes.guard.ts
+import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+
+@Injectable()
+export class ScopesGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
+  canActivate(ctx: ExecutionContext) {
+    const required = this.reflector.get<string[]>("scopes", ctx.getHandler()) ?? [];
+    const req = ctx.switchToHttp().getRequest();
+    return required.every(s => req.user?.scopes.includes(s));
+  }
+}
+```
+
+```ts
+@UseGuards(JwtGuard, ScopesGuard)
+@RequireScopes("orders:write")
+@Delete(":id")
+delete(@Param("id") id: string) { /* ... */ }
+```
+
+## Related
+
+- [Develop, Backend protect (Express)](/docs/develop/backend-protect-express)
+- [Integrate, Backend Hono](/docs/integrate/backends/backend-hono)
+- [Cookbook, Validate access token (Node)](/docs/cookbook/tokens-oauth2/validate-token-node)

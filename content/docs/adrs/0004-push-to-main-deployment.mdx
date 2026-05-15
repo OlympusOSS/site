@@ -1,5 +1,5 @@
 ---
-title: "0004 — Push-to-main deployment"
+title: "0004, Push-to-main deployment"
 description: Why Olympus deploys on every push to main rather than via PR review gates
 ---
 
@@ -9,7 +9,7 @@ description: Why Olympus deploys on every push to main rather than via PR review
 
 ## Context
 
-Bobby is the sole maintainer and code author across all Olympus repos. PR workflows are an organizational pattern for **gating** changes — getting another set of eyes before merging. With one author, there are no other eyes.
+Bobby is the sole maintainer and code author across all Olympus repos. PR workflows are an organizational pattern for **gating** changes, getting another set of eyes before merging. With one author, there are no other eyes.
 
 CI is the gate that matters: lint, typecheck, tests, prod-config verification, image-pin enforcement, secrets scan. CI runs on every push.
 
@@ -28,8 +28,8 @@ This applies to every Olympus repo: site, athena, hera, platform, sdk, canvas, o
 
 ## Related
 
-- [Develop — Release process](/docs/develop/release-process)
-- Memory: "Monitor GitHub builds until passing" — every push gets watched.
+- [Develop, Release process](/docs/develop/release-process)
+- Memory: "Monitor GitHub builds until passing", every push gets watched.
 
 ## Revisit triggers
 

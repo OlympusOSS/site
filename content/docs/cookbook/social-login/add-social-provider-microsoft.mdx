@@ -1,0 +1,82 @@
+---
+title: Add Microsoft as a social login provider
+description: Configure Microsoft Entra (Azure AD) as an alternate login method
+---
+
+## Prerequisites
+
+- Microsoft Entra (formerly Azure AD) tenant.
+- An Olympus deployment.
+
+## Step 1: Register the application in Entra
+
+1. Microsoft Entra → App registrations → **+ New registration**.
+2. Name: "Your App via Olympus".
+3. Supported account types: **Accounts in any organizational directory and personal Microsoft accounts**.
+4. Redirect URI: `https://ciam.<your-domain>/self-service/methods/oidc/callback/microsoft`.
+5. Register.
+6. Note **Application (client) ID**.
+7. **Certificates & secrets → + New client secret**. Note the value (visible once).
+
+## Step 2: Configure Kratos
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      enabled: true
+      config:
+        providers:
+          - id: microsoft
+            provider: microsoft
+            client_id: <application-client-id>
+            client_secret: <client-secret>
+            microsoft_tenant: common         # or your tenant ID for single-tenant
+            scope:
+              - openid
+              - email
+              - profile
+              - User.Read
+            mapper_url: file:///etc/config/kratos/oidc.microsoft.jsonnet
+```
+
+`microsoft_tenant: common` allows logins from any Entra tenant + personal Microsoft accounts. For employee-only flows (IAM domain), use your specific tenant ID.
+
+## Step 3: Mapper
+
+`oidc.microsoft.jsonnet`:
+
+```text
+local claims = std.extVar('claims');
+{
+  identity: {
+    traits: {
+      email: if 'email' in claims then claims.email else claims.preferred_username,
+      name: {
+        first: claims.given_name,
+        last: claims.family_name,
+      },
+    },
+  },
+}
+```
+
+**Caveat:** Microsoft accounts (personal Hotmail / Live / Outlook) don't always send `email`. They send `preferred_username` which may be an email or a phone. Fall back as shown above.
+
+## Step 4: Test
+
+`https://ciam.<your-domain>/login` → **Continue with Microsoft** → log in with any Microsoft / Entra account → return.
+
+## Use as IAM SSO
+
+For employee SSO (IAM domain instead of CIAM), repeat the steps but:
+- Set `microsoft_tenant: <your-tenant-id>` (single-tenant).
+- Register the Entra app with admin consent for your organization.
+- Configure in `platform/prod/iam-kratos/kratos.yml`.
+
+The same Entra app cannot be registered for both CIAM and IAM with a single tenant ID, you typically register two separate Entra apps.
+
+## Related
+
+- [Cookbook, Add Google as social provider](/docs/cookbook/social-login/add-social-provider-google)
+- [Identity, Social login](/docs/identity/social-login)

@@ -3,7 +3,7 @@ title: From Okta
 description: Migrating an Okta org to Olympus
 ---
 
-This guide moves an Okta org (typically Workforce — internal employees, IT-managed) to Olympus IAM.
+This guide moves an Okta org (typically Workforce, internal employees, IT-managed) to Olympus IAM.
 
 ## When this guide applies
 
@@ -60,7 +60,7 @@ Okta's export includes: email, profile attributes, status, factors enrolled, gro
 }
 ```
 
-Okta uses `pbkdf2-sha512` for password hashes. Kratos supports this — see [Kratos password import docs](https://www.ory.sh/docs/kratos/manage-identities/import-user-accounts-identities).
+Okta uses `pbkdf2-sha512` for password hashes. Kratos supports this, see [Kratos password import docs](https://www.ory.sh/docs/kratos/manage-identities/import-user-accounts-identities).
 
 ### Step 3: Bulk import
 
@@ -79,7 +79,7 @@ Each Okta application becomes a Hydra client:
 | Web (with secret) | Confidential client, `client_secret_basic` |
 | SPA (no secret) | Public client, PKCE mandatory |
 | Native (mobile, CLI) | Public client, PKCE mandatory |
-| SAML 2.0 | Not native — run a SAML→OIDC bridge |
+| SAML 2.0 | Not native, run a SAML→OIDC bridge |
 | API services (M2M) | Confidential client, `client_credentials` grant |
 
 ```bash
@@ -125,7 +125,7 @@ selfservice:
               config:
                 aal: "aal2"
                 # condition: identity.traits.groups contains "engineers"
-                # — implemented via a webhook hook that checks
+                #, implemented via a webhook hook that checks
 ```
 
 Olympus doesn't have a built-in conditional AAL requirement; implement via a webhook to your authz service.
@@ -145,6 +145,6 @@ Okta's deprovisioning, JIT provisioning don't directly port. Use:
 
 ## Related
 
-- [Migration — From Auth0](/docs/migration/from-auth0)
-- [Get Started — CIAM vs IAM](/docs/get-started/concepts-ciam-vs-iam)
-- [ADR 0002 — Kratos+Hydra over Keycloak](/docs/adrs/0002-kratos-hydra-over-keycloak)
+- [Migration, From Auth0](/docs/migration/from-auth0)
+- [Get Started, CIAM vs IAM](/docs/get-started/concepts-ciam-vs-iam)
+- [ADR 0002, Kratos+Hydra over Keycloak](/docs/adrs/0002-kratos-hydra-over-keycloak)

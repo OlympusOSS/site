@@ -3,14 +3,14 @@ title: Workspace setup
 description: Clone the eight Olympus repos and run the dev stack from source
 ---
 
-To work with Olympus source — patch a bug, add a feature, run a forked version — you need a workspace with the eight repos cloned side-by-side. This page sets that up.
+To work with Olympus source, patch a bug, add a feature, run a forked version, you need a workspace with the eight repos cloned side-by-side. This page sets that up.
 
 ## Prerequisites
 
 - **Git** with SSH or HTTPS access to `github.com/OlympusOSS/*`.
 - **Node.js 20+** with `npm`.
-- **Bun** — `curl -fsSL https://bun.sh/install | bash`.
-- **Podman** + `podman-compose` (or Docker + Docker Compose — `podman-compose` is recommended).
+- **Bun**, `curl -fsSL https://bun.sh/install | bash`.
+- **Podman** + `podman-compose` (or Docker + Docker Compose, `podman-compose` is recommended).
 - **macOS:** Homebrew; `octl deploy` will install missing tooling for you.
 - **Linux:** install Podman via your package manager.
 
@@ -51,7 +51,7 @@ for repo in athena hera site canvas sdk octl; do
 done
 ```
 
-`canvas` and `sdk` ship as source-only npm packages. The dev install resolves them via `bun`'s standard package resolution — when Athena's `package.json` declares `@olympusoss/canvas`, Bun reads it from the `canvas/` sibling directory **only when** you use a workspace setup. The current Olympus setup is **not** a Bun monorepo workspace; each app reaches Canvas via the published npm package.
+`canvas` and `sdk` ship as source-only npm packages. The dev install resolves them via `bun`'s standard package resolution, when Athena's `package.json` declares `@olympusoss/canvas`, Bun reads it from the `canvas/` sibling directory **only when** you use a workspace setup. The current Olympus setup is **not** a Bun monorepo workspace; each app reaches Canvas via the published npm package.
 
 For local dev where you want to edit Canvas and see changes in Athena instantly, link manually:
 
@@ -77,7 +77,7 @@ cd Olympus/platform/dev
 podman compose up -d
 ```
 
-See [Get Started — Quickstart with podman compose](/docs/get-started/quickstart-podman-compose) for what each command does and where to look when it fails.
+See [Get Started, Quickstart with podman compose](/docs/get-started/quickstart-podman-compose) for what each command does and where to look when it fails.
 
 ## Run a single app outside Compose
 
@@ -97,7 +97,7 @@ You'll need to bring up Postgres separately or have the Compose stack running fo
 
 ## Editor setup
 
-- **VS Code**: open the parent `Olympus/` directory as a multi-root workspace. Add a `.code-workspace` file listing each repo as a folder. TypeScript should "Just Work" — each repo has its own `tsconfig.json`.
+- **VS Code**: open the parent `Olympus/` directory as a multi-root workspace. Add a `.code-workspace` file listing each repo as a folder. TypeScript should "Just Work", each repo has its own `tsconfig.json`.
 - **JetBrains**: same; open the parent directory as a project, mark each repo as a content root.
 
 ## Per-repo scripts
@@ -122,7 +122,7 @@ Once you have local source, you can also exec into containers to compare your so
 podman exec olympus-athena-1 cat /app/src/middleware.ts | diff - athena/src/middleware.ts
 ```
 
-See [Develop — Inspecting your containers](/docs/develop/inspecting-your-containers) for the full inspection workflow.
+See [Develop, Inspecting your containers](/docs/develop/inspecting-your-containers) for the full inspection workflow.
 
 ## Common setup pitfalls
 
@@ -132,6 +132,6 @@ See [Develop — Inspecting your containers](/docs/develop/inspecting-your-conta
 
 ## Where next
 
-- [Develop — Running tests](/docs/develop/running-tests) — per-repo test runners.
-- [Develop — Testing strategy](/docs/develop/testing-strategy) — Vitest + Playwright patterns.
-- [Develop — Release process](/docs/develop/release-process) — Changesets + GHCR.
+- [Develop, Running tests](/docs/develop/running-tests), per-repo test runners.
+- [Develop, Testing strategy](/docs/develop/testing-strategy), Vitest + Playwright patterns.
+- [Develop, Release process](/docs/develop/release-process), Changesets + GHCR.

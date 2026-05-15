@@ -1,0 +1,242 @@
+---
+title: "@olympusoss/sdk-react components"
+description: Drop-in auth UI for React apps
+---
+
+For React apps integrating Olympus auth, the companion package `@olympusoss/sdk-react` provides hooks and pre-built components. Useful when you don't need full Hera customization.
+
+## Install
+
+```bash
+npm install @olympusoss/sdk @olympusoss/sdk-react
+```
+
+## Provider
+
+Wrap your app:
+
+```tsx
+// app/layout.tsx
+import { OlympusProvider } from "@olympusoss/sdk-react";
+import { olympus } from "@/lib/olympus";
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        <OlympusProvider client={olympus}>
+          {children}
+        </OlympusProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+## Hooks
+
+### useSession
+
+```tsx
+import { useSession } from "@olympusoss/sdk-react";
+
+function Profile() {
+  const { session, loading, error } = useSession();
+  if (loading) return <Spinner />;
+  if (error) return <Alert>Auth error</Alert>;
+  if (!session) return <a href="/login">Sign in</a>;
+  return <p>Hi {session.identity.traits.first_name}</p>;
+}
+```
+
+### useLogin
+
+```tsx
+import { useLogin } from "@olympusoss/sdk-react";
+
+function LoginForm() {
+  const { login, loading, error } = useLogin();
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  
+  async function submit(e) {
+    e.preventDefault();
+    await login({ identifier: email, password: pw });
+    // On success, useSession will reflect new state.
+  }
+  
+  return (
+    <form onSubmit={submit}>
+      <input value={email} onChange={(e) => setEmail(e.target.value)} />
+      <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} />
+      <button disabled={loading}>Sign in</button>
+      {error && <ErrorMessage>{error.message}</ErrorMessage>}
+    </form>
+  );
+}
+```
+
+### useLogout
+
+```tsx
+import { useLogout } from "@olympusoss/sdk-react";
+
+function SignOutButton() {
+  const { logout } = useLogout();
+  return <button onClick={logout}>Sign out</button>;
+}
+```
+
+### useRegister
+
+```tsx
+const { register, loading, error } = useRegister();
+await register({ email, password, traits: { first_name } });
+```
+
+## Components
+
+### SignInForm
+
+```tsx
+import { SignInForm } from "@olympusoss/sdk-react";
+
+<SignInForm
+  onSuccess={() => router.push("/dashboard")}
+  enableSocial
+  enablePasskey
+/>
+```
+
+Renders email + password fields, social buttons, passkey button if supported.
+
+### UserMenu
+
+```tsx
+import { UserMenu } from "@olympusoss/sdk-react";
+
+<UserMenu
+  profileHref="/settings"
+  onSignOut={() => router.push("/")}
+/>
+```
+
+Shows user avatar + dropdown with profile/sign-out.
+
+### ProtectedRoute
+
+```tsx
+import { ProtectedRoute } from "@olympusoss/sdk-react";
+
+<ProtectedRoute redirect="/login">
+  <Dashboard />
+</ProtectedRoute>
+```
+
+Wraps children; redirects if not signed in.
+
+### SessionAware
+
+For mixed UIs:
+
+```tsx
+import { SessionAware } from "@olympusoss/sdk-react";
+
+<SessionAware
+  fallback={<a href="/login">Sign in</a>}
+>
+  {(session) => <p>Hi, {session.identity.traits.first_name}</p>}
+</SessionAware>
+```
+
+## Styling
+
+Components ship without styles. Bring your own CSS or Tailwind:
+
+```tsx
+<SignInForm
+  className="my-form"
+  styles={{
+    form: "space-y-4",
+    input: "border rounded p-2",
+    button: "bg-blue-600 text-white px-4 py-2 rounded",
+  }}
+/>
+```
+
+Or override via CSS:
+
+```css
+.olympus-signin-form {
+  /* your styles */
+}
+```
+
+## Theming
+
+```tsx
+<OlympusProvider client={olympus} theme={{ 
+  colors: { primary: "#4F46E5" },
+  fonts: { body: "Inter, sans-serif" },
+}}>
+```
+
+Theme tokens applied to all components.
+
+## Server-side rendering
+
+With Next.js App Router:
+
+```tsx
+// app/page.tsx (Server Component)
+import { getServerSession } from "@olympusoss/sdk-react/server";
+
+export default async function Home() {
+  const session = await getServerSession();
+  if (!session) return <SignInPage />;
+  return <Dashboard user={session.identity} />;
+}
+```
+
+No client-side fetching for initial render.
+
+## Customization vs Hera
+
+When to use this library:
+- Embed auth UI deep in your app.
+- Need custom designs not easy in Hera.
+- Don't want to maintain Hera fork.
+
+When to use Hera:
+- Standalone login subdomain.
+- Want all Olympus features (consent screen, MFA enroll, etc.) prebuilt.
+- Less customization needed.
+
+For most apps: Hera is enough. For ones with deep embedded auth: SDK-react.
+
+## State management
+
+The SDK uses React Context + hooks. No external state library needed.
+
+For SWR / TanStack Query integration:
+
+```tsx
+const { data: session } = useSWR("session", () => olympus.toSession());
+```
+
+Use the lower-level SDK directly. The SDK-react hooks wrap this.
+
+## Versioning
+
+SDK-react versions follow SDK versions. Major version bump = breaking change.
+
+## TypeScript
+
+All components and hooks fully typed. Use `Session`, `Identity` types from `@olympusoss/sdk`.
+
+## Related
+
+- [Develop, Working with SDK](/docs/develop/working-with-sdk)
+- [Cookbook, SDK TypeScript usage](/docs/cookbook/tools/sdk-typescript-usage)
+- [Reference, SDK API](/docs/reference/sdk-api/index)
+- [Cookbook, Customize Hera UI](/docs/cookbook/customize-hera-ui)

@@ -1,0 +1,189 @@
+---
+title: Tenant claims an email domain
+description: Enterprise wants to own all @company.com sign-ups
+---
+
+When an enterprise customer signs up, they often want: "anyone with an @bigcorp.com email automatically joins our tenant, no invitation needed."
+
+This is "domain claim" or "verified domain." Need:
+- Verify the customer owns the domain (DNS TXT record).
+- Route new sign-ups with that domain to that tenant.
+
+## Domain ownership verification
+
+When tenant admin claims a domain:
+
+1. Athena generates a verification token: `olympus-domain-verify-X`.
+2. User adds DNS TXT record: `_olympus.bigcorp.com → olympus-domain-verify-X`.
+3. Athena queries DNS to verify.
+4. Marks tenant as owning bigcorp.com.
+
+```ts
+async function claimDomain(tenantId: string, domain: string) {
+  const token = `olympus-domain-verify-${crypto.randomUUID()}`;
+  await db.insert(domainClaims).values({
+    tenant_id: tenantId,
+    domain,
+    token,
+    verified: false,
+  });
+  return token;
+}
+
+async function verifyDomain(tenantId: string, domain: string) {
+  const claim = await db`SELECT token FROM domain_claims WHERE tenant_id = ${tenantId} AND domain = ${domain}`.first();
+  const records = await dns.resolveTxt(`_olympus.${domain}`);
+  const found = records.flat().includes(claim.token);
+  if (found) {
+    await db`UPDATE domain_claims SET verified = true, verified_at = NOW() WHERE tenant_id = ${tenantId} AND domain = ${domain}`;
+    return true;
+  }
+  return false;
+}
+```
+
+## Auto-routing sign-ups
+
+Pre-registration hook:
+
+```ts
+export async function POST(req: Request) {
+  const { traits } = await req.json();
+  const domain = traits.email.split("@")[1];
+  const claim = await db`SELECT tenant_id FROM domain_claims WHERE domain = ${domain} AND verified = true`.first();
+  if (claim) {
+    return Response.json({
+      ok: true,
+      patches: {
+        "/traits/tenant_id": claim.tenant_id,
+      },
+    });
+  }
+  return Response.json({ ok: true });
+}
+```
+
+User signs up with `alice@bigcorp.com` → identity gets `tenant_id = bigcorp-tenant`.
+
+## What about existing users
+
+If a domain is claimed AFTER users have already signed up:
+
+```sql
+SELECT id FROM identities 
+WHERE traits->>'email' LIKE '%@bigcorp.com' 
+  AND traits->>'tenant_id' IS DISTINCT FROM 'bigcorp-tenant';
+```
+
+Bulk reassign:
+
+```ts
+for (const id of ids) {
+  await kratos.adminPatch(id, [
+    { op: "replace", path: "/traits/tenant_id", value: "bigcorp-tenant" }
+  ]);
+}
+```
+
+Notify users: "Your account is now part of [BigCorp]."
+
+If they were in another tenant first (mixed-domain situation): handle carefully. Some may push back. Have a conflict-resolution path.
+
+## "Verified" SSO
+
+For domains claimed, you can require SSO too:
+
+```ts
+const hasSso = await checkSso(domain);
+if (hasSso) {
+  return Response.json({
+    redirect_to: `/self-service/methods/oidc/auth/${claim.sso_provider}`,
+  });
+}
+```
+
+@bigcorp.com user can't sign up with email/password, must go through BigCorp's Okta.
+
+## DNS verification edge cases
+
+### CNAME at root
+
+`_olympus.bigcorp.com` is a subdomain, TXT records work fine.
+
+If you used `bigcorp.com` (root domain), TXT records there might conflict with SPF/DMARC. Always use a subdomain.
+
+### DNS propagation delay
+
+After admin adds the record, DNS can take up to a few minutes (sometimes hours) to propagate. UI message:
+
+```
+"Add this TXT record. Verification may take up to 24 hours."
+[Re-check now]
+```
+
+Retry button. Save verified state once successful.
+
+### DNSSEC
+
+For very high-stakes verification, require DNSSEC. Bigger pain to set up but un-spoofable.
+
+## Re-verification
+
+Domain ownership can change. If a tenant doesn't reverify:
+
+```sql
+DELETE FROM domain_claims 
+WHERE verified_at < NOW() - INTERVAL '365 days';
+```
+
+Annual re-verification. Notify before expiry.
+
+## Subdomain claims
+
+`bigcorp.com` claim should include `support.bigcorp.com`, `eng.bigcorp.com`, etc.? Probably yes (subdomains are part of the org). Check `endsWith(".bigcorp.com")` or exact match.
+
+If subdomains are different orgs:
+- Claim `eng.bigcorp.com` separately.
+- More granular.
+
+## Disputes
+
+What if two customers both claim `bigcorp.com`? Should never happen if DNS verification works (each has their own token). But:
+
+- First-come-first-served.
+- Or: tenant admin can prove ownership and challenge.
+
+Document in your TOS.
+
+## Privacy
+
+Domain claims are listed publicly? No, internal to your service. But sub-processor disclosures may include client domain names.
+
+## UI in Athena
+
+Tenant admin page:
+
+```tsx
+<form action={addDomain}>
+  <input name="domain" placeholder="bigcorp.com" />
+  <button>Claim domain</button>
+</form>
+
+<table>
+  {claims.map(c => (
+    <tr>
+      <td>{c.domain}</td>
+      <td>{c.verified ? "✓ Verified" : "Pending verification"}</td>
+      <td>{c.verified ? <Button onClick={() => unclaim(c.id)}>Remove</Button>
+                       : <Button onClick={() => recheck(c.id)}>Recheck</Button>}</td>
+    </tr>
+  ))}
+</table>
+```
+
+## Related
+
+- [Cookbook, Multi-tenant soft isolation](/docs/cookbook/multi-tenant/multi-tenant-soft-isolation)
+- [Cookbook, Email-domain allowlist](/docs/cookbook/defensive-security/email-domain-allowlist)
+- [Cookbook, IdP discovery](/docs/cookbook/enterprise-sso/idp-discovery)
+- [Cookbook, Invitation-based signup](/docs/cookbook/auth-flows/invitation-based-signup)

@@ -3,16 +3,16 @@ title: Overview
 description: Orientation for the Identity section
 ---
 
-This section is the identity model — how Olympus represents users, what fields they have, what credentials they can use, and how they move through the self-service flows.
+This section is the identity model, how Olympus represents users, what fields they have, what credentials they can use, and how they move through the self-service flows.
 
 ## The shape of an identity
 
 In Kratos terms, an identity has:
 
-1. **Traits** — a JSON object matching the identity schema. Olympus ships four schemas (default, customer, company for CIAM; admin for IAM). See [Identity Schemas](/docs/identity/identity-schemas).
-2. **Credentials** — zero or more authentication factors: password, OIDC (social login), TOTP, WebAuthn, recovery codes.
-3. **Verifiable addresses** — identifiers (typically email) that have been verified, are pending verification, or are unverified.
-4. **Recovery addresses** — identifiers eligible to receive a recovery code.
+1. **Traits**, a JSON object matching the identity schema. Olympus ships four schemas (default, customer, company for CIAM; admin for IAM). See [Identity Schemas](/docs/identity/identity-schemas).
+2. **Credentials**, zero or more authentication factors: password, OIDC (social login), TOTP, WebAuthn, recovery codes.
+3. **Verifiable addresses**, identifiers (typically email) that have been verified, are pending verification, or are unverified.
+4. **Recovery addresses**, identifiers eligible to receive a recovery code.
 
 ## Per-schema reference
 
@@ -23,15 +23,15 @@ In Kratos terms, an identity has:
 
 ## Identifiers and verification
 
-- [Identifiers and verification](/docs/identity/identifiers-and-verification) — what makes something an identifier; the verification lifecycle.
+- [Identifiers and verification](/docs/identity/identifiers-and-verification), what makes something an identifier; the verification lifecycle.
 
 ## Sessions
 
-- [Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh) — session lifetimes, authenticator assurance levels, refresh.
+- [Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh), session lifetimes, authenticator assurance levels, refresh.
 
 ## The five Kratos flows
 
-- [Login flow](/docs/identity/flow-login) — state diagram.
+- [Login flow](/docs/identity/flow-login), state diagram.
 - [Registration flow](/docs/identity/flow-registration)
 - [Recovery flow](/docs/identity/flow-recovery)
 - [Verification flow](/docs/identity/flow-verification)
@@ -44,6 +44,6 @@ In Kratos terms, an identity has:
 
 ## Social IdPs
 
-- [Social login](/docs/identity/social-login) — end-user perspective.
-- [Account linking](/docs/identity/account-linking) — linking a social IdP to an existing password identity.
-- [Social connections admin](/docs/identity/social-connections-admin) — admin perspective.
+- [Social login](/docs/identity/social-login), end-user perspective.
+- [Account linking](/docs/identity/account-linking), linking a social IdP to an existing password identity.
+- [Social connections admin](/docs/identity/social-connections-admin), admin perspective.

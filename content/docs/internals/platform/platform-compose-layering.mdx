@@ -1,0 +1,86 @@
+---
+title: Platform, compose layering
+description: How dev and prod compose files share and diverge
+---
+
+The platform repo has two compose files: `dev/compose.dev.yml` and `prod/compose.prod.yml`. They share structure but differ in image sources, port bindings, env vars, and auxiliary services.
+
+## What's the same
+
+- The service names: `caddy`, `ciam-kratos`, `iam-kratos`, `ciam-hydra`, `iam-hydra`, `ciam-athena`, `iam-athena`, `ciam-hera`, `iam-hera`, `site`, `postgres`, `pgadmin`.
+- The `intranet` Compose network.
+- The init / migration ordering.
+- Most environment variable names (values differ).
+
+## What dev does that prod doesn't
+
+| | Dev | Prod |
+|---|---|---|
+| App source | Volume mounts (`../athena:/app`, etc.) for live reload | Pulled from `ghcr.io/olympusoss/<app>` |
+| MailSlurper | Yes, on `:5434` | No |
+| Captcha | Disabled by env (`TURNSTILE_DISABLED=true`) | Enabled if `TURNSTILE_SITE_KEY` is set |
+| Seed | `iam-seed-dev` container creates `admin@demo.user` | Operator-driven via Daedalus Accounts step |
+| Postgres | Container (`postgres:17` image, self-hosted) | Container OR managed (via env-injected URL) |
+| Postgres SSL | `disable` (insecure but convenient) | `verify-full` (mandatory) |
+| TLS | Caddy serves self-signed cert | Caddy gets cert from Let's Encrypt |
+| Email verification hook | Optional (often off for dev convenience) | Mandatory; enforced by CI |
+| Logs | stdout, viewed via `podman compose logs` | stdout, shipped to centralized store |
+
+## Service dependency order
+
+Both files declare `depends_on` so Compose starts in the right order:
+
+```
+postgres
+  ↓
+ciam-kratos-migrate, iam-kratos-migrate, ciam-hydra-migrate, iam-hydra-migrate
+  ↓
+ciam-kratos, iam-kratos, ciam-hydra, iam-hydra
+  ↓
+ciam-athena, iam-athena, ciam-hera, iam-hera, site, pgadmin
+  ↓
+ciam-kratos-reload, iam-kratos-reload  (sidecars)
+  ↓
+iam-seed-dev (dev only)
+  ↓
+caddy
+```
+
+Caddy starts last so it doesn't 502 during the brief window when upstream services are coming up.
+
+## Reading the divergence
+
+The clearest way to see what differs:
+
+```bash
+diff <(yq -P 'sort_keys(..)' dev/compose.dev.yml) \
+     <(yq -P 'sort_keys(..)' prod/compose.prod.yml)
+```
+
+(Requires `yq` for normalized YAML diff. Many divergences are around `image:` vs `build:` and per-service env.)
+
+The auto-generated [Compose services reference](/docs/reference/config/compose/overview) lists each service with dev and prod side-by-side.
+
+## Customizing per-environment
+
+Operators with non-standard environments (staging, etc.) typically:
+1. Fork `platform`.
+2. Add `prod/staging/compose.staging.yml`.
+3. Run via `podman compose -f staging/compose.staging.yml up -d`.
+
+Olympus doesn't bake in a multi-environment overlay system. Compose's `-f` chaining works fine for small differences.
+
+## Why not Helm
+
+[ADR 0001](/docs/adrs/0001-dual-domain-architecture) and the operator-first design choices say: single-host, compose only. Helm would invite multi-node deployments that are out of scope.
+
+## What `octl deploy` uses
+
+`octl deploy` runs `dev/compose.dev.yml` with the volume mounts pointing at the sibling repos. The compose file is bundled inside `@olympusoss/octl` (see [ADR 0025](/docs/adrs/0025-octl-bundled-stack)).
+
+## Related
+
+- [Get Started, Quickstart with podman compose](/docs/get-started/quickstart-podman-compose)
+- [Deploy, Dev vs prod](/docs/deploy/production/dev-vs-prod)
+- [Reference, Compose services](/docs/reference/config/compose/overview)
+- [ADR 0025, Octl bundled stack](/docs/adrs/0025-octl-bundled-stack)

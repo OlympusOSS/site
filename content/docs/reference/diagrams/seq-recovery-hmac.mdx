@@ -18,7 +18,7 @@ sequenceDiagram
         Kratos->>Kratos: Generate HMAC-signed recovery code<br/>(signed with secrets.cipher)
         Kratos->>SMTP: Send recovery email with token URL
     else Identity does not exist
-        Note over Kratos: Same response shape — no enumeration
+        Note over Kratos: Same response shape, no enumeration
     end
     Kratos-->>Hera: 200 "If your email is on file..."
     Hera-->>User: "Check your email"
@@ -44,14 +44,14 @@ sequenceDiagram
 
 ## Why HMAC, not random DB token
 
-Stateless validation — no DB lookup per token validate; HMAC verifies cryptographically. See [ADR 0017](/docs/adrs/0017-recovery-hmac-token).
+Stateless validation, no DB lookup per token validate; HMAC verifies cryptographically. See [ADR 0017](/docs/adrs/0017-recovery-hmac-token).
 
 ## Single-use enforcement
 
-Even though the HMAC is stateless, single-use IS stateful — Kratos records used tokens in the recovery flow's state. Replay attack returns "token already used."
+Even though the HMAC is stateless, single-use IS stateful, Kratos records used tokens in the recovery flow's state. Replay attack returns "token already used."
 
 ## Where to learn more
 
-- [Identity — Flow recovery](/docs/identity/flow-recovery)
-- [Security — Breached password](/docs/security/breached-password)
-- [ADR 0017 — Recovery HMAC token](/docs/adrs/0017-recovery-hmac-token)
+- [Identity, Flow recovery](/docs/identity/flow-recovery)
+- [Security, Breached password](/docs/security/identity-protection/breached-password)
+- [ADR 0017, Recovery HMAC token](/docs/adrs/0017-recovery-hmac-token)

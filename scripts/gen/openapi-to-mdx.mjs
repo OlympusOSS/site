@@ -253,7 +253,10 @@ writeFileSync(
 	JSON.stringify(
 		{
 			title: SERVICE_TITLE,
-			pages: ["overview", ...tagSlugs.map((s) => `...${s}`)],
+			// Bare subdir names render each tag as a collapsible folder in the
+			// fumadocs sidebar. The "..." (spread) syntax instead flattens a
+			// subdir's pages into the parent, defeating the tree view.
+			pages: ["overview", ...tagSlugs],
 		},
 		null,
 		2,

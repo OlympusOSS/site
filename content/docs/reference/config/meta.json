@@ -2,18 +2,9 @@
   "title": "Configuration",
   "pages": [
     "overview",
-    "---Compose---",
-    "...compose",
-    "---Kratos---",
-    "kratos-yml",
-    "---Hydra---",
-    "hydra-yml",
-    "---Caddyfile---",
-    "caddyfile",
-    "---Per-service env---",
-    "athena-env",
-    "hera-env",
-    "site-env",
-    "sdk-env"
+    "compose",
+    "kratos",
+    "hydra",
+    "caddy"
   ]
 }

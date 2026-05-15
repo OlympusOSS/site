@@ -1,5 +1,5 @@
 ---
-title: "0014 — Image pinning by digest in production"
+title: "0014, Image pinning by digest in production"
 description: Why production compose files must reference images by sha256 digest, not tag
 ---
 
@@ -13,13 +13,13 @@ A compose file can reference images by:
 
 | Form | Example | Stability |
 |---|---|---|
-| Tag | `oryd/kratos:v1.x` | Mutable — tag can be reassigned |
+| Tag | `oryd/kratos:v1.x` | Mutable, tag can be reassigned |
 | Tag + digest | `oryd/kratos:v1.x@sha256:abc...` | Immutable; tag is informational |
 | Digest only | `oryd/kratos@sha256:abc...` | Immutable |
 
 A tag-only reference is vulnerable to:
 - Supply-chain attack via tag reassignment.
-- "Latest" surprises — `:latest` resolves differently over time.
+- "Latest" surprises, `:latest` resolves differently over time.
 - Inconsistency between deploys.
 
 ## Decision
@@ -41,5 +41,5 @@ The [`verify-image-pins.yml`](https://github.com/OlympusOSS/platform/blob/main/.
 
 ## Related
 
-- [Security — Caddy Supply Chain](/docs/security/caddy-supply-chain) — applies the same pattern to the custom Caddy build.
-- [Develop — Release process](/docs/develop/release-process) — how digests get bumped.
+- [Security, Caddy Supply Chain](/docs/security/infrastructure/caddy-supply-chain), applies the same pattern to the custom Caddy build.
+- [Develop, Release process](/docs/develop/release-process), how digests get bumped.

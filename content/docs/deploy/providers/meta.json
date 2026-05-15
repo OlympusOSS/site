@@ -1,0 +1,16 @@
+{
+  "title": "Providers",
+  "pages": [
+    "provider-aws-ec2",
+    "provider-azure",
+    "provider-bare-metal",
+    "provider-digitalocean",
+    "provider-direct-ssh",
+    "provider-gcp",
+    "provider-hetzner",
+    "provider-hostinger",
+    "provider-linode",
+    "provider-oracle-cloud",
+    "provider-vultr"
+  ]
+}

@@ -1,0 +1,45 @@
+---
+title: Provider, Hostinger
+description: Deploy Olympus on a Hostinger VPS
+---
+
+Hostinger is supported by Daedalus as a lower-cost alternative to DigitalOcean. VPS plans start at €4-5/month, making it the cheapest legitimate self-hosting path for Olympus.
+
+## What Daedalus does
+
+In the **Provider, Hostinger** wizard step:
+
+1. Reads your Hostinger API key.
+2. Creates a VPS (plan and region you select).
+3. Configures the firewall: 22 (SSH from your IP), 80, 443 open; everything else closed.
+4. Generates and uploads an SSH keypair.
+5. Installs Podman + `podman-compose` via cloud-init.
+6. Records the VPS IP, SSH key, and identifiers in `daedalus.json`.
+
+## What you need
+
+- A **Hostinger account** with VPS access.
+- A **Hostinger API key**, generate from the hPanel under "API Management."
+
+## Recommended plan
+
+| Plan | RAM | vCPU | Storage | Monthly |
+|---|---|---|---|---|
+| **KVM 1** | 4GB | 1 | 50GB NVMe | ~€5 |
+| **KVM 2** | 8GB | 2 | 100GB NVMe | ~€7 |
+| **KVM 4** | 16GB | 4 | 200GB NVMe | ~€14 |
+
+KVM 1 is enough for a personal deployment with managed Postgres. KVM 2 is the recommended starting point for a small production.
+
+## Caveats
+
+- Hostinger's API is less mature than DigitalOcean's. Some operations (resize, attach storage) require dashboard interaction.
+- Hostinger does not offer a Reserved IP equivalent, if you need to swap VPSes, you'll see DNS propagation delay.
+- Region selection is more limited than DigitalOcean.
+
+For a price-sensitive personal deployment, Hostinger is fine. For a serious production with growth expectations, prefer [DigitalOcean](/docs/deploy/providers/provider-digitalocean) for the operational maturity.
+
+## Where next
+
+- [Deploy, DNS and Domains](/docs/deploy/production/dns-and-domains)
+- [Deploy, First production deploy](/docs/deploy/production/first-production-deploy)

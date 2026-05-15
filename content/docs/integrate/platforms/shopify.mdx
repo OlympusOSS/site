@@ -1,0 +1,59 @@
+---
+title: Shopify integration
+description: Single-sign-on for Shopify Admin or store-front via Olympus
+---
+
+Shopify has two distinct SSO surfaces:
+1. **Admin SSO** (logging into the Shopify admin), limited to specific plans.
+2. **Customer accounts SSO** (customers logging into the storefront), newer "New Customer Accounts" feature.
+
+## Customer accounts (storefront)
+
+Shopify's "New Customer Accounts" supports a Multipass-like OIDC integration on Shopify Plus.
+
+### Configuration
+
+In Shopify Admin → Settings → Customer accounts → Identity:
+
+- Choose **Custom**.
+- Enter Olympus issuer: `https://ciam.your-domain`.
+- Client ID and secret from Athena.
+
+### Olympus client
+
+- Type: confidential.
+- Grant: authorization_code, refresh_token.
+- Redirect URI: `https://shopify.com/<store>/account/auth/callback` (Shopify provides exact URI).
+- Scopes: `openid email profile`.
+
+### Token claims
+
+Map your identity traits to Shopify's expected claims:
+
+```text
+local claims = std.extVar('claims').identity.traits;
+{
+  sub: std.extVar('claims').identity.id,
+  email: claims.email,
+  given_name: claims.name.first,
+  family_name: claims.name.last,
+}
+```
+
+## Admin SSO
+
+For Shopify Plus, admin SSO uses SAML, Olympus is OIDC-first. Bridge with a SAML→OIDC translator (see [Cookbook, SAML OIDC bridge](/docs/cookbook/enterprise-sso/saml-oidc-bridge)).
+
+For non-Plus plans, Shopify admin SSO isn't supported. Operators use individual Shopify accounts.
+
+## Caveats
+
+- Customers who registered before SSO adoption may have local Shopify accounts. Decision: force migration, or allow dual auth?
+- Email changes in Olympus need syncing to Shopify if customers reference orders by email.
+- Shopify's webhook system can sync customer changes; bridge with your app DB.
+
+## Related
+
+- [Cookbook, SAML OIDC bridge](/docs/cookbook/enterprise-sso/saml-oidc-bridge)
+- [Cookbook, Add OAuth2 scope](/docs/cookbook/tokens-oauth2/add-oauth2-scope)
+- [Integrate, OAuth2 authorization code](/docs/integrate/oauth2/oauth2-authorization-code)

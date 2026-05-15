@@ -1,0 +1,247 @@
+---
+title: Build an "Operations Dashboard"
+description: At-a-glance Olympus health metrics for ops
+---
+
+For ops monitoring, a single-page dashboard showing key metrics. Doesn't replace Grafana, provides quick context.
+
+## Widgets
+
+### Auth volume
+
+```
+[Login attempts (last 24h): 12,345]
+[Login success rate: 99.2%]
+[Registration: 234]
+[Recovery: 12]
+```
+
+Big numbers. Trends over yesterday.
+
+### Active users
+
+```
+[Active sessions: 1,234]
+[Active in last 5 min: 234]
+[New today: 45]
+```
+
+### Issues
+
+```
+⚠ 2 services degraded
+⚠ Disk 78% full
+✓ All other checks green
+```
+
+### Recent incidents
+
+```
+[Last incident: 3 days ago, 30 min outage]
+[Resolved: 2026-05-10 ✓]
+```
+
+### Latency
+
+```
+[Login p50: 45 ms]
+[Login p99: 180 ms]
+[Token introspect p99: 12 ms]
+```
+
+## Implementation
+
+Query Prometheus + render:
+
+```tsx
+import { getMetric } from "@/lib/prom";
+
+export default async function Dashboard() {
+  const [loginRate, errorRate, latency, activeSessions, diskUsage] = await Promise.all([
+    getMetric("sum(rate(kratos_login_total[24h]))"),
+    getMetric("sum(rate(kratos_login_total{outcome='failure'}[1h])) / sum(rate(kratos_login_total[1h]))"),
+    getMetric("histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{path='/login'}[5m])) by (le))"),
+    getMetric("kratos_active_sessions"),
+    getMetric("node_filesystem_avail_bytes / node_filesystem_size_bytes"),
+  ]);
+  
+  return (
+    <Grid>
+      <Metric label="24h logins" value={formatNumber(loginRate * 86400)} />
+      <Metric label="Error rate" value={(errorRate * 100).toFixed(2) + "%"} trend={errorRate < 0.01 ? "good" : "bad"} />
+      <Metric label="Login p99" value={`${(latency * 1000).toFixed(0)}ms`} />
+      <Metric label="Active sessions" value={formatNumber(activeSessions)} />
+      <Metric label="Disk free" value={`${(diskUsage * 100).toFixed(0)}%`} trend={diskUsage > 0.2 ? "good" : "bad"} />
+    </Grid>
+  );
+}
+```
+
+## Color coding
+
+Visual signals:
+- Green: all good.
+- Yellow: warning threshold.
+- Red: alert threshold.
+
+```tsx
+function Metric({ label, value, trend }) {
+  const color = trend === "good" ? "green" : trend === "warn" ? "yellow" : "red";
+  return (
+    <Card className={`metric metric-${color}`}>
+      <CardLabel>{label}</CardLabel>
+      <CardValue>{value}</CardValue>
+    </Card>
+  );
+}
+```
+
+Color signals at-a-glance.
+
+## Sparklines
+
+Beyond single numbers, mini-charts:
+
+```tsx
+<Card>
+  <CardLabel>Logins (last hour)</CardLabel>
+  <CardValue>{currentLoginRate}/s</CardValue>
+  <Sparkline data={historicalRate} />
+</Card>
+```
+
+Trend visible. Spikes obvious.
+
+## Refresh
+
+```tsx
+useEffect(() => {
+  const interval = setInterval(() => {
+    router.refresh();
+  }, 30_000);  // 30 sec
+  return () => clearInterval(interval);
+}, []);
+```
+
+Live updates without manual refresh.
+
+## Linking to deep-dive
+
+Each widget links to deeper view:
+
+```tsx
+<Metric 
+  label="Error rate" 
+  value="0.12%"
+  href="/admin/audit?q=event:login_failed"
+/>
+```
+
+Click → audit log filtered to failed logins.
+
+## Status of services
+
+```tsx
+{services.map(s => (
+  <ServiceStatus key={s.name}>
+    {s.name}: <StatusBadge status={s.status} />
+  </ServiceStatus>
+))}
+```
+
+```ts
+const services = await Promise.all([
+  checkService("kratos", `${KRATOS_URL}/health/ready`),
+  checkService("hydra", `${HYDRA_URL}/health/ready`),
+  checkService("postgres", "...", checkPostgres),
+  checkService("redis", "...", checkRedis),
+]);
+
+async function checkService(name, url, method = "http") {
+  try {
+    const start = Date.now();
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const latency = Date.now() - start;
+    return { name, status: res.ok ? "up" : "down", latency };
+  } catch (err) {
+    return { name, status: "down", error: err.message };
+  }
+}
+```
+
+Live ping every refresh.
+
+## Recent activity
+
+Stream recent audit events:
+
+```tsx
+const recent = await db`
+  SELECT created_at, event_type, identity_id 
+  FROM security_audit 
+  ORDER BY created_at DESC 
+  LIMIT 20
+`;
+
+<ActivityFeed>
+  {recent.map(e => (
+    <ActivityItem key={e.id} time={e.created_at} event={e.event_type} user={e.identity_id} />
+  ))}
+</ActivityFeed>
+```
+
+What's happening right now.
+
+## Anomaly highlighting
+
+If a metric is unusual, call it out:
+
+```tsx
+{loginRate < expected * 0.5 && (
+  <Alert>
+    Login rate is 50% below typical. Investigate.
+  </Alert>
+)}
+```
+
+Compute typical via 7-day rolling average.
+
+## Access control
+
+Only ops / admin can see this:
+
+```ts
+if (!session.identity.traits.role?.includes("admin")) {
+  return redirect("/forbidden");
+}
+```
+
+Some metrics are sensitive (user count). Don't expose to all.
+
+## Mobile-friendly
+
+Ops may need this from phone during incident. Responsive:
+
+```tsx
+<Grid columns={{ base: 1, md: 2, lg: 3 }}>
+  <Metric ... />
+</Grid>
+```
+
+Single column on phone; grid on desktop.
+
+## Don't replace dashboards
+
+This is a quick-glance. For deep analysis: Grafana, Datadog, etc.
+
+This dashboard answers: "are things broken right now?"
+
+Grafana answers: "why?"
+
+## Related
+
+- [Operate, Health endpoints](/docs/operate/monitoring/health-endpoints)
+- [Operate, Logs and observability](/docs/operate/monitoring/logs-and-observability)
+- [Cookbook, Monitoring Grafana](/docs/cookbook/monitoring-grafana)
+- [Cookbook, Health check monitoring](/docs/cookbook/operations/health-check-monitoring)
+- [Cookbook, Admin audit page](/docs/cookbook/tools/admin-audit-page)

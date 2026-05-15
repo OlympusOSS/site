@@ -1,0 +1,185 @@
+---
+title: Restrict by network / IP range
+description: Only allow auth from specific networks
+---
+
+For internal-tool deployments, you might want auth to only work from corporate networks or VPN.
+
+## Approach 1: Caddy IP allowlist
+
+Restrict at the edge:
+
+```caddy
+ciam.your-domain.com {
+  @corporate remote_ip 203.0.113.0/24 198.51.100.0/24
+  handle @corporate {
+    reverse_proxy hera:3000
+  }
+  
+  respond 403 "Access restricted to corporate network"
+}
+```
+
+Cloudflare in front? Use `CF-Connecting-IP`:
+
+```caddy
+ciam.your-domain.com {
+  @corporate {
+    header CF-Connecting-IP "203.0.113.*"
+  }
+  ...
+}
+```
+
+(Use Caddy's `client_ip_headers` to make `remote_ip` look at the real client IP.)
+
+## Approach 2: VPN-only
+
+```caddy
+ciam.your-domain.com {
+  @vpn remote_ip 10.8.0.0/24    # VPN subnet
+  handle @vpn {
+    reverse_proxy hera:3000
+  }
+  respond 403
+}
+```
+
+Users must connect to VPN to even reach the login page. Outside VPN: 403.
+
+Pros: simplest defense.
+Cons: VPN itself becomes the trust boundary.
+
+## Approach 3: App-level check
+
+If you want some endpoints public (login) and others restricted:
+
+```ts
+// Athena middleware
+const ip = req.headers["x-real-ip"];
+const allowed = ["203.0.113.0/24", "198.51.100.0/24"];
+if (!allowed.some(cidr => ipInCidr(ip, cidr))) {
+  return res.status(403).send("Not from allowed network");
+}
+```
+
+Granularity per route.
+
+## Approach 4: Risk-based step-up
+
+Allow access from anywhere, but require MFA / stronger auth from outside the allowlist:
+
+```yaml
+# kratos.yml
+session:
+  required_aal:
+    default: aal1
+    when:
+      - condition: "request.ip not in 203.0.113.0/24"
+        require: aal2
+```
+
+(This is a sketch, actual Kratos config uses webhook-based decisions.)
+
+Pre-login hook:
+```ts
+export async function POST(req: Request) {
+  const { request_ip } = await req.json();
+  const inCorpNetwork = isCorpNetwork(request_ip);
+  return Response.json({
+    require_aal: inCorpNetwork ? "aal1" : "aal2",
+  });
+}
+```
+
+User from corp: password only.
+User from coffee shop: password + MFA.
+
+Better UX than hard block.
+
+## Approach 5: Geo-restriction
+
+Block by country (e.g., "no logins from sanctioned countries"):
+
+```caddy
+@geo_blocked {
+  expression {http.request.header.CF-IPCountry} in ["XX", "YY"]
+}
+respond @geo_blocked 403
+```
+
+Requires Cloudflare's IP-Country header or a Caddy GeoIP plugin.
+
+Heads up: false positives (VPN-using legitimate users in blocked countries). Tune carefully.
+
+## CIDR maintenance
+
+Corporate IP ranges change. Keep your allowlist in a Caddy snippet:
+
+```caddy
+(corp_ips) {
+  @corp remote_ip 203.0.113.0/24 198.51.100.0/24 10.0.0.0/8
+}
+
+ciam.your-domain.com {
+  import corp_ips
+  handle @corp { ... }
+}
+```
+
+Update one place, all sites reflect.
+
+For dynamic / API-driven IPs (e.g., from a IPAM):
+
+```bash
+# cron: regenerate ip-allowlist.caddy hourly from API
+curl https://your-ipam/api/corp-cidrs > /etc/caddy/ip-allowlist.caddy
+caddy reload
+```
+
+## What about mobile / remote workers?
+
+Hard IP block excludes work-from-home, business travel. Options:
+
+- VPN: workers connect to VPN, get a known IP.
+- Cloud Access Security Broker (CASB) like Zscaler, gives users a fixed egress IP.
+- Risk-based: allow but force MFA from unknown IPs.
+
+For modern flexible work, hard IP allowlist is often impractical. Lean toward step-up.
+
+## Logging
+
+Log block events:
+
+```caddy
+log {
+  format json
+  level INFO
+  output file /var/log/caddy/blocked.log
+}
+
+@blocked not remote_ip 203.0.113.0/24
+handle @blocked {
+  log_name blocked-attempts
+  respond 403
+}
+```
+
+Review periodically, are legit users hitting 403? Tune allowlist.
+
+## Bypass for emergencies
+
+Don't lock yourself out. Have a bypass:
+
+- Admin IP allowlist that's always allowed.
+- Break-glass path (only specific URL) that requires a strong secret.
+- Out-of-band recovery via SSH to host, direct DB access.
+
+Document in your runbook.
+
+## Related
+
+- [Cookbook, Risk-based auth](/docs/cookbook/defensive-security/risk-based-auth)
+- [Cookbook, Detect impossible travel](/docs/cookbook/defensive-security/detect-impossible-travel)
+- [Security, Rate limiting](/docs/security/web-attacks/rate-limiting)
+- [Cookbook, Break-glass access](/docs/cookbook/defensive-security/break-glass-access)

@@ -1,0 +1,252 @@
+---
+title: Admin audit log viewer page
+description: Search and filter security events
+---
+
+A page in Athena (or your own admin tool) for browsing the audit log. Search by user, event type, date, IP.
+
+## Schema
+
+```sql
+-- security_audit table (created by Athena init)
+CREATE TABLE security_audit (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  identity_id UUID,          -- target user
+  actor_id UUID,             -- who took the action (could be same as identity)
+  actor_type TEXT,           -- "self" | "admin" | "system"
+  event_type TEXT NOT NULL,  -- "login" | "password_changed" | "mfa_enrolled" ...
+  outcome TEXT,              -- "success" | "failure"
+  source_ip INET,
+  user_agent TEXT,
+  metadata JSONB,            -- event-specific
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ix_audit_identity ON security_audit(identity_id, created_at DESC);
+CREATE INDEX ix_audit_event ON security_audit(event_type, created_at DESC);
+CREATE INDEX ix_audit_created ON security_audit(created_at DESC);
+```
+
+## Page structure
+
+```tsx
+// athena/app/admin/audit/page.tsx
+export default async function Audit({ searchParams }) {
+  const filters = parseFilters(searchParams);
+  const events = await queryAudit(filters);
+  return (
+    <div>
+      <FilterBar filters={filters} />
+      <AuditTable events={events} />
+      <Pagination filters={filters} />
+    </div>
+  );
+}
+```
+
+## Filters
+
+```tsx
+function FilterBar({ filters }) {
+  return (
+    <form>
+      <Select name="event_type" options={EVENT_TYPES} value={filters.event_type} />
+      <Input name="identity_email" value={filters.identity_email} placeholder="user email" />
+      <Input name="source_ip" value={filters.source_ip} placeholder="IP" />
+      <DateRange name="created_at" value={filters.created_at} />
+      <Select name="outcome" options={["", "success", "failure"]} />
+      <button>Apply</button>
+    </form>
+  );
+}
+```
+
+## Query
+
+```ts
+async function queryAudit(filters) {
+  let q = sql`SELECT a.*, i.traits->>'email' as user_email FROM security_audit a LEFT JOIN identities i ON a.identity_id = i.id WHERE 1=1`;
+  
+  if (filters.event_type) q = sql`${q} AND a.event_type = ${filters.event_type}`;
+  if (filters.identity_email) q = sql`${q} AND i.traits->>'email' ILIKE ${`%${filters.identity_email}%`}`;
+  if (filters.source_ip) q = sql`${q} AND a.source_ip = ${filters.source_ip}`;
+  if (filters.outcome) q = sql`${q} AND a.outcome = ${filters.outcome}`;
+  if (filters.created_at) {
+    q = sql`${q} AND a.created_at BETWEEN ${filters.created_at.from} AND ${filters.created_at.to}`;
+  }
+  
+  q = sql`${q} ORDER BY a.created_at DESC LIMIT ${filters.per_page} OFFSET ${(filters.page - 1) * filters.per_page}`;
+  
+  return await db.unsafe(q);
+}
+```
+
+## Display
+
+```tsx
+function AuditTable({ events }) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Event</th>
+          <th>User</th>
+          <th>Actor</th>
+          <th>IP</th>
+          <th>Outcome</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {events.map(e => (
+          <tr key={e.id} className={e.outcome === "failure" ? "bg-red-50" : ""}>
+            <td>{formatTime(e.created_at)}</td>
+            <td>{e.event_type}</td>
+            <td><Link href={`/identities/${e.identity_id}`}>{e.user_email}</Link></td>
+            <td>{e.actor_type === "admin" ? <span className="badge">admin</span> : "self"}</td>
+            <td>{e.source_ip} <Geo ip={e.source_ip} /></td>
+            <td>{e.outcome}</td>
+            <td><pre>{JSON.stringify(e.metadata, null, 2)}</pre></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+## Event-type catalog
+
+Pre-define event types so filters are useful:
+
+```ts
+const EVENT_TYPES = [
+  // Auth flow
+  "login_succeeded", "login_failed",
+  "mfa_challenge_succeeded", "mfa_challenge_failed",
+  "registration_completed", "verification_completed",
+  
+  // Settings
+  "password_changed", "email_changed",
+  "mfa_enrolled", "mfa_removed",
+  
+  // Admin actions
+  "admin_session_revoked", "admin_password_reset", "admin_role_changed",
+  "admin_impersonation_started", "admin_impersonation_ended",
+  "admin_account_locked", "admin_account_deleted",
+  
+  // OAuth2
+  "oauth_consent_granted", "oauth_consent_revoked",
+  "oauth_token_issued", "oauth_token_revoked",
+  
+  // Security
+  "suspicious_login_blocked", "brute_force_detected",
+  "ip_blocked", "ip_unblocked",
+];
+```
+
+Display friendly names:
+
+```ts
+const labels = {
+  "login_succeeded": "Successful login",
+  "login_failed": "Failed login",
+  // ...
+};
+```
+
+## Exporting
+
+For investigations / DSR:
+
+```tsx
+<Button onClick={exportFiltered}>Export CSV</Button>
+```
+
+```ts
+async function exportFiltered() {
+  const events = await queryAudit(filters, { all: true });
+  const csv = toCsv(events);
+  download(csv, "audit-export.csv");
+}
+```
+
+Limit to 10,000 rows to avoid memory issues. For larger: paginated download.
+
+## Saved queries
+
+Useful named queries:
+
+```tsx
+<Link href="/audit?event_type=login_failed&period=24h">
+  Recent failed logins
+</Link>
+<Link href="/audit?event_type=password_changed&period=7d">
+  Password changes this week
+</Link>
+<Link href="/audit?event_type=admin_role_changed">
+  Role changes
+</Link>
+```
+
+Power users come back to the same searches.
+
+## Real-time updates
+
+For incident response, refresh every 30s:
+
+```tsx
+useEffect(() => {
+  const t = setInterval(() => router.refresh(), 30_000);
+  return () => clearInterval(t);
+}, []);
+```
+
+Or use SSE / WebSockets for true real-time.
+
+## Linking related events
+
+A "session" of events should be visible:
+
+User logs in (event 1), browses (events 2-N), changes password (event X), logs out (event Y).
+
+Display chronologically as a story:
+
+```tsx
+function UserTimeline({ userId, dateRange }) {
+  const events = useQuery(...);
+  return (
+    <Timeline>
+      {events.map(e => <TimelineEvent key={e.id} event={e} />)}
+    </Timeline>
+  );
+}
+```
+
+## Access control
+
+Only admin / security roles can view. Critical:
+
+```tsx
+// middleware
+if (!user.roles.includes("audit:read")) {
+  return Response.redirect("/forbidden");
+}
+```
+
+Audit who viewed the audit log:
+
+```sql
+INSERT INTO security_audit (event_type, actor_id, metadata)
+VALUES ('audit_log_viewed', $admin_id, $filters);
+```
+
+Yes, audit your audit viewer. Layers.
+
+## Related
+
+- [Operate, Audit log query](/docs/operate/audit-log-query)
+- [Operate, Audit log retention](/docs/operate/monitoring/audit-log-retention)
+- [Cookbook, Audit log immutability](/docs/cookbook/defensive-security/audit-log-immutability)
+- [Cookbook, Compliance audit export](/docs/cookbook/data-compliance/compliance-audit-export)

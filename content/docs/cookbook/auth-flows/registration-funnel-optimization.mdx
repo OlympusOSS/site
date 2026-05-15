@@ -1,0 +1,217 @@
+---
+title: Registration funnel optimization
+description: Reduce dropoff between "interested" and "signed up"
+---
+
+Registration is the funnel that matters. Industry typical: 20-50% of visitors who start signup don't finish. Olympus's default flow is reasonable but not optimized, here's how to tune.
+
+## Instrument first
+
+Track:
+1. Visitors on `/register`.
+2. Form submission attempts.
+3. Form submission errors (per field).
+4. Successful registrations.
+5. Email verifications.
+6. First login after registration.
+
+In Hera, add analytics events:
+
+```ts
+"use client";
+useEffect(() => {
+  analytics.track("registration_page_viewed");
+}, []);
+```
+
+Submit handler:
+```ts
+const onSubmit = (data) => {
+  analytics.track("registration_attempted", { email_domain: data.email.split("@")[1] });
+  // ...
+};
+```
+
+## Optimize: fewer fields
+
+Default Olympus registration: email + password.
+
+Don't ask for first/last name, company, role, etc. on signup. Collect those later (profile setup, in-app).
+
+Each field adds friction. Each conditional ask reduces.
+
+Counter: B2B sales often wants company info. Compromise: optional fields, clearly labeled.
+
+## Optimize: clear password requirements
+
+Show password requirements as the user types, not after submit:
+
+```tsx
+<PasswordStrengthMeter password={value} />
+// "Add 4 more characters"
+// "Avoid common passwords"
+```
+
+Fewer submit-error cycles.
+
+## Optimize: social as primary
+
+For B2C, social signup converts ~3x better than password.
+
+UI order:
+```
+[Sign up with Google]
+[Sign up with Apple]
+[Sign up with GitHub]
+─── or ───
+[Email]   [Password]
+[Sign up]
+```
+
+Social first. Password as backup.
+
+## Optimize: magic link as primary
+
+For some B2B SaaS, magic link (no password ever) converts even better.
+
+```
+Enter your work email:
+[your-name@company.com]
+[Send sign-in link]
+```
+
+Friction: 1 input. User receives email, clicks → in app.
+
+Trade-off: now they need to check email mid-flow. Mobile UX worse.
+
+## Optimize: in-app prompts
+
+Defer profile completion to in-app:
+
+```tsx
+// First app visit after signup
+<OnboardingChecklist>
+  <Item done={hasName}>Add your name</Item>
+  <Item done={hasPhoto}>Upload profile photo</Item>
+  <Item done={hasMfa}>Enable 2FA</Item>
+</OnboardingChecklist>
+```
+
+Bait with rewards / progress bars.
+
+## Optimize: gentle email verification
+
+Don't block app usage on email verification. Let user sign up + log in immediately. Verify later.
+
+Show a soft banner:
+```
+Please verify your email, some features (like password recovery) need this.
+[Resend email]
+```
+
+After 7 days unverified, get strict.
+
+## Optimize: error message UX
+
+Bad:
+```
+{ "error": "validation_failed" }
+```
+
+Good:
+```
+"This email is already registered. Sign in instead?"
+[Sign in] [Use different email]
+```
+
+Specific, actionable.
+
+## Optimize: prefill via URL
+
+If user clicks an email invite link:
+```
+https://your-app.com/register?email=alice@example.com
+```
+
+Pre-fill the email. They just enter password. -1 field.
+
+## Optimize: passkey on registration
+
+If passkey supported, offer:
+
+```
+Continue without a password?
+Save a passkey to your device, sign in faster next time.
+[Save passkey]    [Use password instead]
+```
+
+Reduces password fatigue.
+
+## A/B test
+
+Test changes incrementally. Olympus's settings vault has feature flags, use them:
+
+```
+olympus.registration.layout = "v2"  // 50% A, 50% B
+```
+
+Measure conversion. Pick winner. Repeat.
+
+## Common dropoff causes
+
+### Email already in use
+
+User signs up with an email they already have. Either:
+- Show "Already have account? Sign in" link prominently.
+- Auto-redirect to sign-in with the email prefilled.
+
+### Password too weak
+
+Show meter live. Reject submission before round-trip. Most users will retry vs abandon.
+
+### CAPTCHA fatigue
+
+If CAPTCHA always fires, ~5% drop off. Use risk-based: only show if signals suggest bot.
+
+### Form errors
+
+Each field error → 5-10% dropoff. Validate live, not on submit.
+
+### Email verification confusion
+
+User signs up, doesn't get email, thinks "broken." Show clear "Check your spam folder. Still nothing? [Resend]."
+
+## After signup: first hour matters
+
+Studies: if a user doesn't return within 24h of signing up, they probably never will.
+
+Tactics:
+- Email at +5min: "Welcome, here's how to start."
+- Email at +1d: "Your first task: [actionable]."
+- In-app: prompt to add data, invite teammates.
+
+## Measure cohort retention
+
+```sql
+-- 7-day retention by signup week
+SELECT
+  DATE_TRUNC('week', i.created_at) AS signup_week,
+  COUNT(DISTINCT i.id) AS signups,
+  COUNT(DISTINCT CASE WHEN l.created_at > i.created_at + INTERVAL '6 days' THEN i.id END) AS d7_active
+FROM identities i
+LEFT JOIN security_audit l 
+  ON l.identity_id = i.id 
+  AND l.event_type = 'login'
+WHERE i.created_at > NOW() - INTERVAL '12 weeks'
+GROUP BY 1
+ORDER BY 1;
+```
+
+Watch for changes.
+
+## Related
+
+- [Cookbook, Customize registration form](/docs/cookbook/ui-content/customize-registration-form)
+- [Cookbook, Localize Hera UI](/docs/cookbook/ui-content/localize-hera-ui)
+- [Cookbook, Passwordless magic link](/docs/cookbook/auth-flows/passwordless-magic-link)
+- [Identity, Registration flow](/docs/identity/registration-flow)

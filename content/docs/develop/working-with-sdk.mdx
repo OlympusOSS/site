@@ -15,9 +15,9 @@ Things every app needs that don't fit elsewhere:
 - Session location tracking.
 
 Things **not** in scope:
-- HTTP clients to Kratos / Hydra — those live in each app's `services/` layer.
-- React components — those live in Canvas.
-- Business logic — those live in the apps.
+- HTTP clients to Kratos / Hydra, those live in each app's `services/` layer.
+- React components, those live in Canvas.
+- Business logic, those live in the apps.
 
 If you're tempted to add something to the SDK, ask: would I want this in every app, with no app-specific variations? If no, keep it in the app.
 
@@ -70,7 +70,7 @@ describe("recordAuditEvent", () => {
 
 ## Database migrations
 
-The SDK includes `auto-migration` — on startup, it ensures the `olympus` database has the expected tables. New tables go in `src/db.ts`:
+The SDK includes `auto-migration`, on startup, it ensures the `olympus` database has the expected tables. New tables go in `src/db.ts`:
 
 ```ts
 const MIGRATIONS = [
@@ -101,7 +101,7 @@ const ciphertext = encrypt("secret_value", "record_id");
 const plaintext = decrypt(ciphertext, "record_id");
 ```
 
-The `record_id` becomes part of the HKDF derivation — same plaintext encrypted twice with different record_ids produces different ciphertexts. See [ADR 0006](/docs/adrs/0006-aes-256-gcm-hkdf).
+The `record_id` becomes part of the HKDF derivation, same plaintext encrypted twice with different record_ids produces different ciphertexts. See [ADR 0006](/docs/adrs/0006-aes-256-gcm-hkdf).
 
 ## Format versioning
 
@@ -109,7 +109,7 @@ Encrypted values are prefixed with `v2:`. To roll forward to a new encryption fo
 
 1. Implement v3 alongside v2.
 2. Ship the new code: SDK decrypts both v2 and v3, encrypts new values as v3.
-3. Run the migration script ([Operate — Encryption key rotation](/docs/operate/encryption-key-rotation)) to upgrade existing v2 rows to v3.
+3. Run the migration script ([Operate, Encryption key rotation](/docs/operate/rotation/encryption-key-rotation)) to upgrade existing v2 rows to v3.
 4. Once everything is v3, deprecate v2 decode in a future SDK major version.
 
 ## Versioning
@@ -136,7 +136,7 @@ Local changes in `sdk/src/` are immediately visible in Athena.
 
 ## Related
 
-- [Repo map — SDK](/docs/repo-map)
-- [Reference — SDK API](/docs/reference/api/sdk/overview)
-- [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
-- [Security — Encryption at rest](/docs/security/encryption-at-rest)
+- [Repo map, SDK](/docs/repo-map)
+- [Reference, SDK API](/docs/reference/api/sdk/overview)
+- [ADR 0012, Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
+- [Security, Encryption at rest](/docs/security/encryption-keys/encryption-at-rest)

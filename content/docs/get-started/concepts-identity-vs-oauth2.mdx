@@ -3,28 +3,28 @@ title: Identity vs OAuth2
 description: Why Olympus runs both Kratos and Hydra
 ---
 
-Olympus uses **two** Ory services per domain — Kratos and Hydra. New operators often ask why; they look like overlapping concerns.
+Olympus uses **two** Ory services per domain, Kratos and Hydra. New operators often ask why; they look like overlapping concerns.
 
 They aren't. They handle different problems.
 
-## Kratos — identity
+## Kratos, identity
 
 Kratos is the **identity database and the self-service flows around it**. It owns:
 
-- **Who the users are** — identities, traits (the schema-defined trait fields like email, name, role), credentials (password hashes, OIDC links, TOTP secrets, WebAuthn keys).
-- **The lifecycle flows** — registration, login, password recovery, email verification, settings (change password, change email, enroll TOTP).
-- **The sessions** — once a user logs in, Kratos issues a session cookie that survives across the user's interactions with your apps.
+- **Who the users are**, identities, traits (the schema-defined trait fields like email, name, role), credentials (password hashes, OIDC links, TOTP secrets, WebAuthn keys).
+- **The lifecycle flows**, registration, login, password recovery, email verification, settings (change password, change email, enroll TOTP).
+- **The sessions**, once a user logs in, Kratos issues a session cookie that survives across the user's interactions with your apps.
 
 Kratos has nothing to do with OAuth2.
 
-## Hydra — OAuth2
+## Hydra, OAuth2
 
 Hydra is an **OAuth2 / OIDC server**. It owns:
 
-- **OAuth2 clients** — registered applications that can request tokens.
-- **Authorization grants** — implementations of the Authorization Code flow (with PKCE), Client Credentials flow, Refresh tokens, etc.
-- **Tokens** — access tokens, refresh tokens, ID tokens. Signing keys.
-- **The consent flow** — when a client requests scopes, Hydra renders or auto-grants a consent decision.
+- **OAuth2 clients**, registered applications that can request tokens.
+- **Authorization grants**, implementations of the Authorization Code flow (with PKCE), Client Credentials flow, Refresh tokens, etc.
+- **Tokens**, access tokens, refresh tokens, ID tokens. Signing keys.
+- **The consent flow**, when a client requests scopes, Hydra renders or auto-grants a consent decision.
 
 Hydra has nothing to do with passwords. It does not know how to authenticate a user.
 
@@ -52,7 +52,7 @@ Kratos authenticates the user. Hydra authorizes the app. Hera is the glue UI.
 
 ## Why not just one server?
 
-The Ory team split them — and Olympus follows — because the two responsibilities have very different shapes:
+The Ory team split them, and Olympus follows, because the two responsibilities have very different shapes:
 
 - **Identity** is about long-lived records, schemas, recovery, lifecycle. The hard problems are correctness (no race conditions on credential update), privacy (PII handling, GDPR), and recovery (don't lose access on email change).
 - **OAuth2** is about short-lived tokens, cryptography, RFCs, IETF errata. The hard problems are protocol correctness (PKCE, refresh-token rotation, downscoping) and key management (JWKs, rotation).
@@ -66,10 +66,10 @@ By splitting, you can also independently scale, version, and operate each.
 - An app that just needs login (no third-party API authorization) can interact with **Kratos alone**. The Kratos session cookie is enough.
 - A pure machine-to-machine flow (worker → backend API, no human involved) can interact with **Hydra alone**. The client credentials grant doesn't touch Kratos.
 
-In Olympus the two run in lockstep because the most common case — a customer logging into your app — requires both: Kratos to identify the user, Hydra to authorize your app's session token.
+In Olympus the two run in lockstep because the most common case, a customer logging into your app, requires both: Kratos to identify the user, Hydra to authorize your app's session token.
 
 ## Where next
 
-- [CIAM vs IAM](/docs/get-started/concepts-ciam-vs-iam) — the other axis.
-- [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview) — when to use which grant.
-- [Identity — overview](/docs/identity/overview) — the Kratos identity model.
+- [CIAM vs IAM](/docs/get-started/concepts-ciam-vs-iam), the other axis.
+- [Integrate, OAuth2 overview](/docs/integrate/oauth2/oauth2-overview), when to use which grant.
+- [Identity, overview](/docs/identity/overview), the Kratos identity model.

@@ -1,0 +1,136 @@
+---
+title: Canary deployment
+description: Gradual rollout of a new Olympus version
+---
+
+Canary: deploy the new version to a small percentage of traffic, observe, gradually increase.
+
+## When to canary
+
+Most Olympus changes are routine and don't warrant a canary, blue/green is fine. Canary for:
+- Risky changes (Hydra major version bump).
+- Behavior changes (new MFA enforcement, password policy change).
+- Performance-sensitive changes.
+
+## Setup
+
+Two backends weighted by your load balancer:
+
+```caddy
+ciam.your-domain.com {
+  reverse_proxy {
+    to stable-host:443 9
+    to canary-host:443 1
+    lb_policy weighted_round_robin
+  }
+}
+```
+
+This sends ~10% of traffic to canary.
+
+## What to watch
+
+For the canary backend only:
+
+```promql
+# Error rate
+rate(http_requests_total{instance="canary",status=~"5.."}[5m])
+  / rate(http_requests_total{instance="canary"}[5m])
+```
+
+```promql
+# Login success rate
+rate(kratos_login_total{instance="canary",outcome="success"}[5m])
+  / rate(kratos_login_total{instance="canary"}[5m])
+```
+
+```promql
+# Latency p99
+histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{instance="canary"}[5m]))
+```
+
+Compare to stable. If canary is worse on any:
+- Reduce to 0% (back to stable-only).
+- Investigate.
+
+## Gradual ramp
+
+```
+0% → 1% → 5% → 25% → 50% → 100%
+```
+
+Each step: wait at least 15 min (or one busy period), check metrics, advance.
+
+Automate this via your deploy tool (Argo Rollouts, Flagger, custom script reloading Caddy with new weights).
+
+## Sticky canary
+
+A returning user should see the same version they saw last time, otherwise their flow breaks mid-session.
+
+Option A: stick by session cookie:
+
+```caddy
+reverse_proxy {
+  to stable-host:443
+  to canary-host:443
+  lb_policy cookie ory_kratos_session
+}
+```
+
+Caddy hashes the cookie value; same value → same backend. Cleanest.
+
+Option B: stick by hashed user ID at app level. Requires app-level routing logic. Skip unless you need precise targeting.
+
+## Canary-only flags
+
+Beyond traffic-splitting, use feature flags so the *behavior* is gated:
+
+```ts
+const useNewLoginFlow = canary && userId.startsWith("0"); // 1/16 of canary users
+```
+
+Combines low blast radius (10% of traffic) × low blast radius (1/16 of those) = ~0.6% of users. Very safe.
+
+## When canary fails
+
+Symptoms:
+- Error rate up.
+- Auth failures up.
+- Latency degraded.
+
+Actions:
+1. Set canary weight to 0 (Caddy reload).
+2. Capture last 15 min of canary logs.
+3. Compare with stable.
+4. If reversible: investigate, fix forward.
+5. If irreversible damage (e.g., bad data written): incident response, restore from backup of affected scope.
+
+## Canary in single-host deployments
+
+If you only run one host, canary is harder, there's no second backend. Two options:
+
+**Option A: Local two-stack**. Run a separate set of containers on the same host with a different external port, route via Caddy.
+
+```yaml
+# docker-compose.canary.yml
+ciam-hera-canary:
+  image: ghcr.io/olympusoss/hera:v1.5.0-rc1
+  ports: ["13000:3000"]
+```
+
+```caddy
+reverse_proxy {
+  to localhost:3000 9     # stable
+  to localhost:13000 1    # canary
+}
+```
+
+**Option B: Feature-flag only**. Skip traffic splitting; deploy the new version everywhere but gate new behavior behind a flag. Ramp the flag.
+
+This is what Olympus uses internally for most behavior changes.
+
+## Related
+
+- [Cookbook, Blue/green deploy](/docs/cookbook/deployment/blue-green-deploy)
+- [Operate, Upgrades](/docs/operate/administration/upgrades)
+- [Cookbook, Add feature flag, settings vault](/docs/cookbook/integrations-billing/add-feature-flag-settings-vault)

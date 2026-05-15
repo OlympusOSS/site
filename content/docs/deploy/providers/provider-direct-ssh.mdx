@@ -1,0 +1,54 @@
+---
+title: Provider, Direct SSH
+description: Deploy Olympus to an existing VPS or bare-metal host
+---
+
+Daedalus's **Direct SSH** provider mode targets a host you already have, an existing VPS at another provider, a bare-metal server, a homelab box, anywhere SSH works.
+
+## What Daedalus does
+
+In the **Provider, Direct SSH** wizard step:
+
+1. Accepts a hostname/IP and an SSH key path or password.
+2. Verifies it can reach the host over SSH.
+3. Probes for Podman / `podman-compose`; if missing, attempts to install (requires `sudo`).
+4. Records the host and key in `daedalus.json`.
+
+Daedalus does **not** configure firewall rules or provision the host in any other way. That's on you.
+
+## What you need
+
+- A host with:
+  - Linux (Ubuntu 22.04 / Debian 12 / Fedora 39 tested).
+  - `sudo` access for installing Podman if it's not already present.
+  - Outbound internet access for pulling images.
+  - Ports 80 and 443 reachable from the internet (for Let's Encrypt and Caddy).
+- A working SSH connection.
+
+## Pre-flight checklist
+
+Before pointing Daedalus at the host:
+
+- [ ] Firewall: `ufw allow 22/tcp from <your-ip>`, `ufw allow 80/tcp`, `ufw allow 443/tcp`, deny everything else.
+- [ ] SSH hardening: key-only auth, `PermitRootLogin no`, Fail2Ban for failed attempts.
+- [ ] System updates: `apt update && apt upgrade -y`.
+- [ ] Hostname / FQDN matches what you'll point DNS at.
+- [ ] Time sync: `timedatectl status` shows NTP active.
+
+## When Direct SSH is the right choice
+
+- You have an existing VPS at a provider Daedalus doesn't directly support (Vultr, Linode, OVH, Scaleway, etc.).
+- You're deploying to bare metal in your own rack.
+- You're deploying to a homelab box that's not internet-reachable but uses a tunnel (Tailscale, Cloudflare Tunnel) for ingress.
+- You want full control over the host's configuration without Daedalus's defaults.
+
+## When Direct SSH is NOT the right choice
+
+- You'd rather Daedalus provision things, use [DigitalOcean](/docs/deploy/providers/provider-digitalocean) or [Hostinger](/docs/deploy/providers/provider-hostinger).
+- You have a multi-host cluster, Olympus is single-host by design (see [ADR 0001](/docs/adrs/0001-dual-domain-architecture)).
+
+## Where next
+
+- [Deploy, DNS and Domains](/docs/deploy/production/dns-and-domains)
+- [Deploy, First production deploy](/docs/deploy/production/first-production-deploy)
+- [Operate, Network Topology](/docs/operate/administration/network-topology), what ports must be reachable.

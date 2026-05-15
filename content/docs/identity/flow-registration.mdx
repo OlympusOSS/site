@@ -56,12 +56,12 @@ Content-Type: application/json
 Kratos validates:
 - The traits conform to the identity schema (correct types, required fields present, format validations like `email` pass).
 - The password meets the configured strength (length, character classes).
-- The password is not in the breach list (Olympus enforces — see [Security — Breached Password](/docs/security/breached-password)).
+- The password is not in the breach list (Olympus enforces, see [Security, Breached Password](/docs/security/identity-protection/breached-password)).
 - No identity already exists with the same identifier.
 
 ## Captcha (Olympus addition)
 
-Before passing to Kratos, Hera validates the Turnstile token. See [Security — Captcha Turnstile](/docs/security/captcha-turnstile).
+Before passing to Kratos, Hera validates the Turnstile token. See [Security, Captcha Turnstile](/docs/security/web-attacks/captcha-turnstile).
 
 ## Breached-password check (Olympus addition)
 
@@ -69,7 +69,7 @@ After Kratos accepts the password complexity rules, the Olympus SDK checks the p
 
 The k-anonymity model means: the SDK sends only the first 5 characters of the SHA-1 hash; HIBP returns all matching hash suffixes; the SDK checks locally. The full password is never sent over the network.
 
-See [Security — Breached Password](/docs/security/breached-password) for the implementation.
+See [Security, Breached Password](/docs/security/identity-protection/breached-password) for the implementation.
 
 ## Verification trigger
 
@@ -84,7 +84,7 @@ The session can be granted before or after verification depending on hooks:
 - `kratos.yml` → `selfservice.flows.registration.after.password.hooks: [{hook: session}]` → session granted immediately on registration.
 - `[{hook: require_verified_address}]` → registration succeeds but session is not granted until verification.
 
-Olympus's default is **session-on-registration** but with prominent verification reminders in the UI. Production deployments often switch to `require_verified_address` for security-critical apps. See [Security — Email Verification](/docs/security/email-verification) for the decision and the prod-enforcement CI gate.
+Olympus's default is **session-on-registration** but with prominent verification reminders in the UI. Production deployments often switch to `require_verified_address` for security-critical apps. See [Security, Email Verification](/docs/security/identity-protection/email-verification) for the decision and the prod-enforcement CI gate.
 
 ## Post-registration hooks
 
@@ -115,7 +115,7 @@ selfservice:
                 body: file:///etc/config/kratos/hooks/post-registration.jsonnet
 ```
 
-Webhooks are configured in `kratos.yml` and run synchronously — slow hooks block registration. Use them for synchronous post-registration that must succeed.
+Webhooks are configured in `kratos.yml` and run synchronously, slow hooks block registration. Use them for synchronous post-registration that must succeed.
 
 ## Failure modes
 
@@ -132,14 +132,14 @@ Webhooks are configured in `kratos.yml` and run synchronously — slow hooks blo
 When you add a new trait to the schema, Hera renders the new field automatically. But:
 
 - The field's `title` becomes the label. If you don't set `title`, users see the raw key (`shipping_address.country` rather than "Country").
-- Field order is the order in the JSON Schema — control it by ordering the `properties` keys.
+- Field order is the order in the JSON Schema, control it by ordering the `properties` keys.
 - For complex fields (nested objects, arrays), the rendered UI may be awkward. Add per-trait custom rendering in Hera if needed.
 
 ## Related
 
-- [Identity — Identity schemas](/docs/identity/identity-schemas) — what schemas govern.
-- [Identity — Flow login](/docs/identity/flow-login) — the post-registration login path.
-- [Identity — Flow verification](/docs/identity/flow-verification)
-- [Security — Captcha Turnstile](/docs/security/captcha-turnstile)
-- [Security — Breached Password](/docs/security/breached-password)
-- [Security — Email Verification](/docs/security/email-verification)
+- [Identity, Identity schemas](/docs/identity/identity-schemas), what schemas govern.
+- [Identity, Flow login](/docs/identity/flow-login), the post-registration login path.
+- [Identity, Flow verification](/docs/identity/flow-verification)
+- [Security, Captcha Turnstile](/docs/security/web-attacks/captcha-turnstile)
+- [Security, Breached Password](/docs/security/identity-protection/breached-password)
+- [Security, Email Verification](/docs/security/identity-protection/email-verification)

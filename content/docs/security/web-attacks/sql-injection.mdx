@@ -1,0 +1,117 @@
+---
+title: SQL injection prevention
+description: How Olympus's internals avoid it, and what to watch in your apps
+---
+
+SQL injection happens when user input is concatenated into an SQL string and changes the query's meaning. The fix is parameterized queries, always.
+
+## Olympus's posture
+
+All Olympus-authored code uses parameterized queries. Specifically:
+
+### Kratos and Hydra
+
+Go services using `database/sql` with placeholders (`$1`, `$2`). Reviewed and audited upstream.
+
+### Athena backend
+
+Uses `postgres` (npm) with tagged-template queries:
+
+```ts
+await db`SELECT * FROM identities WHERE id = ${id}`;
+```
+
+The library parameterizes, `id` is never inlined into the SQL string.
+
+### Custom hooks / webhooks
+
+If you write a webhook backend (in any language), follow your driver's parameterization. Examples:
+
+**Node.js** (`pg`):
+```ts
+await client.query("SELECT * FROM users WHERE email = $1", [email]);
+```
+
+**Python** (`psycopg2`):
+```py
+cur.execute("SELECT * FROM users WHERE email = %s", (email,))
+```
+
+**Go** (`database/sql`):
+```go
+db.QueryRow("SELECT * FROM users WHERE email = $1", email)
+```
+
+## What you'll see in audit logs
+
+Suspicious patterns:
+- `' OR 1=1--`
+- `'; DROP TABLE`
+- `UNION SELECT`
+- Excessive single quotes / semicolons in form fields
+
+Olympus's audit logs capture failed-login `traits` with these patterns. Worth a dashboard alert.
+
+## ORMs and "safe by default"
+
+ORMs (Drizzle, Prisma, SQLAlchemy, ActiveRecord) parameterize by default. But:
+
+### Raw SQL escapes
+
+`db.execute(sql.raw("...${userInput}"))` is unparameterized. Don't.
+
+### LIKE patterns
+
+```ts
+// Vulnerable to LIKE injection (not SQL injection per se, but enumeration):
+await db`SELECT * FROM users WHERE email LIKE ${'%' + search + '%'}`;
+```
+
+User input `100%` causes a wildcard match. Sanitize: escape `%` and `_` in user input.
+
+```ts
+const escaped = search.replace(/[%_]/g, ch => "\\" + ch);
+await db`SELECT ... WHERE email LIKE ${'%' + escaped + '%'} ESCAPE '\\'`;
+```
+
+### Dynamic column names
+
+You cannot parameterize identifiers (table names, column names):
+
+```ts
+const col = req.query.sortBy; // attacker-controlled
+await db`SELECT * FROM users ORDER BY ${col}`; // FAILS, column injected
+```
+
+Allow-list valid column names:
+
+```ts
+const allowed = ["created_at", "email", "id"];
+if (!allowed.includes(col)) throw new Error("invalid_sort");
+await db`SELECT * FROM users ORDER BY ${sql(col)}`; // sql() inlines safely
+```
+
+## Time-based attacks
+
+Even with parameterization, application logic can leak via timing:
+
+```ts
+const user = await db`SELECT * FROM users WHERE email = ${email}`;
+if (!user) return res.status(401).json({ error: "user_not_found" });
+const ok = await bcrypt.compare(password, user.hash);
+if (!ok) return res.status(401).json({ error: "wrong_password" });
+```
+
+Different errors → attacker enumerates valid emails. Best practice: same error, same timing (do a fake bcrypt compare even when no user).
+
+## Database user permissions
+
+Run the app as a DB user with least privileges. Olympus's `kratos`, `hydra`, `athena` users own only their schemas, they can't drop other schemas even if injected.
+
+Read-only replicas for read-heavy app code reduce blast radius further.
+
+## Related
+
+- [Security, Threat model](/docs/security/infrastructure/threat-model)
+- [Identity, Identity schemas](/docs/identity/identity-schemas)
+- [Operate, Backup and restore](/docs/operate/backup-restore)

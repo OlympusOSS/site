@@ -1,0 +1,228 @@
+---
+title: Migrate from Auth0 to Olympus
+description: Move users, clients, and config from Auth0
+---
+
+If you're coming from Auth0, this is the playbook. Auth0 has many features; Olympus covers most. Plan accordingly.
+
+## What translates 1:1
+
+| Auth0 | Olympus |
+|---|---|
+| Users | Kratos identities |
+| Applications | Hydra OAuth2 clients |
+| Connections (social) | Kratos OIDC providers |
+| Rules / Actions (post-login) | Kratos web_hooks |
+| Email templates | Kratos courier templates |
+| MFA factors | Kratos credentials (totp, webauthn, lookup_secret) |
+
+## What's different
+
+### Auth0 ML / risk
+
+Auth0's "adaptive MFA" uses ML to score risk. Olympus doesn't have built-in ML, you build risk-based rules via hooks. See [Cookbook, Risk-based auth](/docs/cookbook/defensive-security/risk-based-auth).
+
+### Auth0 Branding
+
+Auth0 has a built-in customization UI. Olympus: edit Hera's CSS / templates directly.
+
+### Auth0 dashboard
+
+Auth0's dashboard is rich. Athena is a more focused admin UI. You may need to build custom screens for views Athena doesn't have.
+
+### Auth0 SDKs
+
+Auth0 has SDKs for every platform. Olympus + Hydra is OAuth2-standard, so any OAuth2 library works, but specific SDK helpers might be different.
+
+## User migration
+
+### Approach A: Bulk import with password hash
+
+If your Auth0 export includes bcrypt hashes (you must request from Auth0 support, they don't expose by default), you can preserve passwords.
+
+```bash
+# Export users from Auth0
+auth0 users export --output-format json > users.json
+
+# Convert to Kratos format
+node convert-auth0.js users.json > kratos-import.json
+```
+
+```ts
+// convert-auth0.js
+const auth0Users = require("./users.json");
+const kratosUsers = auth0Users.map(u => ({
+  schema_id: "default",
+  traits: {
+    email: u.email,
+    first_name: u.given_name,
+    last_name: u.family_name,
+  },
+  credentials: {
+    password: {
+      config: {
+        hashed_password: u.password_hash,  // bcrypt
+      },
+    },
+  },
+  state: u.email_verified ? "active" : "active",
+  metadata_admin: {
+    legacy_auth0_id: u.user_id,
+  },
+}));
+console.log(JSON.stringify(kratosUsers));
+```
+
+Import:
+
+```bash
+for user in $(jq -c '.[]' kratos-import.json); do
+  curl -X POST $KRATOS_ADMIN/admin/identities -H "Content-Type: application/json" -d "$user"
+done
+```
+
+Kratos accepts bcrypt-hashed passwords. Users log in as before, no password reset needed.
+
+### Approach B: JIT migration via Auth0 OIDC
+
+If Auth0 won't release hashes, federate. Keep Auth0 as an OIDC provider; users sign in via Auth0 → Olympus creates a local identity → over time, users migrate.
+
+```yaml
+# kratos.yml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: auth0-legacy
+            provider: generic
+            issuer_url: https://your-tenant.auth0.com
+            client_id: ...
+            client_secret: ...
+```
+
+Hera shows "Sign in with Auth0" button. Users click → Auth0 → back → identity in Olympus.
+
+After some time, decommission Auth0.
+
+### Approach C: Force password reset
+
+If you can't preserve hashes, force everyone to reset:
+
+1. Import user metadata (email, name) into Kratos with random unguessable password.
+2. Notify users: "Click here to reset your password and sign in to the new system."
+3. They click recovery → set new password.
+
+Most disruptive UX-wise but simplest technically.
+
+## Applications / OAuth clients
+
+Auth0 has per-app callback URLs, scopes, etc. Map each:
+
+```bash
+# For each Auth0 app:
+hydra create client \
+  --name "<auth0-app-name>" \
+  --grant-types authorization_code,refresh_token \
+  --response-types code \
+  --token-endpoint-auth-method client_secret_basic \
+  --scope "openid offline_access profile email" \
+  --redirect-uri "<auth0-callback-url>" \
+  --logo-uri "<auth0-logo-url>"
+```
+
+Note the new `client_id` and `client_secret` (different from Auth0's). Update each app.
+
+## Rules / Actions → Kratos hooks
+
+Auth0 Rules and Actions run in their Node sandbox. Migrate logic to Kratos web_hooks.
+
+Auth0 Rule:
+```js
+function (user, context, callback) {
+  if (user.email_verified) {
+    user.app_metadata = user.app_metadata || {};
+    user.app_metadata.verified_at = new Date();
+  }
+  callback(null, user, context);
+}
+```
+
+Kratos web_hook (post-registration):
+```ts
+export async function POST(req: Request) {
+  const { identity } = await req.json();
+  if (identity.verifiable_addresses[0]?.verified) {
+    await kratos.adminPatch(identity.id, [
+      { op: "add", path: "/metadata_admin/verified_at", value: new Date().toISOString() }
+    ]);
+  }
+  return Response.json({ ok: true });
+}
+```
+
+Test each migrated rule.
+
+## Email templates
+
+Auth0's email templates are Liquid. Kratos uses Go templates (`{{ . }}`).
+
+Rewrite each template. See [Cookbook, Custom email templates](/docs/cookbook/ui-content/custom-email-templates).
+
+## Tenants
+
+If you used Auth0's "multi-tenant" mode (one Auth0 tenant per customer):
+- One Olympus stack per customer (hard isolation), OR
+- One Olympus with tenant trait (soft isolation).
+
+See [Multi-tenant patterns](/docs/cookbook/multi-tenant/multi-tenant-soft-isolation).
+
+## Compliance
+
+Auth0 has SOC 2 Type II, ISO 27001 reports. You inherit by extension.
+
+After self-hosting Olympus: YOU are the controller. Need your own:
+- Security policies.
+- Penetration tests.
+- Compliance audit (if regulated).
+
+See [Compliance](/docs/security/compliance/compliance-soc2).
+
+## Cost comparison
+
+Auth0 (B2B Pro): $0.05-1.50 / MAU. At 50k MAU: $2,500-75,000/mo.
+Olympus self-hosted: $50-200/mo infrastructure + operator time.
+
+The dollar-savings are real. The trade-off is operator burden.
+
+## Timeline
+
+Typical Auth0 → Olympus migration:
+- Week 1-2: Olympus deployed, configured.
+- Week 3-4: User import (with hashes if available).
+- Week 5-6: Application cutover (per app, one at a time).
+- Week 7-8: Verify, watch metrics.
+- Week 9: Cancel Auth0.
+
+For larger orgs: months. Plan parallel-run for at least 30 days.
+
+## Pre-flight checks
+
+Before flipping the switch:
+- [ ] User count matches.
+- [ ] OAuth clients match.
+- [ ] Test login with imported users.
+- [ ] Test social login.
+- [ ] Test MFA enrolled users.
+- [ ] Audit log working.
+- [ ] Backups configured.
+- [ ] Monitoring in place.
+
+Don't skip any.
+
+## Related
+
+- [Migration, Auth0](/docs/migration/from-auth0)
+- [Cookbook, Bulk import identities](/docs/cookbook/data-compliance/bulk-import-identities)
+- [Cookbook, Migrate password hash](/docs/cookbook/platform-migration/migrate-password-hash)
+- [Cookbook, Custom email templates](/docs/cookbook/ui-content/custom-email-templates)

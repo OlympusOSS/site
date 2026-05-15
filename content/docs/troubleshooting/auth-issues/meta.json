@@ -1,0 +1,16 @@
+{
+  "title": "Auth issues",
+  "pages": [
+    "consent-screen-every-request",
+    "cookies-not-persisting",
+    "kratos-csrf-violation",
+    "kratos-flow-expired",
+    "kratos-session-aal-too-low",
+    "locked-out-of-admin",
+    "login-loops",
+    "mfa-enrollment-stuck",
+    "passkey-not-prompted",
+    "social-login-fails",
+    "totp-codes-rejected"
+  ]
+}

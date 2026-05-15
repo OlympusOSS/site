@@ -1,0 +1,14 @@
+{
+  "title": "Multi-tenant",
+  "pages": [
+    "branded-email-domain",
+    "cors-allowed-origins-tenant",
+    "email-domain-claiming",
+    "multi-org-per-user",
+    "multi-tenant-hard-isolation",
+    "multi-tenant-soft-isolation",
+    "per-tenant-config",
+    "per-tenant-rate-limits",
+    "whitelabel-saas-customer"
+  ]
+}

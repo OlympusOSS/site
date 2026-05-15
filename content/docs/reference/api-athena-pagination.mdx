@@ -5,7 +5,7 @@ description: Cursor and offset pagination conventions in the Athena API
 
 ## Overview
 
-The Athena identities table uses server-side cursor-based pagination backed by Kratos's native `page_token` / `page_size` API. No client-side identity fetching occurs. Every page of results — including search results — is a single Kratos API call via Athena's `GET /api/identities` route.
+The Athena identities table uses server-side cursor-based pagination backed by Kratos's native `page_token` / `page_size` API. No client-side identity fetching occurs. Every page of results, including search results, is a single Kratos API call via Athena's `GET /api/identities` route.
 
 > **Audience**: Developers integrating with Athena's identity list API, or contributors working on the identities feature.
 
@@ -36,7 +36,7 @@ Back-navigation: store the sequence of page tokens in the client. To go back one
 
 Fetches a page of Kratos identities. Requires an admin session.
 
-**Authentication**: Session required — `admin` role. See `athena/docs/api-authentication.md`.
+**Authentication**: Session required, `admin` role. See `athena/docs/api-authentication.md`.
 
 **Query parameters**:
 
@@ -113,13 +113,13 @@ curl -b "athena-session=<value>" \
 Identity search uses Kratos's `credentials_identifier` filter. This filter performs an **exact match** on the identity's login credentials (email address or username). Partial matches are not supported.
 
 **What works**:
-- `alice@example.com` — exact email match
-- `alice` — exact username match (only if the identity schema uses usernames)
+- `alice@example.com`, exact email match
+- `alice`, exact username match (only if the identity schema uses usernames)
 
 **What does not work**:
-- `alice` — does not match `alice@example.com`
-- `example` — does not match any email containing "example"
-- Last name search — not supported via `credentials_identifier`
+- `alice`, does not match `alice@example.com`
+- `example`, does not match any email containing "example"
+- Last name search, not supported via `credentials_identifier`
 
 The search input placeholder in the Athena UI reflects this constraint: "Search by email or username (exact match)".
 
@@ -180,8 +180,8 @@ Values outside 1–250 return `400 { "error": "invalid_page_size" }`. The Athena
 
 ## Related Issues
 
-- [athena#37](https://github.com/OlympusOSS/athena/issues/37) — Server-side pagination implementation
+- [athena#37](https://github.com/OlympusOSS/athena/issues/37), Server-side pagination implementation
 
 ---
 
-*Last updated: 2026-04-01 (Technical Writer — athena#37 server-side pagination)*
+*Last updated: 2026-04-01 (Technical Writer, athena#37 server-side pagination)*

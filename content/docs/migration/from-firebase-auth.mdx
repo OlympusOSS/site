@@ -14,7 +14,7 @@ This guide moves a Firebase Authentication project to a self-hosted Olympus depl
 | `customClaims` | Identity traits (or claim mapper if you need Hydra to include them in tokens) |
 | Provider (email, Google, Apple, anonymous, phone) | Kratos credential type + OIDC provider |
 | Email link sign-in | Kratos's recovery flow re-purposed (no direct equivalent) |
-| Phone auth | Not supported in Olympus default — needs SMS provider integration in Kratos |
+| Phone auth | Not supported in Olympus default, needs SMS provider integration in Kratos |
 | Anonymous auth | Not supported in Olympus |
 | `getIdToken()` (JWT for backend verification) | Hydra ID token via standard OIDC flow |
 
@@ -26,11 +26,11 @@ This guide moves a Firebase Authentication project to a self-hosted Olympus depl
 firebase auth:export users.json --project your-project
 ```
 
-Output is JSONL — one user per line.
+Output is JSONL, one user per line.
 
 Each entry includes: `localId`, `email`, `emailVerified`, `displayName`, `customClaims`, `passwordHash` (scrypt), `passwordSalt`, `providerUserInfo[]`, `createdAt`, `lastLoginAt`.
 
-### Step 2: Transform — the scrypt problem
+### Step 2: Transform, the scrypt problem
 
 Firebase uses **Firebase-flavored scrypt** for password hashes. This is a custom variant; not the standard scrypt.
 
@@ -71,7 +71,7 @@ done < kratos-identities.json
 
 ## OAuth2 client mapping
 
-Firebase's `signInWithRedirect` flows have no exact equivalent — Firebase is OIDC-like but not strictly OIDC. For each Firebase provider you support:
+Firebase's `signInWithRedirect` flows have no exact equivalent, Firebase is OIDC-like but not strictly OIDC. For each Firebase provider you support:
 
 - Register equivalent OAuth2 clients in your apps that call **Olympus Hydra** instead of Firebase.
 - Update your client-side SDK from `firebase/auth` to a standard OIDC client (`oauth4webapi`, `oidc-client-ts`).
@@ -96,9 +96,9 @@ If you use phone auth, you'll need to add SMS provider integration to Kratos (Tw
 
 ## Things that don't map
 
-- **Firestore security rules referencing `request.auth`** — your app database access must be reauthored.
-- **Anonymous auth** — drop or replace.
-- **Email link (passwordless email) sign-in** — Olympus doesn't ship this; can be implemented as a custom Hera flow.
+- **Firestore security rules referencing `request.auth`**, your app database access must be reauthored.
+- **Anonymous auth**, drop or replace.
+- **Email link (passwordless email) sign-in**, Olympus doesn't ship this; can be implemented as a custom Hera flow.
 
 ## Validation
 
@@ -109,5 +109,5 @@ If you use phone auth, you'll need to add SMS provider integration to Kratos (Tw
 
 ## Related
 
-- [Migration — From Auth0](/docs/migration/from-auth0)
-- [Migration — From Supabase Auth](/docs/migration/from-supabase-auth) — similar shape (also custom hash format).
+- [Migration, From Auth0](/docs/migration/from-auth0)
+- [Migration, From Supabase Auth](/docs/migration/from-supabase-auth), similar shape (also custom hash format).

@@ -1,0 +1,18 @@
+{
+  "title": "Web attacks",
+  "pages": [
+    "account-lockout",
+    "bec-defense",
+    "brute-force",
+    "captcha-turnstile",
+    "cors-defense",
+    "csp-athena",
+    "csp-hera",
+    "csrf-defense",
+    "owasp-top-10",
+    "rate-limiting",
+    "sql-injection",
+    "ssrf-prevention",
+    "xss-prevention"
+  ]
+}

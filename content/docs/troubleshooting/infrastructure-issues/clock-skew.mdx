@@ -1,0 +1,103 @@
+---
+title: Clock skew issues
+description: JWT validation, TOTP, or recovery tokens failing due to time drift
+---
+
+Several Olympus features depend on accurate clocks:
+- **JWT validation**, `iat`/`exp`/`nbf` claims checked against current time.
+- **TOTP**, codes are time-derived; ~30s window.
+- **HMAC tokens**, recovery/verification with embedded expiry.
+- **Cert validation**, `notBefore` / `notAfter` checks.
+
+If your server clock is off by >5 seconds, things break.
+
+## Diagnostic
+
+```bash
+# Container clocks
+ssh prod 'podman exec ciam-kratos date -u'
+ssh prod 'podman exec ciam-hydra date -u'
+ssh prod 'date -u'
+
+# Compare to authoritative time
+curl -s 'https://worldtimeapi.org/api/timezone/Etc/UTC' | jq -r .datetime
+```
+
+All should agree within 1-2 seconds.
+
+## Common causes
+
+### NTP not running
+
+```bash
+ssh prod 'timedatectl status'
+```
+
+Should show:
+```
+NTP service: active
+System clock synchronized: yes
+```
+
+If not:
+```bash
+ssh prod 'sudo systemctl enable systemd-timesyncd && sudo systemctl start systemd-timesyncd'
+```
+
+### Container clock differs from host
+
+Containers typically inherit the host clock. If they don't (rare on Linux), investigate the container runtime config.
+
+### VM drift after suspend
+
+VMs that hibernate or suspend can have wild clock drift on resume. NTP eventually corrects, but the window between resume and correction is fragile.
+
+### Wrong timezone
+
+The system clock should be UTC. Apps display in local time; the system clock is UTC.
+
+```bash
+ssh prod 'timedatectl set-timezone UTC'
+```
+
+## Symptoms
+
+| Symptom | Likely cause |
+|---|---|
+| Login succeeds but session immediately invalid | JWT `exp` in past due to forward-drifted server clock at issuance |
+| TOTP codes always wrong despite user's correct entry | Server time off >30 seconds |
+| Recovery email link "expired" within seconds of receipt | Recovery token's `exp` &lt;= current time |
+| Cert validation errors despite valid cert | `notBefore` not yet reached due to skew |
+
+## Mitigations
+
+### Tolerance windows
+
+Most JWT libraries allow a "clock skew tolerance", accept `iat` slightly in the future. For Olympus services, the upstream Ory binaries don't expose this directly; they rely on system NTP.
+
+### Multiple time sources
+
+Configure `chrony` with multiple NTP servers for resilience:
+
+```
+# /etc/chrony/chrony.conf
+pool 0.pool.ntp.org iburst
+pool 1.pool.ntp.org iburst
+pool 2.pool.ntp.org iburst
+```
+
+### Monitoring
+
+Add a check: alert if `timedatectl` shows unsynchronized for >5 minutes.
+
+## Why this matters more in distributed deployments
+
+A single-host deployment has one clock, Caddy, Kratos, Hydra, Athena, Hera all share it. Internal drift is impossible.
+
+Multi-host (or services across regions): each host has its own clock. Disagreement is possible. Run NTP everywhere.
+
+## Related
+
+- [Troubleshooting, Login loops](/docs/troubleshooting/auth-issues/login-loops)
+- [Troubleshooting, Cookies not persisting](/docs/troubleshooting/auth-issues/cookies-not-persisting)
+- [Operate, Incident response](/docs/operate/backups-recovery/incident-response)

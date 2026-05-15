@@ -1,0 +1,244 @@
+---
+title: Security headers checklist
+description: Every header to set, and why
+---
+
+A complete checklist of security headers for any Olympus deployment.
+
+## Required
+
+### `Strict-Transport-Security`
+
+```
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+```
+
+Forces HTTPS for 2 years. Once browser sees this, never falls back to HTTP.
+
+`preload`: submit to [hstspreload.org](https://hstspreload.org) → all browsers know your domain is HTTPS-only from first visit.
+
+### `Content-Security-Policy`
+
+```
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-X'; style-src 'self'; img-src 'self' data: https:; connect-src 'self' https://api.X.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+```
+
+XSS defense. See [CSP strict build](/docs/cookbook/defensive-security/csp-strict-build).
+
+### `X-Frame-Options`
+
+```
+X-Frame-Options: DENY
+```
+
+Clickjacking defense. Don't allow your site in iframes.
+
+Use `SAMEORIGIN` if you embed in your own site.
+
+Modern browsers prefer `frame-ancestors` in CSP, but X-Frame-Options for legacy.
+
+### `X-Content-Type-Options`
+
+```
+X-Content-Type-Options: nosniff
+```
+
+Prevent MIME-sniffing. Browser respects Content-Type, doesn't guess.
+
+### `Referrer-Policy`
+
+```
+Referrer-Policy: strict-origin-when-cross-origin
+```
+
+Don't leak URL paths to other sites via Referer header.
+
+`no-referrer` for highest privacy. `strict-origin-when-cross-origin` is good default.
+
+### `Permissions-Policy`
+
+```
+Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()
+```
+
+Disable features you don't use. If your app doesn't access geolocation, declare so.
+
+## Recommended
+
+### `Cross-Origin-Opener-Policy`
+
+```
+Cross-Origin-Opener-Policy: same-origin
+```
+
+Isolates your origin from cross-origin popups (Spectre-style attacks).
+
+### `Cross-Origin-Embedder-Policy`
+
+```
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+Requires explicit opt-in for cross-origin embedded resources.
+
+Together with COOP, enables SharedArrayBuffer (rare need).
+
+### `Cross-Origin-Resource-Policy`
+
+```
+Cross-Origin-Resource-Policy: same-site
+```
+
+Don't allow other sites to load your resources.
+
+## Old / less critical
+
+### `X-XSS-Protection`
+
+```
+X-XSS-Protection: 0
+```
+
+Deprecated. Disable (browser's built-in XSS auditor caused more issues than it prevented). CSP replaces.
+
+### `Public-Key-Pins`
+
+Deprecated. Don't use.
+
+## Authentication-specific
+
+### `Set-Cookie` attributes
+
+```
+Set-Cookie: session=X; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400
+```
+
+- `HttpOnly`: not readable by JS.
+- `Secure`: HTTPS only.
+- `SameSite=Lax`: CSRF defense.
+- Specific `Path`.
+
+### `Cache-Control` (for auth pages)
+
+```
+Cache-Control: no-store
+```
+
+Don't cache login pages or API responses.
+
+## In Caddy
+
+```caddy
+header {
+  Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+  Content-Security-Policy "default-src 'self'; ..."
+  X-Frame-Options "DENY"
+  X-Content-Type-Options "nosniff"
+  Referrer-Policy "strict-origin-when-cross-origin"
+  Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  Cross-Origin-Opener-Policy "same-origin"
+  Cross-Origin-Resource-Policy "same-site"
+  -Server                          # remove server name
+  -X-Powered-By                    # remove framework name
+}
+```
+
+Trailing `-` removes the header.
+
+## Verify
+
+Run security headers scanner:
+
+```
+https://securityheaders.com/?q=https://ciam.your-domain.com
+```
+
+Aim for A+.
+
+```bash
+# Or curl
+curl -I https://ciam.your-domain.com | grep -iE "(content-security|frame|content-type|referrer|permissions|strict-transport)"
+```
+
+## CSP in development
+
+CSP can break local dev (e.g., HMR uses inline scripts):
+
+```ts
+// next.config.js
+const isDev = process.env.NODE_ENV === "development";
+const csp = isDev
+  ? "default-src 'self' 'unsafe-inline' 'unsafe-eval' ws:"
+  : "default-src 'self'; script-src 'self' 'nonce-${nonce}'; ...";
+```
+
+Relaxed in dev. Strict in prod.
+
+## Logging violations
+
+CSP can report violations:
+
+```
+Content-Security-Policy: ...; report-uri /csp-report
+```
+
+```ts
+app.post("/csp-report", (req, res) => {
+  console.log("CSP violation:", req.body);
+  // Aggregate / alert
+  res.sendStatus(204);
+});
+```
+
+See real attacks / misconfig.
+
+## Headers vs network
+
+These are defenses at the browser level. Network attacks (MITM) need different defenses (TLS).
+
+## Mobile apps
+
+Web headers don't apply. Native apps need their own:
+- Certificate pinning (advanced).
+- Code obfuscation.
+- Tamper detection.
+
+Different surface.
+
+## Don't disable for convenience
+
+```
+// BAD
+header X-Frame-Options "ALLOW-FROM https://embedded.com"  // allows embedding
+```
+
+Each disabled header weakens. Only relax with thought.
+
+## Per-endpoint
+
+Some headers vary per endpoint:
+
+```caddy
+@iframe-allowed path /api/oembed
+header @iframe-allowed X-Frame-Options "SAMEORIGIN"
+
+header X-Frame-Options "DENY"  # default elsewhere
+```
+
+E.g., `/api/oembed` is embeddable; auth pages aren't.
+
+## Browser support
+
+Most headers: supported by all modern browsers.
+
+Permissions-Policy: Chrome 88+, Firefox 74+. Older browsers ignore (safe).
+
+Test in browsers your users use. Browser console reports CSP violations.
+
+## Related
+
+- [Security, Security headers](/docs/security/infrastructure/security-headers)
+- [Security, CSP, Hera](/docs/security/web-attacks/csp-hera)
+- [Security, CSP, Athena](/docs/security/web-attacks/csp-athena)
+- [Security, XSS prevention](/docs/security/web-attacks/xss-prevention)
+- [Cookbook, CSP strict build](/docs/cookbook/defensive-security/csp-strict-build)

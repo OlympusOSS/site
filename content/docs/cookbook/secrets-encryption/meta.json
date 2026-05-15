@@ -1,0 +1,13 @@
+{
+  "title": "Secrets & encryption",
+  "pages": [
+    "cron-secret-rotator",
+    "per-user-encryption-keys",
+    "recover-lost-encryption-key",
+    "rotate-encryption-key",
+    "rotate-session-signing-key",
+    "runtime-config-via-env",
+    "secrets-rotation",
+    "secrets-vault-integration"
+  ]
+}

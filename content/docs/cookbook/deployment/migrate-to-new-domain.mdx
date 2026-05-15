@@ -1,0 +1,130 @@
+---
+title: Migrate Olympus to a new domain
+description: Move from old-domain.com to new-domain.com without losing users
+---
+
+You're rebranding, or moving from a sandbox subdomain to the real one. This recipe covers the gotchas.
+
+## What breaks on domain change
+
+| What | Why |
+|---|---|
+| Existing OAuth2 client redirect URIs | They reference the old domain |
+| User sessions | Cookie domain doesn't match anymore |
+| WebAuthn credentials | Passkeys are scoped to the RP ID; old credentials don't transfer |
+| Bookmarks users have to /login etc. | Old URLs 404 |
+| Email templates with embedded URLs | Verification links go to old domain |
+
+## Sequence
+
+### 1. Provision the new domain
+
+DNS records, TLS certs (via Caddy), all subdomain structure mirrored.
+
+### 2. Spin up a parallel deployment
+
+The cleanest approach: run **both** old and new domains in parallel for a week.
+
+```
+old.com ──→ Caddy ──→ Existing Olympus stack
+new.com ──→ Caddy ──→ Same backend (just a different ingress route)
+```
+
+Configure Caddy to accept both:
+
+```caddy
+ciam.old.com, ciam.new.com {
+  reverse_proxy ciam-hera:3000
+  redir https://ciam.new.com{uri} permanent  # Optional: redirect old → new
+}
+```
+
+### 3. Update Kratos configs
+
+`kratos.yml`:
+
+```yaml
+serve:
+  public:
+    base_url: https://ciam.new.com/.ory/kratos
+  cookies:
+    domain: new.com  # or ciam.new.com if you want scoped
+selfservice:
+  default_browser_return_url: https://app.new.com/
+  flows:
+    login:
+      ui_url: https://ciam.new.com/login
+    # ... and so on for each flow
+```
+
+Reload Kratos via the sidecar, see [Operate, Reload API key rotation](/docs/operate/rotation/reload-api-key-rotation).
+
+### 4. Update Hydra config
+
+```yaml
+urls:
+  self:
+    issuer: https://ciam.new.com
+    public: https://ciam.new.com
+  login: https://ciam.new.com/login
+  consent: https://ciam.new.com/consent
+  logout: https://ciam.new.com/logout
+```
+
+Restart Hydra (cookie secret rotation invalidates existing OAuth2 sessions, users re-log).
+
+### 5. Update OAuth2 clients
+
+For each client in Hydra:
+
+```bash
+hydra update client <id> --endpoint http://localhost:3103 \
+  --redirect-uri https://app.new.com/callback \
+  --post-logout-callback-uri https://app.new.com/logged-out
+```
+
+Communicate to client developers that they need to update their config too.
+
+### 6. Update email templates
+
+Verification links, recovery links, all need the new domain.
+
+```bash
+sed -i 's|old\.com|new.com|g' platform/prod/ciam-kratos/template/**/*.gotmpl
+```
+
+### 7. Communicate
+
+Email all users: "We're moving to new.com. Old URLs will continue to work for 90 days."
+
+### 8. Watch metrics
+
+For the first week:
+- Login success rate (should be steady).
+- New domain traffic (should ramp).
+- Old domain traffic (should taper).
+
+### 9. Deprecate
+
+After 90 days:
+- Caddy returns 301 redirects for old.com → new.com.
+- After 180 days: old.com returns 410 Gone.
+- After 1 year: DNS records removed.
+
+## WebAuthn passkey gotcha
+
+Passkeys are bound to the RP ID (typically the domain). Existing passkeys for `old.com` **do not work** for `new.com`. Users must re-enroll.
+
+Mitigations:
+- Email users in advance, ask them to re-enroll once they log in on the new domain.
+- Don't force MFA on the new domain for the first 30 days.
+
+## Cost
+
+The domain move itself is free. Renting both domains in parallel for 90 days costs whatever your registrar charges.
+
+## Related
+
+- [Deploy, DNS and Domains](/docs/deploy/production/dns-and-domains)
+- [Operate, Reload API key rotation](/docs/operate/rotation/reload-api-key-rotation)
+- [Identity, TOTP and WebAuthn](/docs/identity/totp-and-webauthn)

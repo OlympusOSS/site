@@ -1,0 +1,9 @@
+{
+  "title": "Platform",
+  "pages": [
+    "platform-caddy-custom-build",
+    "platform-compose-layering",
+    "platform-deploy-pipeline",
+    "platform-seed-scripts"
+  ]
+}

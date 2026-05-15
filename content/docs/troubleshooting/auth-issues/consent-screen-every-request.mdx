@@ -1,0 +1,92 @@
+---
+title: Consent screen shows every request
+description: Users prompted for OAuth2 consent on every login instead of being remembered
+---
+
+After OAuth2 login, Hera's consent screen appears. After the user accepts, they're logged in. Next login: same consent screen again. Users complain.
+
+## Expected behavior
+
+For most apps, the operator wants:
+- First login: consent screen with explicit grant.
+- Subsequent logins: consent auto-granted (no screen).
+- Re-consent only when the requested scopes change.
+
+This is configured per OAuth2 client. The default in Olympus is **remember consent**.
+
+## Why it's not happening
+
+### `prompt=consent` in the auth request
+
+If your app sends `prompt=consent` in the authorization URL, Hydra explicitly re-prompts every time.
+
+Fix: remove `prompt=consent` from your client. Use `prompt=none` if you want zero prompts (fails if any prompt is needed; you handle the fail).
+
+### `prompt=login` (logs out and re-prompts)
+
+`prompt=login` forces re-authentication AND re-consent. Even more aggressive.
+
+Fix: remove from your client.
+
+### Client `remember` config
+
+Hydra stores consent decisions only when the client allows it. Check:
+
+```bash
+hydra get client <client-id> --endpoint http://localhost:3103
+```
+
+Look at `metadata.remember_consent`. If `false` or unset, consent isn't remembered.
+
+Update:
+
+```bash
+hydra update client <client-id> --endpoint http://localhost:3103 \
+  --metadata '{"remember_consent": true, "remember_consent_for": 2592000}'  # 30 days
+```
+
+### Hera's consent UI rejects "remember"
+
+By default, Hera's consent UI offers a "Remember my choice" checkbox. If users uncheck it, consent isn't stored.
+
+The fix is one of:
+- Auto-check the box for first-party clients.
+- Or auto-remember unconditionally (most OAuth2 servers do this for trusted apps).
+
+The Hera consent page code is in `hera/src/app/consent/page.tsx`. Adjust the default to suit your operator's policy.
+
+### Hydra consent session expired
+
+Consent is stored with a TTL (default 30 days in Olympus's config). After expiry, the user is re-prompted.
+
+Configure in `hydra.yml`:
+
+```yaml
+ttl:
+  remember_consent: 720h  # 30 days
+```
+
+### Scopes changed
+
+If the client asks for a different scope set than what the user previously consented to, Hydra prompts for the new ones.
+
+This is correct behavior (the user is consenting to something new). If a small scope change is causing complaint, your client is asking for more than it needs.
+
+## Auto-grant for trusted clients
+
+For first-party (your own) clients where consent is implicit:
+
+```bash
+hydra update client <client-id> --endpoint http://localhost:3103 \
+  --metadata '{"skip_consent": true}'
+```
+
+Hera's consent flow checks `metadata.skip_consent` and auto-accepts without rendering the UI. The user sees a momentary blank page during the redirect.
+
+Use sparingly, usually only for your own Athena and Site clients, not third-party clients.
+
+## Related
+
+- [Integrate, OAuth2 authorization code](/docs/integrate/oauth2/oauth2-authorization-code)
+- [Reference, Hydra get OAuth2 consent request](/docs/reference/api/hydra/oauth2/getoauth2consentrequest)
+- [Reference, Hydra accept OAuth2 consent request](/docs/reference/api/hydra/oauth2/acceptoauth2consentrequest)

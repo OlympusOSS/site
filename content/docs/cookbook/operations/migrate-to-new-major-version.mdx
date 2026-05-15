@@ -1,0 +1,266 @@
+---
+title: Migrate to a new Olympus major version
+description: Major version upgrade playbook
+---
+
+Major version bumps (1.x → 2.x) have breaking changes. Plan carefully.
+
+## What changes in majors
+
+- API breaking changes.
+- Database schema changes.
+- Configuration file format changes.
+- Default behavior changes.
+
+Read the upgrade guide carefully.
+
+## Pre-flight
+
+- [ ] Read the migration guide.
+- [ ] Backup database.
+- [ ] Test in staging first.
+- [ ] Communicate downtime / changes to users.
+- [ ] Have rollback plan ready.
+
+## Database migration
+
+Most major bumps include schema migrations.
+
+```bash
+# Always backup first
+pg_dump olympus | gzip > pre-v2-upgrade.sql.gz
+
+# Run migrations
+podman exec ciam-kratos kratos migrate sql up
+podman exec ciam-hydra hydra migrate sql up postgres://...
+
+# Verify
+psql -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 5"
+```
+
+## Config changes
+
+v1 → v2 might rename / restructure config:
+
+```yaml
+# v1
+session:
+  cookie:
+    name: session_id
+
+# v2
+identity:
+  session:
+    cookie_name: session_id
+```
+
+Use a config migration script (provided by Olympus):
+
+```bash
+node scripts/migrate-config-v1-to-v2.js config/kratos.yml.v1 > config/kratos.yml.v2
+```
+
+Validates against new schema.
+
+## Test in staging
+
+Don't migrate prod first.
+
+```bash
+# Copy prod data to staging (sanitized)
+ssh prod 'pg_dump olympus' | ssh staging 'psql olympus'
+ssh staging 'cd /opt/olympus && git checkout v2 && podman-compose up -d'
+ssh staging './smoke-test.sh'
+```
+
+Verify all flows work. Fix issues.
+
+## Migration timeline
+
+```
+Week 1: Test in staging.
+Week 2: Fix issues, re-test.
+Week 3: Beta cohort migration (5% of prod).
+Week 4: Monitor beta. Fix issues.
+Week 5: 25% rollout.
+Week 6: 50%.
+Week 7: 100%.
+```
+
+Gradual minimizes risk.
+
+## Communication
+
+Pre-announce:
+
+```
+Subject: Scheduled upgrade, May 20, 04:00 UTC
+
+We're upgrading Olympus from v1 to v2. Improvements include:
+- Faster login (50% latency improvement).
+- New passkey support.
+- Better admin tools.
+
+What to expect:
+- Brief downtime (~30 min) during upgrade.
+- Existing sessions remain valid.
+- API clients: see migration guide.
+
+Action required from API integrators:
+- Update SDK to v2.x.
+- Old SDK still works for 90 days.
+
+Migration guide: [link]
+Questions: support@your-domain.com
+```
+
+Email 14 days, 7 days, 1 day before.
+
+## Maintenance window
+
+For non-zero-downtime migrations:
+
+```
+1. Announce maintenance window (off-peak).
+2. Turn on "we'll be back" page (route everything through holding page).
+3. Backup.
+4. Migrate.
+5. Smoke test.
+6. Take down holding page.
+```
+
+For zero-downtime: expand/contract pattern (see [database migrations](/docs/operate/db/db-migrations)).
+
+## Rollback plan
+
+If new version is broken:
+
+```bash
+# 1. Stop new version
+podman-compose down
+
+# 2. Restore old version
+git checkout v1.x
+podman-compose up -d
+
+# 3. Restore database (if migrations were destructive)
+gunzip < pre-v2-upgrade.sql.gz | psql olympus
+```
+
+Test rollback in staging FIRST. Don't discover it doesn't work during incident.
+
+## SDK migration
+
+Apps using Olympus SDK:
+
+```bash
+# Old
+npm install @olympusoss/sdk@^1.0
+
+# New
+npm install @olympusoss/sdk@^2.0
+```
+
+Read SDK changelog. API method signatures may have changed:
+
+```ts
+// v1
+client.adminPatchIdentity(id, patches);
+
+// v2
+client.identities.adminPatch({ id, patches });
+```
+
+Update calls. TypeScript catches.
+
+## Parallel running
+
+For major changes affecting consumers:
+
+```
+Run v1 and v2 in parallel for 30 days.
+Apps migrate at their pace.
+After cutoff, v1 retired.
+```
+
+Costs more (2x infra during transition). Worth it for low-risk migration.
+
+## Customer migration assistance
+
+If you're a SaaS:
+- Email each customer with their specific impact.
+- Offer office hours for questions.
+- Track migration progress.
+
+```
+Customer A: migrated ✓
+Customer B: in progress
+Customer C: hasn't started, reach out
+```
+
+Don't leave customers behind.
+
+## What's typically NOT backward compat
+
+- Token format (opaque ↔ JWT).
+- Cookie attributes.
+- Hash algorithm (e.g., bcrypt → argon2).
+- API endpoint URLs.
+
+Test each.
+
+## What's typically backward compat
+
+- Adding new endpoints (old still works).
+- New optional fields.
+- New events in audit log.
+
+Forward-compatible changes are smooth.
+
+## Test plan
+
+End-to-end:
+- [ ] Signup with email/password.
+- [ ] Signup with each social provider.
+- [ ] Login (each method).
+- [ ] MFA enrollment.
+- [ ] MFA challenge.
+- [ ] Password reset.
+- [ ] Email verification.
+- [ ] OAuth2 flow (Authorization Code + PKCE).
+- [ ] Client Credentials.
+- [ ] Token introspection.
+- [ ] Logout (RP-initiated).
+- [ ] Admin features (Athena).
+- [ ] All your custom flows / webhooks.
+
+Multi-tenant: test for each tenant type.
+
+## Post-migration
+
+```bash
+./scripts/smoke-test.sh
+./scripts/load-test.sh  # smaller scale than full LT
+```
+
+Watch metrics for 24h:
+- Login rate (should be similar).
+- Error rate (should be similar).
+- Latency p99 (should be similar or better).
+
+If degraded: investigate. Possibly rollback.
+
+## After 30 days stable
+
+- Document changes in changelog.
+- Update internal runbooks.
+- Decommission old infrastructure.
+- Lessons learned doc.
+
+## Related
+
+- [Operate, Upgrades](/docs/operate/administration/upgrades)
+- [Operate, Database migrations](/docs/operate/db/db-migrations)
+- [Cookbook, Migration rollback plan](/docs/cookbook/operations/migration-rollback-plan)
+- [Cookbook, Blue/green deploy](/docs/cookbook/deployment/blue-green-deploy)
+- [Cookbook, Onboarding checklist](/docs/cookbook/tools/onboarding-checklist)

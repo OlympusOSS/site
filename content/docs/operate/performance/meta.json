@@ -1,0 +1,11 @@
+{
+  "title": "Performance & tuning",
+  "pages": [
+    "captcha-tuning",
+    "chaos-engineering",
+    "cost-optimization",
+    "email-deliverability",
+    "load-testing",
+    "rate-limiting-tuning"
+  ]
+}

@@ -1,0 +1,219 @@
+---
+title: Data classification labels
+description: Tag PII / sensitive data for governance
+---
+
+For compliance and ops clarity, label data by sensitivity. Drives access control, retention, encryption decisions.
+
+## Tiers
+
+### Public
+Data anyone can see.
+Examples: app name, public profile pages.
+
+### Internal
+Within org but not public.
+Examples: internal docs, dashboards.
+
+### Confidential
+Restricted. Specific roles.
+Examples: customer lists, financial reports.
+
+### PII (Personally Identifiable Information)
+Identifies individuals.
+Examples: name, email, phone, IP.
+
+### Sensitive PII / Special Category
+GDPR Article 9: health, biometrics, political views, racial/ethnic origin, sexual orientation.
+
+### Secrets
+Credentials.
+Examples: passwords (hashed), tokens, API keys.
+
+## Inventory
+
+Build a data inventory:
+
+```yaml
+# data-inventory.yml
+
+identities:
+  fields:
+    email:
+      classification: PII
+      retention: lifetime + 30 days
+      encrypted: false  # used for lookup
+    password_hash:
+      classification: SECRET
+      retention: lifetime
+      encrypted: bcrypt/argon2
+    first_name:
+      classification: PII
+      retention: lifetime
+    phone:
+      classification: PII
+      retention: lifetime
+      encrypted: at-rest
+
+security_audit:
+  fields:
+    identity_id:
+      classification: PII
+      retention: 90 days, then anonymize
+    source_ip:
+      classification: PII
+      retention: 90 days
+    metadata:
+      classification: variable
+
+user_profiles:
+  fields:
+    bio:
+      classification: internal (user-provided)
+      retention: lifetime
+    medical_history:
+      classification: SENSITIVE_PII
+      retention: per regulation
+      encrypted: per-user key
+```
+
+Updated as schema changes.
+
+## Per-tier policies
+
+```yaml
+classification:
+  PII:
+    access:
+      - role: admin
+      - role: customer (their own)
+      - role: support (with reason)
+    audit_log: true
+    retention: max 7 years
+    encryption: at-rest
+  
+  SENSITIVE_PII:
+    access:
+      - role: admin (with separate elevation)
+    audit_log: true (extensive)
+    retention: per regulation
+    encryption: per-user key
+  
+  SECRET:
+    access:
+      - never raw (only validate hashes)
+    audit_log: only access events
+    retention: rotation cycle
+    encryption: never store plaintext
+```
+
+## In code
+
+Tag your domain models:
+
+```ts
+@Classification(["PII"])
+class Identity {
+  @Field({ classification: "PII" })
+  email: string;
+  
+  @Field({ classification: "SECRET" })
+  password_hash: string;
+  
+  @Field({ classification: "SENSITIVE_PII" })
+  medical_history: string;
+}
+```
+
+Linter / static analysis enforces:
+
+```ts
+// Detected: returning SENSITIVE_PII without proper authz
+function getUser() {
+  return await db`SELECT * FROM users`;  // ⚠️ returns SENSITIVE_PII fields
+}
+```
+
+## Access decisions
+
+```ts
+function canAccessField(user, field) {
+  const fieldClass = getFieldClassification(field);
+  return hasPermissionForClass(user, fieldClass);
+}
+```
+
+If user is support tier 1, they can see PII but not SENSITIVE_PII.
+
+## Storage decisions
+
+For each tier, choose:
+
+| Tier | Encryption | Backup | Logs |
+|---|---|---|---|
+| Public | None | Standard | OK |
+| Internal | TDE | Standard | OK |
+| PII | App-level | Encrypted | Redacted |
+| Sensitive PII | Per-record | Encrypted, geo-restricted | Heavily redacted |
+| Secret | Hash | Don't backup separately | Never log |
+
+## Document for auditors
+
+A clear inventory + classification scheme:
+- Satisfies GDPR's "records of processing activities."
+- Speeds up SOC 2 audits.
+- Easier ISO 27001 evidence.
+
+Show:
+- Inventory.
+- Access matrix.
+- Retention schedule.
+- Encryption practices.
+
+## Identifying classifications
+
+For new fields, ask:
+- Could this identify someone? → at least PII.
+- Special category (Article 9)? → SENSITIVE_PII.
+- Is it a credential? → SECRET.
+- Could competitors profit? → CONFIDENTIAL.
+- Else → INTERNAL or PUBLIC.
+
+Document the decision in the data inventory.
+
+## Re-classification
+
+Sometimes data classification changes:
+- Previously thought internal, learned it's PII.
+- Regulation tightens.
+
+Process:
+1. Update inventory.
+2. Re-assess access / encryption / retention.
+3. Migrate data if needed.
+4. Communicate to team.
+
+## Automated detection
+
+Tools that scan for classification:
+- BigID, OneTrust: enterprise, $$$.
+- Open: scan code / DB for patterns matching PII (emails, SSNs).
+
+Useful for finding drift between inventory and reality.
+
+## Privacy by design
+
+Before adding a field:
+1. What's its classification?
+2. Is the lowest classification acceptable?
+3. Apply controls accordingly.
+
+Asking these at design time prevents drift.
+
+## Related
+
+- [Security, Compliance, GDPR](/docs/security/compliance/compliance-gdpr)
+- [Cookbook, Log PII redaction](/docs/cookbook/operations/log-pii-redaction)
+- [Cookbook, Per-user encryption keys](/docs/cookbook/secrets-encryption/per-user-encryption-keys)
+- [Cookbook, Aclu data policy](/docs/cookbook/data-compliance/aclu-data-policy)
+- [Cookbook, GDPR DSR export](/docs/cookbook/data-compliance/gdpr-dsr-export)

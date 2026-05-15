@@ -1,0 +1,104 @@
+---
+title: Test brute-force protection locally
+description: Verify lockout policy without getting your real admin account locked
+---
+
+To test brute-force protection without locking yourself out of your real account:
+
+## Use a disposable identity
+
+```bash
+# Create a test identity via Kratos admin API
+curl -X POST http://localhost:3101/admin/identities \
+  -H 'content-type: application/json' \
+  -d '{
+    "schema_id": "default",
+    "state": "active",
+    "traits": { "email": "lockout-test@demo.user" },
+    "credentials": { "password": { "type": "password", "identifiers": ["lockout-test@demo.user"], "config": { "password": "good-password-123" } } },
+    "verifiable_addresses": [{ "value": "lockout-test@demo.user", "verified": true, "via": "email", "status": "completed" }]
+  }'
+```
+
+Now you can fail-login as `lockout-test@demo.user` without affecting `admin@demo.user`.
+
+## Trigger lockout
+
+```bash
+# Submit wrong passwords until lockout fires (5 attempts by default)
+for i in {1..6}; do
+  curl -i -X POST http://localhost:3000/api/login \
+    -H 'content-type: application/json' \
+    -d '{ "email": "lockout-test@demo.user", "password": "wrong-password" }'
+done
+```
+
+After the 5th wrong attempt, the 6th returns `429 Too Many Requests` (or similar) and the identity is in the `lockouts` table.
+
+## Verify in Athena
+
+Open `http://localhost:4001` (Athena IAM) → **Locked Accounts**.
+
+You should see `lockout-test@demo.user` listed with the lock-time and reason.
+
+## Clear and retry
+
+```bash
+# Manual unlock
+curl -X POST http://localhost:4001/api/locked-accounts/<id>/unlock \
+  -H 'cookie: athena-session=...'
+```
+
+Or wait for the lockout window to expire (default 30 minutes; you can shorten via settings).
+
+## Test edge cases
+
+### Different IP
+
+Add an `X-Real-IP` header to simulate a different source IP:
+
+```bash
+curl -X POST http://localhost:3000/api/login \
+  -H 'X-Real-IP: 192.0.2.10' \
+  -H 'content-type: application/json' \
+  -d '{"email": "...", "password": "..."}'
+```
+
+Caddy's per-IP rate-limit and the SDK's per-identifier lockout are independent. Different IPs hitting different identifiers won't share counters.
+
+### Caddy rate limit
+
+The Caddy rate-limit kicks in faster than the SDK lockout. To test:
+
+```bash
+for i in {1..20}; do
+  curl -s -o /dev/null -w "%{http_code}\n" \
+    http://localhost:3000/api/login -X POST -d '{}'
+done
+```
+
+After ~10 requests, you'll see `429`s from Caddy. Wait for the window to expire (5 minutes by default).
+
+### Captcha after fail
+
+If `TURNSTILE_ON_LOGIN_AFTER_FAIL=true`, after the first failed attempt the captcha widget appears. Test by failing once then attempting to log in without the captcha token, should be rejected.
+
+## Cleanup
+
+Delete the test identity:
+
+```bash
+curl -X DELETE http://localhost:3101/admin/identities/<id>
+```
+
+## What NOT to do
+
+- Don't test brute-force against `admin@demo.user`. If you lock yourself out, see [Troubleshooting, Locked out of admin](/docs/troubleshooting/auth-issues/locked-out-of-admin).
+- Don't test in prod without prior planning. Brute-force tests against a real account generate audit events that look like attacks.
+
+## Related
+
+- [Security, Brute-force protection](/docs/security/web-attacks/brute-force)
+- [Security, Account lockout](/docs/security/web-attacks/account-lockout)
+- [Operate, Rate limiting tuning](/docs/operate/performance/rate-limiting-tuning)
+- [Operate, Locked account unlock](/docs/operate/backups-recovery/locked-account-unlock)

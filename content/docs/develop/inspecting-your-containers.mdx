@@ -5,7 +5,7 @@ description: Reading the source of a running Olympus container under the OFCL
 
 The Olympus Free Container License grants every operator the right to **inspect the source code of any container they are running**. This page explains the practical mechanics: how to exec into a container, where the source lives inside the image, and which files are most useful to look at for which questions.
 
-The intent is that when you observe a behaviour you don't understand — a log line, a startup failure, an API response shape — you can correlate it against the exact source that produced it.
+The intent is that when you observe a behaviour you don't understand, a log line, a startup failure, an API response shape, you can correlate it against the exact source that produced it.
 
 ## What the OFCL permits
 
@@ -29,7 +29,7 @@ Each Olympus app image (`athena`, `hera`, `site`) is a Next.js standalone build.
 | `/app/.next/standalone/` | Compiled Next.js server bundle. |
 | `/app/.next/server/` | Compiled server runtime. |
 | `/app/src/` (athena, hera, site) | **The original TypeScript source.** This is what's most useful for inspection. |
-| `/app/node_modules/@olympusoss/sdk/` | The SDK source — TypeScript files (not compiled — see [ADR 0012](/docs/adrs/0012-source-only-npm-packages)). |
+| `/app/node_modules/@olympusoss/sdk/` | The SDK source, TypeScript files (not compiled, see [ADR 0012](/docs/adrs/0012-source-only-npm-packages)). |
 | `/app/node_modules/@olympusoss/canvas/` | The Canvas design system source. |
 | `/app/package.json` | Pinned dependency manifest. |
 | `/app/LICENSE` | The OFCL text for the version of the image you pulled. |
@@ -77,17 +77,17 @@ The image deliberately does **not** strip comments, JSDoc, or developer-readable
 
 | Question | File to read |
 | --- | --- |
-| "Why am I getting a 401 on every API call?" | `/app/src/middleware.ts` (athena) — auth chain in detail. |
-| "Why did the container fail to start?" | `/app/src/lib/startup.ts` (athena) — validates `ENCRYPTION_KEY`, `SESSION_SIGNING_KEY`, `DATABASE_URL`. |
+| "Why am I getting a 401 on every API call?" | `/app/src/middleware.ts` (athena), auth chain in detail. |
+| "Why did the container fail to start?" | `/app/src/lib/startup.ts` (athena), validates `ENCRYPTION_KEY`, `SESSION_SIGNING_KEY`, `DATABASE_URL`. |
 | "What does this audit log entry mean?" | `/app/src/features/security/` (athena) for emit sites, `/app/node_modules/@olympusoss/sdk/src/brute-force.ts` for the audit table schema. |
-| "How is my password being hashed?" | Not in Olympus — Kratos handles password hashing. See the Kratos config in `/app/kratos.yml` (mounted from `platform/`). |
+| "How is my password being hashed?" | Not in Olympus, Kratos handles password hashing. See the Kratos config in `/app/kratos.yml` (mounted from `platform/`). |
 | "How does Hera decide to show captcha?" | `/app/src/features/auth/login-flow.tsx` (hera) and `/app/node_modules/@olympusoss/sdk/src/brute-force.ts`. |
-| "Why is this OAuth2 client getting `pkce_required`?" | `/app/src/middleware.ts` (athena) and `kratos.yml` / `hydra.yml` config — Olympus enforces PKCE for all public clients. |
+| "Why is this OAuth2 client getting `pkce_required`?" | `/app/src/middleware.ts` (athena) and `kratos.yml` / `hydra.yml` config, Olympus enforces PKCE for all public clients. |
 | "What request shape does the consent screen expect?" | `/app/src/app/consent/page.tsx` (hera). |
 
 ## Reading the Kratos and Hydra configs
 
-Kratos and Hydra are not Olympus source — they're upstream Ory binaries. The configs (`kratos.yml`, `hydra.yml`, identity schemas) come from the [`platform`](https://github.com/OlympusOSS/platform) repo and are mounted into the Kratos/Hydra containers at deploy time.
+Kratos and Hydra are not Olympus source, they're upstream Ory binaries. The configs (`kratos.yml`, `hydra.yml`, identity schemas) come from the [`platform`](https://github.com/OlympusOSS/platform) repo and are mounted into the Kratos/Hydra containers at deploy time.
 
 To see the running config:
 
@@ -96,18 +96,18 @@ podman exec ciam-kratos cat /etc/config/kratos/kratos.yml
 podman exec ciam-hydra cat /etc/config/hydra/hydra.yml
 ```
 
-The full Kratos config reference is at [Reference — kratos.yml](/docs/reference/config/kratos-yml), and Hydra at [hydra.yml](/docs/reference/config/hydra-yml).
+The full Kratos config reference is at [Reference, kratos.yml](/docs/reference/config/kratos-yml), and Hydra at [hydra.yml](/docs/reference/config/hydra-yml).
 
 ## Patching locally
 
-The OFCL permits local patches to your deployed containers — useful for hot fixes or experiments. Since the image preserves source, you can edit a file in-place and restart the container:
+The OFCL permits local patches to your deployed containers, useful for hot fixes or experiments. Since the image preserves source, you can edit a file in-place and restart the container:
 
 ```bash
 # (Inside the container) edit a file
 podman exec -it olympus-athena-1 vi /app/src/lib/some-handler.ts
 
 # Then trigger a rebuild and restart of the standalone server
-# (this depends on your specific image's entrypoint — for Next.js standalone you
+# (this depends on your specific image's entrypoint, for Next.js standalone you
 # typically need to rebuild, so a local patch flow is more involved than for the
 # upstream repo).
 ```
@@ -116,6 +116,6 @@ For sustained changes, the cleaner path is to **fork the upstream repo**, apply 
 
 ## Where next
 
-- [License](/docs/license) — the OFCL framing in full.
-- [Internals — overview](/docs/internals/overview) — per-repo deep dives organized for inspection.
-- [Develop — Workspace setup](/docs/develop/workspace-setup) — clone the repos for a fuller dev environment.
+- [License](/docs/license), the OFCL framing in full.
+- [Internals, overview](/docs/internals/overview), per-repo deep dives organized for inspection.
+- [Develop, Workspace setup](/docs/develop/workspace-setup), clone the repos for a fuller dev environment.

@@ -1,0 +1,12 @@
+{
+  "title": "OAuth2 issues",
+  "pages": [
+    "missing-claim",
+    "oauth2-invalid-client",
+    "oauth2-invalid-grant",
+    "oauth2-invalid-redirect",
+    "oauth2-invalid-scope",
+    "oauth2-pkce-required",
+    "redirect-uri-localhost-in-prod"
+  ]
+}

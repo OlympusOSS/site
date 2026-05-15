@@ -1,0 +1,312 @@
+---
+title: CSP, Hera
+description: Content Security Policy configuration for the Hera login UI
+---
+
+## Overview
+
+Hera applies a nonce-based Content-Security-Policy (CSP) via Next.js edge middleware
+(`src/middleware.ts`). The CSP protects the login, registration, consent, and logout pages
+from script injection and clickjacking. It includes Cloudflare Turnstile origins required
+for CAPTCHA functionality.
+
+### Current State (Phase 1, hera#48)
+
+Phase 1 (hera#48) adds `'strict-dynamic'` to `script-src`, tightening script injection
+controls. `style-src 'unsafe-inline'` remains, this is a known residual risk. Phase 2
+(removing `unsafe-inline` from `style-src`) is blocked on canvas#46, which must resolve
+its inline style dependencies before nonce-based style-src enforcement is possible.
+
+**Phase 1 achieves**: script injection blocked by nonce + `'strict-dynamic'`.
+**Phase 2 debt**: CSS injection via `style-src 'unsafe-inline'`, tracked in canvas#46.
+
+---
+
+## How It Works
+
+### Nonce Generation and CSP Header
+
+The middleware generates a cryptographic nonce on every request and sets the CSP header:
+
+```typescript
+// src/middleware.ts
+const nonceBytes = new Uint8Array(16);
+crypto.getRandomValues(nonceBytes);
+const nonce = btoa(String.fromCharCode(...nonceBytes));
+
+const csp = buildCsp(nonce);
+response.headers.set('Content-Security-Policy', csp);
+request.headers.set('x-nonce', nonce);
+```
+
+Each request receives a unique nonce. The nonce is not reused across requests.
+
+### Current Hera CSP
+
+```
+default-src 'self';
+script-src 'self' 'nonce-{NONCE}' 'strict-dynamic' https://challenges.cloudflare.com;
+style-src 'self' 'unsafe-inline';
+frame-src https://challenges.cloudflare.com;
+connect-src 'self' https://challenges.cloudflare.com;
+img-src 'self' data:;
+font-src 'self';
+object-src 'none';
+base-uri 'self';
+form-action 'self';
+frame-ancestors 'none';
+```
+
+`{NONCE}` is replaced with a per-request base64-encoded value. The literal string `{NONCE}`
+never appears in the header sent to the browser.
+
+### `'strict-dynamic'` Behavior
+
+`'strict-dynamic'` causes modern browsers (Chrome, Firefox, Safari) to **ignore** `'self'`
+and explicit CDN origin allowlists in `script-src`. These entries remain in the directive
+as fallbacks for browsers that do not support `'strict-dynamic'` (legacy browsers). Modern
+browsers only allow scripts that carry a valid nonce.
+
+**Important**: if you add a new CDN script origin to `script-src` after Phase 1 ships, modern
+browsers will not allow that script to load, `'strict-dynamic'` overrides it. The only way to
+load a new script under this policy is to ensure the script tag carries the `nonce` attribute.
+CDN origin allowlists in `script-src` are treated as legacy-browser fallbacks only.
+
+### Nonce Propagation to the Layout
+
+The middleware forwards the nonce to the Next.js layout via the `x-nonce` request header:
+
+```typescript
+// layout.tsx
+import { headers } from 'next/headers';
+
+const nonce = (await headers()).get('x-nonce') ?? '';
+// Pass to all <Script> components and inline <script> blocks
+return <Script src="/bundle.js" nonce={nonce} />;
+```
+
+A `<meta name="csp-nonce">` tag in the layout provides the nonce to client-side scripts
+that need to create dynamic script elements:
+
+```html
+<meta name="csp-nonce" content="{NONCE}" />
+```
+
+Client-side code reads the nonce from this meta tag when creating script elements
+programmatically.
+
+### Adding a New Nonce-Aware Script
+
+To integrate a new third-party script (analytics, error tracking, etc.):
+
+1. Add the script tag to the layout with the nonce attribute:
+   ```tsx
+   const nonce = (await headers()).get('x-nonce') ?? '';
+   return <Script src="https://example.com/sdk.js" nonce={nonce} />;
+   ```
+2. If the script loads additional scripts dynamically, it must read the nonce from
+   `<meta name="csp-nonce">` and apply it to those script elements.
+3. If the script origin is not yet in `connect-src`, add it to the CSP.
+4. Do not add the script origin to `script-src` as a workaround, under `'strict-dynamic'`,
+   modern browsers ignore origin allowlists. The nonce is the only enforcement mechanism for
+   modern browsers.
+
+### Cloudflare Turnstile Compatibility
+
+Turnstile requires three CSP entries:
+
+| Directive | Required entry | Purpose |
+|-----------|---------------|---------|
+| `script-src` | `https://challenges.cloudflare.com` | Legacy-browser fallback for Turnstile script |
+| `frame-src` | `https://challenges.cloudflare.com` | Turnstile renders in a Cloudflare-hosted iframe |
+| `connect-src` | `https://challenges.cloudflare.com` | Turnstile verification fetch |
+
+Under `'strict-dynamic'`, the Turnstile script loads because the `<script>` tag in the Hera
+layout carries the nonce. The `https://challenges.cloudflare.com` entry in `script-src` is
+retained as a legacy-browser fallback.
+
+Removing any of the three Turnstile entries breaks CAPTCHA. If Cloudflare adds new subdomain
+origins for Turnstile, update the CSP accordingly.
+
+---
+
+## Phase 2, Removing `unsafe-inline` from `style-src`
+
+**Status**: Blocked on canvas#46.
+
+Phase 2 will replace `style-src 'self' 'unsafe-inline'` with `style-src 'self' 'nonce-{NONCE}'`.
+This requires that no Canvas component, Hera layout, or Hera page uses inline styles
+(`style=` attributes or `<style>` blocks without a nonce).
+
+When canvas#46 resolves its inline style dependencies, Phase 2 work is:
+
+1. Verify zero inline styles remain in Canvas components used by Hera
+2. Run a CSP-Report-Only pre-flight: replace `style-src 'self' 'unsafe-inline'` with
+   `Content-Security-Policy-Report-Only: style-src 'self' 'nonce-{NONCE}'` and observe
+   violations in the browser console
+3. Address any violations surfaced by the report-only run
+4. Switch from report-only to enforcing
+5. Update this document
+
+Do not remove `unsafe-inline` from `style-src` until the canvas#46 dependency is confirmed
+resolved and a CSP-Report-Only pre-flight shows zero violations.
+
+---
+
+## CSP-Report-Only Pre-flight Procedure
+
+Use `Content-Security-Policy-Report-Only` as a pre-flight before enforcing any new CSP
+directive. This is the required procedure for all future CSP changes in Hera:
+
+1. Add the new directive to a `Content-Security-Policy-Report-Only` header alongside the
+   existing enforcing `Content-Security-Policy` header
+2. Deploy to a staging environment or dev
+3. Exercise all Hera pages (login, registration, consent, error, logout)
+4. Inspect the browser console for CSP violation reports
+5. Address each violation (add nonce, add origin, or remove the inline construct)
+6. Repeat until zero violations across all pages
+7. Move the directive from report-only to enforcing
+8. Remove the report-only header
+
+In `src/middleware.ts`:
+```typescript
+// During pre-flight: emit both headers
+response.headers.set('Content-Security-Policy', existingCsp);
+response.headers.set('Content-Security-Policy-Report-Only', newDirectiveCsp);
+
+// After pre-flight is clean: remove report-only, update enforcing header
+response.headers.set('Content-Security-Policy', updatedCsp);
+```
+
+---
+
+## API / Technical Details
+
+### Nonce properties
+
+- Generated: `crypto.getRandomValues(new Uint8Array(16))`, base64-encoded
+- Scope: per request, a new nonce is generated for every HTTP request
+- Propagation: `x-nonce` request header (middleware → layout) and `<meta name="csp-nonce">` tag
+- Uniqueness: each request receives a cryptographically distinct nonce, this is verified by
+  CI-automated tests asserting that two sequential requests return different nonces
+
+### Header ownership
+
+CSP is set exclusively by `src/middleware.ts`. Caddy does not set `Content-Security-Policy`.
+See `platform/docs/security-headers.md` for the full header ownership table covering all
+Caddy-layer headers (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy,
+Permissions-Policy).
+
+---
+
+## Examples
+
+### Verifying the Hera CSP in Chrome DevTools
+
+1. Open Chrome DevTools (F12)
+2. Go to the Network tab
+3. Navigate to the Hera login page
+4. Click the HTML document request
+5. Inspect Response Headers, look for `content-security-policy`
+
+Expected `script-src`:
+```
+script-src 'self' 'nonce-<base64-value>' 'strict-dynamic' https://challenges.cloudflare.com
+```
+
+Verify the nonce value changes on every page reload (each request should show a different
+base64 value).
+
+### Verifying nonce is applied to all scripts
+
+In Chrome DevTools Console on the Hera login page:
+
+```javascript
+document.querySelectorAll('script[nonce]').length
+// Should equal document.querySelectorAll('script').length
+```
+
+### Checking for CSP violations
+
+Open Chrome DevTools Console. CSP violations appear as red error messages:
+```
+Refused to execute inline script because it violates the following Content Security Policy directive
+Refused to load the script 'https://example.com/script.js' because it violates ...
+```
+
+---
+
+## Edge Cases
+
+### New script added without a nonce, blocked silently in production
+
+Under `'strict-dynamic'`, any script tag added without a nonce attribute is blocked in modern
+browsers. The browser console shows a CSP violation. The script does not execute and no
+JavaScript error is thrown from within the script. The fix is to read the nonce from
+`x-nonce` in the layout and pass it as the `nonce` prop.
+
+### CDN origin added to `script-src`, appears to have no effect in Chrome
+
+`'strict-dynamic'` causes Chrome and Firefox to ignore origin allowlists in `script-src`.
+Adding `https://example.com` to `script-src` will not allow an un-nonced script from that
+origin to load. The entry only applies to browsers that do not support `'strict-dynamic'`
+(primarily IE11). The correct approach is to nonce the script tag.
+
+### Turnstile breaks after Cloudflare changes its origin structure
+
+If Turnstile stops rendering or the Turnstile script fails to load, check whether Cloudflare
+has changed the origin used for their Turnstile assets. Add new origins to `frame-src`,
+`script-src` (legacy fallback), or `connect-src` as needed. The `'strict-dynamic'` addition
+does not affect `frame-src`, iframe sources are controlled by `frame-src` only.
+
+### Phase 1 deployed, Phase 2 not yet, `unsafe-inline` still present
+
+After hera#48 Phase 1 ships, `style-src 'unsafe-inline'` remains. This is intentional.
+The ticket title references removing `unsafe-inline`, but Phase 1 only adds `'strict-dynamic'`
+to `script-src`. Phase 2 (removing `unsafe-inline` from `style-src`) requires canvas#46 to
+resolve first. See the [Phase 2](#phase-2--removing-unsafe-inline-from-style-src) section.
+
+---
+
+## Security Considerations
+
+### `'strict-dynamic'` closes the script injection vector
+
+Without `'strict-dynamic'`, a CSP that includes `'self'` in `script-src` can be bypassed if
+an attacker can write a script tag to the page that loads from the same origin. With
+`'strict-dynamic'`, only nonce-bearing scripts execute in modern browsers, regardless of origin.
+This is the correct security posture for a CIAM login UI.
+
+### `style-src 'unsafe-inline'`, known residual risk
+
+`unsafe-inline` in `style-src` allows CSS injection via inline `<style>` blocks and `style=`
+attributes. CSS injection on a login page can be used for UI redressing, overlaying a
+credential-phishing form over the legitimate login form. The risk is lower than script injection
+because CSS cannot make network requests directly, but it is a real attack surface.
+
+Phase 2 (blocked on canvas#46) will remove this risk. Until then, operators should be aware
+that inline style injection is possible if an XSS vulnerability allows attacker-controlled
+content to reach a Hera page.
+
+### `frame-ancestors 'none'`, login UI must not be embeddable
+
+`frame-ancestors 'none'` prevents Hera from being embedded in any iframe. This is mandatory
+for a login UI, iframe embedding of a login page is a credential-phishing vector. Do not
+change `frame-ancestors` to any value other than `'none'` for Hera pages.
+
+### Nonce uniqueness is safety-critical
+
+The per-request nonce must be cryptographically unique. Reusing a nonce across requests
+defeats the nonce-based CSP entirely, an attacker who observes a nonce in one response can
+inject a script with that nonce in a subsequent response if the nonce is predictable or
+reused. The `crypto.getRandomValues` implementation satisfies this requirement. Do not
+replace the nonce generator with a deterministic or counter-based implementation.
+
+### Compliance
+
+- `script-src 'nonce-{NONCE}' 'strict-dynamic'` addresses OWASP A03:2021 Injection (XSS)
+  for script injection on CIAM authentication pages
+- `frame-ancestors 'none'` addresses OWASP A05:2021 Security Misconfiguration (clickjacking)
+  and is particularly important for login and consent pages
+- `style-src 'unsafe-inline'` is a residual Medium severity risk per the CIAM Security Expert
+  review (hera#48); Phase 2 resolves it

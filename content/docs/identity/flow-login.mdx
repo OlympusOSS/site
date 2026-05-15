@@ -64,9 +64,9 @@ GET /self-service/login/flows?id=FLOW_ID
 ```
 
 The response includes:
-- `ui.nodes` — the form fields to render (e.g. `identifier`, `password`, CSRF token).
-- `ui.action` — the URL to POST the form back to.
-- `ui.messages` — any validation errors or status messages.
+- `ui.nodes`, the form fields to render (e.g. `identifier`, `password`, CSRF token).
+- `ui.action`, the URL to POST the form back to.
+- `ui.messages`, any validation errors or status messages.
 
 Hera renders the form. The user submits.
 
@@ -98,13 +98,13 @@ Beyond the standard Kratos flow, Hera adds two pre-Kratos checks:
 
 ### Brute-force lockout
 
-Before calling Kratos, Hera consults the SDK's `login_attempts` / `lockouts` tables. If the identifier is locked out, Hera rejects the submission immediately and renders a "too many attempts" message — Kratos never sees the attempt.
+Before calling Kratos, Hera consults the SDK's `login_attempts` / `lockouts` tables. If the identifier is locked out, Hera rejects the submission immediately and renders a "too many attempts" message, Kratos never sees the attempt.
 
-See [Security — Brute-Force Protection](/docs/security/brute-force).
+See [Security, Brute-Force Protection](/docs/security/web-attacks/brute-force).
 
 ### Captcha
 
-If captcha is required (configurable per deployment), Hera validates the Turnstile token with Cloudflare before passing the submission to Kratos. See [Security — Captcha Turnstile](/docs/security/captcha-turnstile).
+If captcha is required (configurable per deployment), Hera validates the Turnstile token with Cloudflare before passing the submission to Kratos. See [Security, Captcha Turnstile](/docs/security/web-attacks/captcha-turnstile).
 
 ## AAL2 step-up
 
@@ -112,7 +112,7 @@ If the identity has a second factor enrolled (TOTP, WebAuthn), Kratos returns th
 
 The session's `authenticator_assurance_level` reflects what was actually used: `aal1` (password only), `aal2` (password + second factor).
 
-See [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn) and [Identity — MFA Policy](/docs/identity/mfa-policy).
+See [Identity, TOTP and WebAuthn](/docs/identity/totp-and-webauthn) and [Identity, MFA Policy](/docs/identity/mfa-policy).
 
 ## Hydra integration (OAuth2 case)
 
@@ -121,7 +121,7 @@ When the user is logging in as part of an OAuth2 flow (the app's link sent them 
 1. Calls Hydra `PUT /admin/oauth2/auth/requests/login/accept` with the Kratos `identity.id` and the challenge.
 2. Hydra resumes the OAuth2 flow and redirects to consent.
 
-If the user already had a Kratos session, this whole chain is **skipped** — Hera detects the session and short-circuits straight to accepting the login challenge.
+If the user already had a Kratos session, this whole chain is **skipped**, Hera detects the session and short-circuits straight to accepting the login challenge.
 
 ## Failure modes
 
@@ -131,14 +131,14 @@ If the user already had a Kratos session, this whole chain is **skipped** — He
 | CSRF violation | 400 Bad Request | Browser cookies were cleared mid-flow; redirect cycle. |
 | Invalid identifier | "Invalid credentials" | Email doesn't exist in this domain. Kratos doesn't distinguish missing vs wrong-password to prevent enumeration. |
 | Invalid password | "Invalid credentials" | Same message; check the brute-force counter. |
-| Locked out | "Too many attempts" | The identifier is locked. See [Operate — Locked Account Unlock](/docs/operate/locked-account-unlock). |
+| Locked out | "Too many attempts" | The identifier is locked. See [Operate, Locked Account Unlock](/docs/operate/backups-recovery/locked-account-unlock). |
 | Captcha failed | "Captcha verification failed" | Turnstile token rejected. User must try again (the Turnstile widget remounts). |
 | Email not verified (if required) | Redirect to verification flow | The identity has an unverified email and `require_verified_address` hook is enabled. |
 
 ## Related
 
-- [Identity — Flow Registration](/docs/identity/flow-registration) — the analogous flow for new identities.
-- [Identity — Flow Recovery](/docs/identity/flow-recovery) — forgot-password.
-- [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)
-- [Reference — Kratos API](/docs/reference/api/overview) — endpoint details.
-- [Troubleshooting — Login loops](/docs/troubleshooting/login-loops) — most common Olympus login problem.
+- [Identity, Flow Registration](/docs/identity/flow-registration), the analogous flow for new identities.
+- [Identity, Flow Recovery](/docs/identity/flow-recovery), forgot-password.
+- [Identity, Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)
+- [Reference, Kratos API](/docs/reference/api/overview), endpoint details.
+- [Troubleshooting, Login loops](/docs/troubleshooting/auth-issues/login-loops), most common Olympus login problem.

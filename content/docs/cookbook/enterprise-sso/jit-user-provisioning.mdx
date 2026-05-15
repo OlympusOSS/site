@@ -1,0 +1,96 @@
+---
+title: Just-in-time user provisioning
+description: Auto-create user records in your app on first Olympus login
+---
+
+JIT provisioning: when a user logs in via Olympus for the first time, your app creates their corresponding record. No pre-staging needed.
+
+## Pattern
+
+```
+1. User authenticates with Olympus (existing identity).
+2. Your app receives the ID token.
+3. Your app checks: does my DB have a row for this identity_id?
+   - Yes → continue.
+   - No → create the row (default settings, free tier, etc.).
+4. Continue request normally.
+```
+
+## Implementation
+
+```ts
+async function getOrProvisionUser(idToken: { sub: string; email: string }) {
+  const existing = await db`
+    SELECT * FROM users WHERE olympus_sub = ${idToken.sub}
+  `.first();
+
+  if (existing) return existing;
+
+  // JIT provisioning
+  const newUser = await db`
+    INSERT INTO users (olympus_sub, email, plan, created_at)
+    VALUES (${idToken.sub}, ${idToken.email}, 'free', NOW())
+    RETURNING *
+  `.first();
+
+  // Side effects on first signup
+  await sendWelcomeEmail(newUser.email);
+  await createDefaultResources(newUser.id);
+  await analyticsTrack("signup", { source: "jit", email: newUser.email });
+
+  return newUser;
+}
+```
+
+Call from your auth middleware after token validation.
+
+## Race conditions
+
+Two simultaneous logins from the same Olympus identity can both miss the existing row and try to insert. Use a unique constraint and handle the conflict:
+
+```sql
+INSERT INTO users (olympus_sub, email, plan)
+VALUES ($1, $2, 'free')
+ON CONFLICT (olympus_sub) DO UPDATE SET
+  email = EXCLUDED.email   -- update email if changed
+RETURNING *;
+```
+
+## What if the email changed in Kratos?
+
+Some users update their email. Your local record should track:
+
+- **As the user record's primary identifier**: use `olympus_sub` (immutable UUID), not email.
+- **Email**: store but allow updates from Kratos. Sync on every login.
+
+```ts
+if (existing.email !== idToken.email) {
+  await db`UPDATE users SET email = ${idToken.email} WHERE olympus_sub = ${idToken.sub}`;
+}
+```
+
+## Triggered alternatives
+
+Instead of JIT on login, you can:
+
+- **Kratos webhook**: on `after.registration.password.hooks`, send your backend a webhook. Your backend provisions immediately. See [Cookbook, Custom Kratos webhook](/docs/cookbook/integrations-billing/custom-kratos-webhook).
+
+Trade-off: webhook fires once on registration; JIT runs on every login (free correctness check). JIT is more resilient.
+
+## What to provision
+
+- App-side user row.
+- Default settings.
+- Free-tier resource quotas.
+- Welcome notification.
+
+What NOT to provision automatically:
+- **Paid resources** (charge them first).
+- **Permissions to others' data** (security risk).
+- **External provider accounts** (e.g. don't auto-create Stripe customer unless they paid).
+
+## Related
+
+- [Cookbook, Custom Kratos webhook](/docs/cookbook/integrations-billing/custom-kratos-webhook)
+- [Cookbook, Stripe subscription gate](/docs/cookbook/integrations-billing/stripe-subscription-gate)
+- [Identity, Identity schemas](/docs/identity/identity-schemas)

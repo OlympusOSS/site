@@ -1,0 +1,124 @@
+---
+title: Alerts for cert expiry
+description: Configure proactive notifications before certs expire
+---
+
+Caddy auto-renews certificates 30 days before expiry, but in failure modes (Let's Encrypt rate limit, DNS issue, ACME outage) renewal can fail silently. Set up monitoring to catch this.
+
+## Built-in: `cert-expiry-check.yml`
+
+The platform repo ships a daily workflow:
+
+```yaml
+# .github/workflows/cert-expiry-check.yml
+on:
+  schedule:
+    - cron: "0 7 * * *"   # Daily at 07:00 UTC
+jobs:
+  check:
+    steps:
+      - name: Check cert expiry
+        run: |
+          for domain in ciam.example.com iam.example.com www.example.com; do
+            expiry=$(echo | openssl s_client -connect $domain:443 -servername $domain 2>/dev/null | openssl x509 -noout -enddate | cut -d= -f2)
+            days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+            if [ $days -lt 30 ]; then
+              # Open a GitHub issue
+              gh issue create --title "Cert expiring in $days days: $domain" \
+                --body "Domain: $domain\nExpires: $expiry"
+            fi
+          done
+```
+
+Configure your apex domain in the workflow. The workflow opens a GitHub Issue at the 30/14/7-day windows. Tag yourself for notifications.
+
+## External uptime monitoring
+
+UptimeRobot, StatusCake, Better Uptime, most include cert-expiry checks. Free tiers cover small deployments.
+
+Configure them to monitor:
+- `https://ciam.<your-domain>/.well-known/openid-configuration`
+- `https://iam.<your-domain>/.well-known/openid-configuration`
+- `https://<your-domain>/` (Site)
+
+These services alert via email, SMS, or Slack on:
+- HTTP error (covers most outages).
+- Cert expiry within configurable threshold.
+- TLS handshake failure (covers cert issues before expiry).
+
+## Slack / Discord webhook
+
+Integrate `cert-expiry-check.yml` with Slack:
+
+```yaml
+- name: Notify Slack
+  if: env.DAYS_LEFT < 7
+  uses: slackapi/slack-github-action@v1
+  with:
+    payload: |
+      {
+        "text": "🚨 Olympus cert for ${{ env.DOMAIN }} expires in ${{ env.DAYS_LEFT }} days"
+      }
+  env:
+    SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+```
+
+## Internal check
+
+If you'd rather check from inside the deployment:
+
+```bash
+# Cron on the VPS
+*/30 * * * * /usr/local/bin/cert-check.sh
+
+# cert-check.sh
+#!/bin/bash
+for d in ciam.example.com iam.example.com; do
+  expiry=$(podman exec olympus-caddy caddy fmt /data/caddy/certificates/.../$d/$d.json | jq -r .expires)
+  # ... compute days, alert via curl to webhook
+done
+```
+
+This catches issues earlier than the daily GitHub workflow.
+
+## Caddy's own logs
+
+Caddy logs ACME-related events at INFO level. Watch:
+
+```bash
+podman compose logs caddy --since 1d | grep -iE "(error|fail|renew)"
+```
+
+If you see renewal errors days before expiry, that's your early-warning system.
+
+## Multi-step alert
+
+Recommended setup:
+- **30 days**: GitHub Issue (informational).
+- **14 days**: Slack message in #ops.
+- **7 days**: SMS / PagerDuty page.
+
+Tune to your team's escalation needs.
+
+## After fixing expiry
+
+After resolving the underlying issue (DNS, rate limit, etc.):
+
+```bash
+ssh prod 'podman exec olympus-caddy caddy reload --config /etc/caddy/Caddyfile'
+```
+
+Caddy attempts renewal. Verify:
+
+```bash
+echo | openssl s_client -connect ciam.your-domain:443 -servername ciam.your-domain 2>/dev/null \
+  | openssl x509 -noout -dates
+```
+
+`notAfter` should be ~90 days in the future.
+
+## Related
+
+- [Operate, Cert rotation](/docs/operate/rotation/cert-rotation)
+- [Troubleshooting, Cert expired](/docs/troubleshooting/infrastructure-issues/cert-expired)
+- [Security, Caddy supply chain](/docs/security/infrastructure/caddy-supply-chain)

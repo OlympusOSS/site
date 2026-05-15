@@ -1,0 +1,124 @@
+---
+title: Health endpoints
+description: Every /health endpoint across the Olympus stack
+---
+
+Every service in Olympus exposes a health endpoint. This page lists each one, what it actually checks, and how to interpret a failure.
+
+## Inventory
+
+| Service | Path | Container port | Public? |
+| --- | --- | --- | --- |
+| Caddy | `/healthz` | 80, 443 | yes (via ingress) |
+| Hera CIAM | `/health` | 3000 | no (intranet only) |
+| Hera IAM | `/health` | 4000 | no |
+| Athena CIAM | `/api/health` | 3001 | no |
+| Athena IAM | `/api/health` | 4001 | no |
+| Site | `/health` | 2000 | no |
+| Kratos CIAM | `/health/alive`, `/health/ready` | 3100 (public), 3101 (admin) | partial |
+| Kratos IAM | `/health/alive`, `/health/ready` | 4100, 4101 | partial |
+| Hydra CIAM | `/health/alive`, `/health/ready` | 3102 (public), 3103 (admin) | partial |
+| Hydra IAM | `/health/alive`, `/health/ready` | 4102, 4103 | partial |
+| Postgres | `pg_isready` | 5432 | no |
+| pgAdmin | `/misc/ping` | - | no |
+
+## What each one actually checks
+
+### Caddy `/healthz`
+
+Caddy responds 200 OK to `/healthz` if the proxy process is up. **It does not** verify that any backend is reachable. A 200 from Caddy means "Caddy is alive"; it does **not** mean Hera or Kratos is alive.
+
+### Hera `/health`
+
+Hera responds 200 OK if the Next.js server is up. **It does not** check Kratos connectivity. A failed Hera health means the Next.js process is dead, the container should restart.
+
+### Athena `/api/health`
+
+Athena's `/api/health` is the most thorough of the app-level health checks:
+
+- 200 OK if the process is up.
+- It validates `SESSION_SIGNING_KEY` is set (the container would have refused to start otherwise, but the endpoint re-confirms).
+- It validates `ENCRYPTION_KEY` is set.
+- It does **not** check Postgres connectivity (separate endpoint planned in [athena#TBD]).
+
+Even though it doesn't check DB, a failing `/api/health` from Athena always means the container is broken.
+
+### Site `/health`
+
+Site responds 200 OK if the Next.js server is up. Same shape as Hera.
+
+### Kratos `/health/alive` vs `/health/ready`
+
+Kratos splits liveness from readiness:
+
+- `/health/alive`, process is up and able to accept requests. Does not verify DB connectivity.
+- `/health/ready`, DB is reachable, migrations are at the expected version, and the courier is operational.
+
+For most monitoring, **probe `/health/ready`** on every Kratos. A non-200 means Kratos cannot do work even though the process is alive.
+
+### Hydra `/health/alive` vs `/health/ready`
+
+Same split as Kratos. Probe `/health/ready` for the meaningful signal.
+
+### Postgres
+
+Use `pg_isready -h <host> -p 5432 -U <user>` from a container that has `pg_isready` installed (any Postgres client image works). A 0 exit means accepting connections.
+
+### pgAdmin
+
+Internal endpoint; not generally useful for production monitoring because pgAdmin is a single-user admin tool, not a service users depend on.
+
+## Probe configuration
+
+### Compose `healthcheck:` blocks
+
+Most services have a `healthcheck:` configured in `compose.{dev,prod}.yml`:
+
+```yaml
+ciam-kratos:
+  healthcheck:
+    test: ["CMD", "wget", "-q", "-O-", "http://localhost:5001/health/ready"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+```
+
+If a service is unhealthy for 3 consecutive checks, the container is marked unhealthy in `podman ps`. Compose by default does **not** restart unhealthy containers (the container is still "running" from Podman's point of view), your supervisor (systemd unit, kubelet, etc.) needs the restart logic.
+
+### External monitoring
+
+For external uptime monitoring, the simplest probes are:
+
+```
+GET https://ciam.<domain>/.well-known/openid-configuration
+GET https://iam.<domain>/.well-known/openid-configuration
+```
+
+A 200 means: Caddy is up, the upstream Hydra is up, the DB is reachable. This single probe covers most of the stack.
+
+For a second tier of probes:
+
+```
+GET https://ciam.<domain>/.ory/kratos/sessions/whoami
+# Returns 401 if Kratos is up but there's no session, that's a healthy 401
+```
+
+Treat the **401** as healthy here (Kratos returns 200 only if there's a valid session cookie).
+
+## Interpreting failures
+
+| Symptom | Likely cause |
+| --- | --- |
+| Caddy 502 | Backend container is down or unhealthy. Caddy is healthy itself. |
+| Caddy 504 | Backend is slow (timeout). Either backend is overloaded or there's a DB issue. |
+| Caddy 200 on `/healthz` but `/.well-known/openid-configuration` 502 | Hydra is down. |
+| Kratos `/health/ready` 503 with body `database not available` | Postgres is down or unreachable. |
+| Kratos `/health/ready` 503 with body `database migrations missing` | Kratos was deployed but the migration job didn't run. |
+| Athena `/api/health` 200 but every route 500 | Likely `SESSION_SIGNING_KEY` rotation went wrong. See [incident response](/docs/operate/backups-recovery/incident-response). |
+
+## Where next
+
+- [Operate, Incident Response](/docs/operate/backups-recovery/incident-response), full on-call playbook.
+- [Operate, Network Topology](/docs/operate/administration/network-topology), what's host-bound vs internal.
+- [Operate, Logs and Observability](/docs/operate/monitoring/logs-and-observability), how to read logs for failure modes.

@@ -1,5 +1,5 @@
 ---
-title: "0006 — AES-256-GCM with HKDF-SHA256 for settings encryption"
+title: "0006, AES-256-GCM with HKDF-SHA256 for settings encryption"
 description: How and why the SDK encrypts sensitive settings at rest
 ---
 
@@ -15,11 +15,11 @@ The Olympus SDK stores arbitrary key-value settings in the `olympus` Postgres da
 - Webhook signing keys
 - Third-party API tokens (Cloudflare Turnstile, etc.)
 
-A database compromise would expose every secret. Encryption at rest mitigates this — the database is one layer, the key is another.
+A database compromise would expose every secret. Encryption at rest mitigates this, the database is one layer, the key is another.
 
 ## Considered alternatives
 
-### Option A — AES-256-CBC + HMAC-SHA256 (Encrypt-then-MAC)
+### Option A, AES-256-CBC + HMAC-SHA256 (Encrypt-then-MAC)
 
 The traditional combination: CBC mode for confidentiality, HMAC for integrity.
 
@@ -27,14 +27,14 @@ The traditional combination: CBC mode for confidentiality, HMAC for integrity.
 - *Cons*:
   - Requires correct ordering (Encrypt-then-MAC; the reverse is unsafe).
   - Manual padding (PKCS#7), vulnerable to padding oracles if implemented wrong.
-  - Two operations per encrypt/decrypt — slightly more code, slightly more risk.
+  - Two operations per encrypt/decrypt, slightly more code, slightly more risk.
 
-### Option B — AES-256-GCM ✓
+### Option B, AES-256-GCM ✓
 
 Authenticated encryption with associated data (AEAD). Combines confidentiality and integrity in one primitive.
 
 - *Pros*:
-  - Single-pass — no separate MAC.
+  - Single-pass, no separate MAC.
   - No padding required.
   - Hardware-accelerated on every modern CPU (AES-NI, ARM crypto extensions).
   - Standard in TLS 1.3, NaCl, age, libsodium, etc.
@@ -42,11 +42,11 @@ Authenticated encryption with associated data (AEAD). Combines confidentiality a
   - Nonce reuse is catastrophic (key recovery!). Must generate a unique nonce per encryption.
   - 12-byte nonce limit; can't safely use a single key for more than ~2^32 encryptions before nonce collision becomes plausible.
 
-### Option C — ChaCha20-Poly1305
+### Option C, ChaCha20-Poly1305
 
 Modern AEAD primitive from the NaCl / libsodium family.
 
-- *Pros*: Fast on CPUs without AES-NI (which doesn't apply to us — we target modern x86 and ARM). Larger nonce (24 bytes for XChaCha20) makes nonce reuse very unlikely.
+- *Pros*: Fast on CPUs without AES-NI (which doesn't apply to us, we target modern x86 and ARM). Larger nonce (24 bytes for XChaCha20) makes nonce reuse very unlikely.
 - *Cons*: Slightly less ubiquitous than AES-GCM in audit / compliance contexts.
 
 ## Key derivation
@@ -76,7 +76,7 @@ ciphertext = AES-256-GCM-encrypt(
 stored_value = "v2:" || nonce || ciphertext
 ```
 
-Encryption format details in [Security — Encryption at Rest](/docs/security/encryption-at-rest).
+Encryption format details in [Security, Encryption at Rest](/docs/security/encryption-keys/encryption-at-rest).
 
 ## Consequences
 
@@ -84,7 +84,7 @@ Encryption format details in [Security — Encryption at Rest](/docs/security/en
 
 - AES-256-GCM is FIPS 140-2 approved.
 - HKDF-SHA256 is NIST SP 800-56C recommended.
-- The combination is in TLS 1.3, age, signal-protocol — well-understood.
+- The combination is in TLS 1.3, age, signal-protocol, well-understood.
 
 ### Performance
 
@@ -94,7 +94,7 @@ Encryption format details in [Security — Encryption at Rest](/docs/security/en
 ### Implementation surface
 
 - Each record stores 16 bytes of nonce + ciphertext + 16-byte GCM auth tag overhead. Roughly 32 bytes + plaintext length.
-- Format version prefix `v2:` lets us migrate to a different scheme in the future without breaking existing records — see [Operate — Encryption Key Rotation](/docs/operate/encryption-key-rotation).
+- Format version prefix `v2:` lets us migrate to a different scheme in the future without breaking existing records, see [Operate, Encryption Key Rotation](/docs/operate/rotation/encryption-key-rotation).
 
 ### Failure modes
 
@@ -109,10 +109,10 @@ Encryption format details in [Security — Encryption at Rest](/docs/security/en
 
 ## Related
 
-- [Security — Encryption at Rest](/docs/security/encryption-at-rest) — implementation details.
-- [Security — Encryption Key Blocklist](/docs/security/encryption-key-blocklist) — known-weak values that are rejected.
-- [Operate — Encryption Key Rotation](/docs/operate/encryption-key-rotation) — runbook.
-- [Internals — SDK encryption format](/docs/internals/sdk-encryption-format) — version evolution.
+- [Security, Encryption at Rest](/docs/security/encryption-keys/encryption-at-rest), implementation details.
+- [Security, Encryption Key Blocklist](/docs/security/encryption-keys/encryption-key-blocklist), known-weak values that are rejected.
+- [Operate, Encryption Key Rotation](/docs/operate/rotation/encryption-key-rotation), runbook.
+- [Internals, SDK encryption format](/docs/internals/sdk/sdk-encryption-format), version evolution.
 
 ## Revisit triggers
 

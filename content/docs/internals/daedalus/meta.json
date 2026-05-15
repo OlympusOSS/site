@@ -1,0 +1,12 @@
+{
+  "title": "Daedalus",
+  "pages": [
+    "daedalus-external-integrations",
+    "daedalus-mcp-server",
+    "daedalus-pty-pipeline",
+    "daedalus-screenshot-pipeline",
+    "daedalus-secrets-sanitizer",
+    "daedalus-tauri-shell",
+    "daedalus-wizard-state-machine"
+  ]
+}

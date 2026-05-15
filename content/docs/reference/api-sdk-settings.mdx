@@ -11,7 +11,7 @@ The `@olympusoss/sdk` settings API provides persistent, admin-editable key-value
 
 Settings are stored in the `ciam_settings` or `iam_settings` table (determined by the `SETTINGS_TABLE` environment variable). The SDK exposes four operations: get, set, delete, and list. A TTL-based in-memory cache reduces round-trips to the database.
 
-### getSetting() — Single Key Fetch
+### getSetting(), Single Key Fetch
 
 `getSetting(key)` issues a single-row `SELECT` against the settings table and returns the full `Setting` object or `null` if the key does not exist. The result is cached in-process.
 
@@ -21,13 +21,13 @@ SELECT key, value, encrypted, category, updated_at FROM <table> WHERE key = $1
 
 The cache stores `Setting | null` per key. On a cache hit, no database query is issued.
 
-### getSettingOrDefault() — String Value with Fallback
+### getSettingOrDefault(), String Value with Fallback
 
-`getSettingOrDefault(key, fallback)` calls `getSetting(key)` internally and returns the `.value` field as a plain string, or `fallback` if the key does not exist. Its return type is `Promise<string>` — it never returns a `Setting` object.
+`getSettingOrDefault(key, fallback)` calls `getSetting(key)` internally and returns the `.value` field as a plain string, or `fallback` if the key does not exist. Its return type is `Promise<string>`, it never returns a `Setting` object.
 
 This is the function used by the majority of callers in Athena and Hera. Its string return type is preserved across SDK versions.
 
-### listSettings() — Full Table Scan
+### listSettings(), Full Table Scan
 
 `listSettings()` returns all settings as `Setting[]`. This is appropriate for admin panel listing and is NOT used for individual key lookups.
 
@@ -78,12 +78,12 @@ interface BatchSettingEntry {
 
 ### Cache Behavior
 
-- Cache is in-process only — not shared between containers
+- Cache is in-process only, not shared between containers
 - Cache stores `Setting | null` per key (full object, not just value string)
 - Default TTL: 60 seconds
 - Only `getSetting()` reads and writes the cache
-- `getSettingOrDefault()` calls `getSetting()` and extracts `.value` — it never accesses the cache directly
-- `listSettings()` does not use the cache — it always reads from the database
+- `getSettingOrDefault()` calls `getSetting()` and extracts `.value`, it never accesses the cache directly
+- `listSettings()` does not use the cache, it always reads from the database
 
 ## Examples
 
@@ -108,12 +108,12 @@ if (setting === null) {
 ```typescript
 import { getSettingOrDefault } from "@olympusoss/sdk";
 
-// Returns a string — never a Setting object
+// Returns a string, never a Setting object
 const enabled = await getSettingOrDefault("captcha.enabled", "false");
 const siteKey = await getSettingOrDefault("captcha.site_key", process.env.CAPTCHA_SITE_KEY || "");
 ```
 
-### Vault fallback pattern — SDK value takes priority over env var
+### Vault fallback pattern, SDK value takes priority over env var
 
 ```typescript
 import { getSettingOrDefault } from "@olympusoss/sdk";
@@ -135,7 +135,7 @@ await setSetting("smtp.password", "secret", { encrypted: true, category: "email"
 
 ### Writing multiple settings atomically
 
-Use `batchSetSettings()` when multiple keys must succeed or fail together. All entries are written inside a single Postgres transaction — either all commit or none commit.
+Use `batchSetSettings()` when multiple keys must succeed or fail together. All entries are written inside a single Postgres transaction, either all commit or none commit.
 
 ```typescript
 import { batchSetSettings } from "@olympusoss/sdk";
@@ -162,13 +162,13 @@ const smtpPassword = await getSecretSetting("smtp.password");
 // Returns decrypted plaintext or null if key not found
 ```
 
-## batchSetSettings() — Atomic Multi-Key Write
+## batchSetSettings(), Atomic Multi-Key Write
 
 ### Overview
 
 `batchSetSettings(entries, table)` writes multiple settings inside a single Postgres transaction. Either all entries commit or none do. Use this whenever two or more settings are interdependent and a partial write would leave the system in an inconsistent state.
 
-The canonical consumer is athena#48 (MFA Policy Settings Panel), where keys like `mfa.required` and `mfa.methods.totp` must always be consistent — enabling MFA with no methods configured would lock out unenrolled users.
+The canonical consumer is athena#48 (MFA Policy Settings Panel), where keys like `mfa.required` and `mfa.methods.totp` must always be consistent, enabling MFA with no methods configured would lock out unenrolled users.
 
 ### Function Signature
 
@@ -182,7 +182,7 @@ batchSetSettings(
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `entries` | `BatchSettingEntry[]` | Array of settings to write. Empty array is a no-op. |
-| `table` | `string` | Settings table name: `ciam_settings` or `iam_settings`. Must match `^[a-z_]+$` — pass `process.env.SETTINGS_TABLE`. |
+| `table` | `string` | Settings table name: `ciam_settings` or `iam_settings`. Must match `^[a-z_]+$`, pass `process.env.SETTINGS_TABLE`. |
 
 ### How It Works
 
@@ -194,20 +194,20 @@ batchSetSettings(
 
 ### Transaction Behavior
 
-The transaction uses READ COMMITTED isolation (Postgres default). Concurrent calls to `batchSetSettings()` targeting overlapping keys will interleave at the row level — `ON CONFLICT DO UPDATE` serializes individual row writes, but there is no cross-call ordering guarantee across concurrent transactions. If two admin sessions save overlapping keys simultaneously, the committed state may contain keys from both sessions. For the MFA policy use case, this window is narrow and acceptable. Callers requiring strict last-write-wins ordering across concurrent batch operations must coordinate at the application layer (e.g., a serialized queue or distributed lock).
+The transaction uses READ COMMITTED isolation (Postgres default). Concurrent calls to `batchSetSettings()` targeting overlapping keys will interleave at the row level, `ON CONFLICT DO UPDATE` serializes individual row writes, but there is no cross-call ordering guarantee across concurrent transactions. If two admin sessions save overlapping keys simultaneously, the committed state may contain keys from both sessions. For the MFA policy use case, this window is narrow and acceptable. Callers requiring strict last-write-wins ordering across concurrent batch operations must coordinate at the application layer (e.g., a serialized queue or distributed lock).
 
 ### Cache Behavior
 
-Cache entries for all written keys are invalidated only after a successful commit. On transaction rollback, the cache is not modified — stale cache is only cleared when the underlying data is confirmed committed to Postgres.
+Cache entries for all written keys are invalidated only after a successful commit. On transaction rollback, the cache is not modified, stale cache is only cleared when the underlying data is confirmed committed to Postgres.
 
 Other SDK consumers in separate processes share no in-memory cache, so they may serve stale values for up to the TTL window (default 60s) after a successful commit. Security-sensitive settings (e.g., `mfa.required` set to `false`) may continue to be read as their prior value for up to 60s in other processes. Design callers of security-critical settings with this window in mind.
 
-### Usage — MFA Policy (Canonical Pattern)
+### Usage, MFA Policy (Canonical Pattern)
 
 ```typescript
 import { batchSetSettings } from "@olympusoss/sdk";
 
-// Canonical MFA policy keys — used by athena#48
+// Canonical MFA policy keys, used by athena#48
 await batchSetSettings(
   [
     { key: "mfa.required",          value: "true",  category: "mfa" },
@@ -219,7 +219,7 @@ await batchSetSettings(
 );
 ```
 
-### Usage — Mixed Encrypted and Plain Entries
+### Usage, Mixed Encrypted and Plain Entries
 
 ```typescript
 import { batchSetSettings } from "@olympusoss/sdk";
@@ -239,10 +239,10 @@ Each entry carries its own `encrypted` flag. A batch can contain a mix of plaint
 ### Error Handling
 
 ```
-Error: batchSetSettings failed — transaction rolled back: <postgres error>
+Error: batchSetSettings failed, transaction rolled back: <postgres error>
 ```
 
-On any failure, the function throws with a descriptive message identifying the function, the consequence (rolled back), and the upstream error. No partial write is possible — if this error is thrown, zero rows were committed.
+On any failure, the function throws with a descriptive message identifying the function, the consequence (rolled back), and the upstream error. No partial write is possible, if this error is thrown, zero rows were committed.
 
 ```
 Error: Invalid table name: <table>
@@ -282,7 +282,7 @@ When `getSetting()` is called for an encrypted key, `setting.value` contains the
 
 ### Concurrent getSetting() calls before cache is populated
 
-Two simultaneous cache misses both query the database. Both return the same `Setting`. The second cache write is idempotent — no data corruption.
+Two simultaneous cache misses both query the database. Both return the same `Setting`. The second cache write is idempotent, no data corruption.
 
 ### getSettingOrDefault() callers after getSetting() return type change
 
@@ -293,22 +293,22 @@ Two simultaneous cache misses both query the database. Both return the same `Set
 - Encrypted values (where `encrypted: true`) are stored as AES-256-GCM ciphertext in the database. The `ENCRYPTION_KEY` environment variable must be set and must not be committed to source control.
 - `getSetting()` does NOT decrypt encrypted values. Use `getSecretSetting()` when the decrypted value is needed.
 - The `encrypted` boolean field in the `Setting` object tells consumers whether the stored value is ciphertext. API consumers must check this field before interpreting the value.
-- `listSettings()` returns all rows including encrypted values as ciphertext — the API layer in Athena masks these before returning them to the client.
-- The in-process cache stores the full `Setting` object including the ciphertext value for encrypted keys. This is acceptable because the cache is in-process memory — it is not serialized, persisted, or shared across containers.
+- `listSettings()` returns all rows including encrypted values as ciphertext, the API layer in Athena masks these before returning them to the client.
+- The in-process cache stores the full `Setting` object including the ciphertext value for encrypted keys. This is acceptable because the cache is in-process memory, it is not serialized, persisted, or shared across containers.
 - The `SettingsCache` class is not exported from `sdk/src/index.ts`. External code cannot access the cache directly.
 
 ### batchSetSettings() Security Notes
 
-- The `table` parameter is validated with `^[a-z_]+$` before any SQL is constructed. Always pass `process.env.SETTINGS_TABLE` — do not construct table names dynamically from user input.
-- Encryption is applied per-entry via AES-256-GCM using `crypto.ts`. Encryption errors inside the transaction cause a full rollback — no partial write is possible.
+- The `table` parameter is validated with `^[a-z_]+$` before any SQL is constructed. Always pass `process.env.SETTINGS_TABLE`, do not construct table names dynamically from user input.
+- Encryption is applied per-entry via AES-256-GCM using `crypto.ts`. Encryption errors inside the transaction cause a full rollback, no partial write is possible.
 - The encryption key never appears in error messages. Errors from `batchSetSettings()` only surface the postgres.js message string.
-- Entries with `encrypted: true` and an empty `value` (`""`) store an empty plaintext string — `encrypt()` returns `""` for empty input without performing encryption. Validate that all encrypted entries have non-empty values before calling this function.
+- Entries with `encrypted: true` and an empty `value` (`""`) store an empty plaintext string, `encrypt()` returns `""` for empty input without performing encryption. Validate that all encrypted entries have non-empty values before calling this function.
 - After commit, other SDK consumer processes (separate containers) may serve stale values for up to 60s (default TTL). For security-critical settings like `mfa.required`, design the calling flow to tolerate this staleness window.
 
 ### What NOT to do
 
-- Do not call `listSettings()` when you only need a single key. Use `getSetting()` instead — it issues one SQL query instead of a full table scan.
+- Do not call `listSettings()` when you only need a single key. Use `getSetting()` instead, it issues one SQL query instead of a full table scan.
 - Do not log `Setting` objects that may contain sensitive values. Masked listing is the responsibility of the API layer.
 - Do not use `getSetting()` as a substitute for `getSecretSetting()` when you need the decrypted plaintext of an encrypted key.
 - Do not pass dynamically constructed table names to `batchSetSettings()`. Always use `process.env.SETTINGS_TABLE`.
-- Do not call `batchSetSettings()` with `encrypted: true` entries that have empty string values — the value will be stored as plaintext empty string, not as encrypted ciphertext.
+- Do not call `batchSetSettings()` with `encrypted: true` entries that have empty string values, the value will be stored as plaintext empty string, not as encrypted ciphertext.

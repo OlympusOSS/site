@@ -1,0 +1,9 @@
+{
+  "title": "Monitoring",
+  "pages": [
+    "monitoring-datadog",
+    "monitoring-grafana",
+    "monitoring-honeycomb",
+    "monitoring-sentry"
+  ]
+}

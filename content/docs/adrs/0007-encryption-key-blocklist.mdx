@@ -1,5 +1,5 @@
 ---
-title: "0007 — Encryption key blocklist"
+title: "0007, Encryption key blocklist"
 description: Why the SDK refuses to start with known-weak ENCRYPTION_KEY values
 ---
 
@@ -9,14 +9,14 @@ description: Why the SDK refuses to start with known-weak ENCRYPTION_KEY values
 
 ## Context
 
-The SDK encrypts settings at rest with `ENCRYPTION_KEY` as the master key (see [ADR 0006](/docs/adrs/0006-aes-256-gcm-hkdf)). If an operator sets a weak key — empty string, `"changeme"`, a value copy-pasted from a tutorial — the encryption protects nothing.
+The SDK encrypts settings at rest with `ENCRYPTION_KEY` as the master key (see [ADR 0006](/docs/adrs/0006-aes-256-gcm-hkdf)). If an operator sets a weak key, empty string, `"changeme"`, a value copy-pasted from a tutorial, the encryption protects nothing.
 
 Common operator mistakes:
 - Leaving `.env.example`'s placeholder unchanged.
 - Using `"00000000000000000000000000000000"` "for testing" and forgetting to rotate.
 - Copy-pasting a public sample value.
 
-These mistakes are silent — the system runs fine; secrets are "encrypted." But the encryption is decorative.
+These mistakes are silent, the system runs fine; secrets are "encrypted." But the encryption is decorative.
 
 ## Decision
 
@@ -36,10 +36,10 @@ The blocklist lives in [`sdk/src/blocklist.ts`](https://github.com/OlympusOSS/sd
 
 - An operator who tries to "just set a value to try things" gets a loud error instead of a silently-broken deployment.
 - The cost: tiny startup check, no measurable performance impact.
-- The blocklist grows as we discover more common-mistake values. Not breaking — any non-blocked value continues to work.
+- The blocklist grows as we discover more common-mistake values. Not breaking, any non-blocked value continues to work.
 
 ## Related
 
-- [ADR 0006 — AES-256-GCM + HKDF-SHA256](/docs/adrs/0006-aes-256-gcm-hkdf)
-- [Security — Encryption Key Blocklist](/docs/security/encryption-key-blocklist)
-- [Troubleshooting — Encryption key startup failure](/docs/troubleshooting/encryption-key-startup-failure)
+- [ADR 0006, AES-256-GCM + HKDF-SHA256](/docs/adrs/0006-aes-256-gcm-hkdf)
+- [Security, Encryption Key Blocklist](/docs/security/encryption-keys/encryption-key-blocklist)
+- [Troubleshooting, Encryption key startup failure](/docs/troubleshooting/infrastructure-issues/encryption-key-startup-failure)

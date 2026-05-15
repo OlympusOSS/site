@@ -1,0 +1,20 @@
+{
+  "title": "Integrations & billing",
+  "pages": [
+    "add-feature-flag-settings-vault",
+    "billing-aware-auth",
+    "browser-extension-auth",
+    "custom-kratos-webhook",
+    "deploy-with-claude-mcp",
+    "feature-flag-frameworks",
+    "iframe-embed-hera",
+    "integrate-stripe-customer-id",
+    "openapi-auth-spec",
+    "policy-as-code-cedar",
+    "policy-files-in-git",
+    "role-hierarchy-design",
+    "stripe-subscription-gate",
+    "webhook-signature-verification",
+    "zanzibar-style-authz"
+  ]
+}

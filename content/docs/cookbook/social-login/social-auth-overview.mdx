@@ -1,0 +1,213 @@
+---
+title: Social login, choose your providers
+description: Which OIDC providers to enable, and trade-offs
+---
+
+Olympus supports any OIDC provider. Picking which to enable is product decision + audience decision.
+
+## Common providers
+
+### Google
+
+Audience: nearly everyone with a Gmail or Workspace account.
+Conversion boost: massive (~3x signup conversion vs password-only).
+Setup: 30 min in Google Cloud Console.
+
+Best for: B2C apps where many users have Gmail.
+
+### Apple
+
+Audience: iOS users + privacy-conscious.
+Conversion: similar to Google for iOS-heavy audience.
+Setup: complex (Apple Developer membership, certs, JWT for client_secret).
+
+Best for: consumer iOS apps. Required if you publish to App Store with login.
+
+### Microsoft Entra ID
+
+Audience: enterprise users with Microsoft 365 / Azure AD.
+Conversion: strong for enterprise.
+Setup: straightforward Azure AD app registration.
+
+Best for: B2B SaaS, enterprise customers.
+
+### GitHub
+
+Audience: developers.
+Conversion: niche but high in dev tools.
+Setup: easy OAuth app registration.
+
+Best for: developer-facing apps, tools, OSS communities.
+
+### LinkedIn
+
+Audience: professionals.
+Conversion: moderate.
+Setup: easy.
+
+Best for: B2B professional networks, recruiting.
+
+### Facebook (Meta)
+
+Audience: declining for B2C login (Apple/Google preferred).
+Conversion: weak in 2026.
+Setup: Meta Developer.
+
+Best for: social apps, gaming, regional markets (LATAM, SEA).
+
+### Twitter / X
+
+Audience: declining for OAuth.
+Setup: more friction than before (API changes).
+
+Skip unless required.
+
+### Discord
+
+Audience: gamers, communities.
+Setup: easy.
+
+Best for: gaming, communities.
+
+### Slack
+
+Audience: business teams already in Slack.
+Setup: easy.
+
+Best for: B2B tools that integrate with Slack.
+
+### GitLab
+
+Audience: developers using self-hosted or gitlab.com.
+Setup: easy.
+
+Best for: dev tools, especially open-source focused.
+
+## Decision matrix
+
+For most:
+- B2C: Google + Apple (covers ~90% of audience).
+- B2B: Google + Microsoft (Workspace + Entra cover most orgs).
+- Dev tools: GitHub + Google.
+- Consumer-niche (gaming): Discord + Google.
+
+Don't enable all. Each is a maintenance surface + UX clutter.
+
+## UX layout
+
+Don't show 10 buttons. Pick 1-3 primary, hide rest:
+
+```tsx
+<PrimarySocial>
+  <SocialButton provider="google" />
+  <SocialButton provider="apple" />
+</PrimarySocial>
+
+<Details>
+  <summary>More options</summary>
+  <SocialButton provider="microsoft" />
+  <SocialButton provider="github" />
+</Details>
+```
+
+## What you control vs the provider
+
+You control:
+- Whether to enable the provider.
+- Which scopes to request.
+- Claim → trait mapping.
+- Account linking behavior.
+
+Provider controls:
+- User's permission grant.
+- What claims are issued.
+- Email verification.
+- Account changes (email change, deletion).
+
+## Trust levels
+
+Different providers, different trustworthiness:
+
+- **Google Workspace / Entra ID / Apple**: high. Strong identity verification.
+- **Google personal / Outlook personal**: medium. Email is verified but address can change.
+- **GitHub / Discord**: medium. User identifies themselves; email might not be verified.
+- **Facebook / Twitter**: variable.
+
+For high-stakes auth (banking, healthcare), require step-up beyond social login.
+
+## Maintenance
+
+Each provider:
+- Has client credentials (rotate per provider's policy).
+- Can break (provider changes API, deprecates).
+- Has its own docs / quirks.
+
+Budget ~1-2 hours / quarter / provider for maintenance.
+
+## Per-tenant providers
+
+For multi-tenant B2B, each customer might want their own OIDC:
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: google
+            # ... global
+          - id: okta-acme
+            issuer_url: https://acme.okta.com
+          - id: okta-bigcorp
+            issuer_url: https://bigcorp.okta.com
+```
+
+Customer X sees Okta-X button; Customer Y sees Okta-Y. Routed via [IdP discovery](/docs/cookbook/enterprise-sso/idp-discovery).
+
+## SAML alternatives
+
+Some enterprises prefer SAML over OIDC. Use a SAML-to-OIDC bridge (Dex, Keycloak) in front of Olympus.
+
+See [SAML-OIDC bridge](/docs/cookbook/enterprise-sso/saml-oidc-bridge).
+
+## Account linking
+
+User signs up with Google then later wants to add password (or another provider):
+
+- Settings → Connected accounts → Add password.
+- Settings → Connected accounts → Add Microsoft.
+
+Same identity, multiple credential types.
+
+See [Account linking strategies](/docs/cookbook/auth-flows/account-linking-strategies).
+
+## Costs
+
+Most providers free for OAuth2 / OIDC.
+
+Exceptions:
+- Apple: developer account is $99/year.
+- LinkedIn: rate-limited free tier; pricey paid.
+
+Plan accordingly.
+
+## Privacy
+
+Each social provider sees your users sign in. They know:
+- The user has an account on your service.
+- Probably the timing.
+
+For privacy-sensitive apps, this is significant.
+
+Mitigation:
+- Don't require social. Password / passkey alone.
+- Inform users in privacy policy.
+
+## Related
+
+- [Identity, Social login](/docs/identity/social-login)
+- [Cookbook, Add social provider, Google](/docs/cookbook/social-login/add-social-provider-google)
+- [Cookbook, Add social provider, Apple](/docs/cookbook/social-login/add-social-provider-apple)
+- [Cookbook, Add social provider, Microsoft](/docs/cookbook/social-login/add-social-provider-microsoft)
+- [Cookbook, Add social provider, GitHub](/docs/cookbook/social-login/add-social-provider-github)
+- [Cookbook, Account linking strategies](/docs/cookbook/auth-flows/account-linking-strategies)

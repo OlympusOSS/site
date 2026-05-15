@@ -71,7 +71,7 @@ export async function submitLogin(flowId: string, formData: FormData) {
 
 ### Cookies
 
-Hera doesn't manage Kratos session cookies — Kratos sets them directly on its responses. Hera just forwards them via Next.js's `cookies()`.
+Hera doesn't manage Kratos session cookies, Kratos sets them directly on its responses. Hera just forwards them via Next.js's `cookies()`.
 
 ## Adding a new screen
 
@@ -100,7 +100,7 @@ The CSS is in `app/globals.css` with Tailwind theme tokens:
 }
 ```
 
-Per-tenant branding: override via CSS custom properties at runtime. See [Cookbook — Per-tenant config](/docs/cookbook/per-tenant-config).
+Per-tenant branding: override via CSS custom properties at runtime. See [Cookbook, Per-tenant config](/docs/cookbook/multi-tenant/per-tenant-config).
 
 ## i18n
 
@@ -164,7 +164,7 @@ Olympus's policy: PRs go through CI (lint, test, build). For Hera specifically:
 ### Server-only secrets in client components
 
 ```tsx
-// Don't do this — leaks to browser
+// Don't do this, leaks to browser
 "use client";
 const secret = process.env.KRATOS_ADMIN_TOKEN;
 ```
@@ -173,7 +173,7 @@ Server-only env vars must not be accessed in `"use client"` files. Use server-si
 
 ### Mixing flow logic and presentation
 
-Kratos's flow is the source of truth. Don't conditionally render based on stale form state — re-fetch the flow.
+Kratos's flow is the source of truth. Don't conditionally render based on stale form state, re-fetch the flow.
 
 ### Bypassing CSRF token
 
@@ -197,7 +197,7 @@ For bigger:
 
 ## Related
 
-- [Develop — Local dev environment](/docs/develop/local-dev-environment)
-- [Develop — Architecture](/docs/develop/architecture)
-- [Cookbook — Customize Hera UI](/docs/cookbook/customize-hera-ui)
-- [Cookbook — Localize Hera UI](/docs/cookbook/localize-hera-ui)
+- [Develop, Local dev environment](/docs/develop/local-dev-environment)
+- [Develop, Architecture](/docs/develop/architecture)
+- [Cookbook, Customize Hera UI](/docs/cookbook/customize-hera-ui)
+- [Cookbook, Localize Hera UI](/docs/cookbook/ui-content/localize-hera-ui)

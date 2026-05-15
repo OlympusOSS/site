@@ -1,31 +1,6 @@
 {
   "title": "Workflows",
   "pages": [
-    "overview",
-    "platform-verify-image-pins",
-    "platform-deploy",
-    "platform-verify-email-enforcement",
-    "platform-caddy-build",
-    "platform-claude",
-    "platform-cert-expiry-check",
-    "platform-verify-prod-config",
-    "athena-cd",
-    "athena-claude",
-    "athena-ci",
-    "hera-cd",
-    "hera-claude",
-    "hera-ci",
-    "site-release",
-    "site-cd",
-    "site-claude",
-    "site-ci",
-    "sdk-claude",
-    "sdk-ci",
-    "canvas-release",
-    "canvas-docs",
-    "canvas-ci",
-    "octl-claude",
-    "octl-ci",
-    "daedalus-ci"
+    "overview"
   ]
 }

@@ -1,0 +1,227 @@
+---
+title: New-customer onboarding checklist
+description: Get a customer live on Olympus in under an hour
+---
+
+A customer signs up to use Olympus (or you're setting up a new tenant). This checklist gets them production-ready quickly.
+
+## Pre-flight
+
+- [ ] Domain name purchased and DNS access available.
+- [ ] Hosting provisioned (Hetzner / DO / AWS / etc.), see [Single-VPS deployment](/docs/cookbook/deployment/single-vps-deployment).
+- [ ] Public IP assigned.
+- [ ] SSH access verified.
+
+## Day 1 setup
+
+### Install Olympus
+
+```bash
+git clone https://github.com/OlympusOSS/platform.git ~/olympus
+cd ~/olympus
+cp .env.sample .env
+```
+
+Edit `.env`:
+- `DOMAIN=your-domain.com`
+- Database password (random, save in vault).
+- Encryption key (random 32 bytes, save in vault).
+- Session secrets (random).
+- Email provider creds.
+
+```bash
+podman-compose up -d
+```
+
+Wait for all containers to be healthy:
+
+```bash
+podman ps
+# All should show "(healthy)"
+```
+
+### DNS
+
+Point at your host:
+- `ciam.your-domain.com` → A record → host IP
+- `iam.your-domain.com` → A record → host IP
+
+Caddy auto-fetches Let's Encrypt certs. Wait ~30s.
+
+```bash
+curl https://ciam.your-domain.com/health/ready
+# {"status":"ok"}
+```
+
+### First admin
+
+Create an admin identity:
+
+```bash
+curl -X POST http://localhost:5001/admin/identities \
+  -H "Content-Type: application/json" \
+  -d '{
+    "schema_id": "default",
+    "traits": {
+      "email": "you@your-domain.com",
+      "role": "admin"
+    },
+    "credentials": {
+      "password": { "config": { "password": "SETMEHERE!" } }
+    },
+    "state": "active"
+  }'
+```
+
+Log in at `https://iam.your-domain.com/login`. Change password immediately.
+
+## Day 1 hardening
+
+- [ ] Enable MFA on admin account.
+- [ ] Set up backup cron (see [Backup and restore](/docs/operate/backup-restore)).
+- [ ] Configure email courier (Postmark, SES, etc.).
+- [ ] Test verification email flow.
+- [ ] Test recovery email flow.
+- [ ] Set up uptime monitoring.
+- [ ] Add status page (optional).
+
+## Day 2-3: Your app integration
+
+### Create OAuth2 client
+
+```bash
+hydra create client \
+  --name "My App Frontend" \
+  --grant-types authorization_code,refresh_token \
+  --response-types code \
+  --token-endpoint-auth-method none \
+  --scope "openid offline_access profile email" \
+  --redirect-uri "https://app.your-domain.com/callback" \
+  --post-logout-redirect-uri "https://app.your-domain.com/goodbye"
+```
+
+Save `client_id`. Configure in your app.
+
+### Test login
+
+1. Visit your app.
+2. Click "Sign in."
+3. Redirect to Olympus.
+4. Sign in.
+5. Redirect back.
+6. App shows logged-in.
+
+Test from scratch:
+- New user: sign up via Olympus.
+- Existing user: sign in.
+- Recovery flow.
+- MFA.
+
+## Week 1: Production prep
+
+### Branding
+
+- [ ] Update Hera's logo (replace `public/logo.svg`).
+- [ ] Update Hera's color scheme (theme tokens).
+- [ ] Update email templates with your branding.
+- [ ] Test all flows look on-brand.
+
+### Compliance
+
+- [ ] Privacy policy published with auth-specific sections, see [Privacy policy template](/docs/cookbook/data-compliance/privacy-policy-template).
+- [ ] Terms of service published, see [TOS template](/docs/cookbook/data-compliance/terms-of-service-template).
+- [ ] Cookie banner added if needed (transactional auth cookies are essential, don't require consent under ePrivacy).
+
+### Observability
+
+- [ ] Logs centralized (see [Logs and observability](/docs/operate/monitoring/logs-and-observability)).
+- [ ] Metrics dashboard (see [Monitoring Grafana](/docs/cookbook/monitoring-grafana)).
+- [ ] Alerts configured for high error rate, downtime, anomalies.
+
+### Security
+
+- [ ] CSP reviewed (see [CSP, Hera](/docs/security/web-attacks/csp-hera)).
+- [ ] Rate limiting tuned (see [Rate limiting](/docs/security/web-attacks/rate-limiting)).
+- [ ] Audit log retention set.
+
+## Week 2-4: Social and MFA
+
+### Social providers (per need)
+
+- [ ] Google ([recipe](/docs/cookbook/social-login/add-social-provider-google)).
+- [ ] Apple ([recipe](/docs/cookbook/social-login/sign-in-with-apple)).
+- [ ] Microsoft ([recipe](/docs/cookbook/social-login/add-social-provider-microsoft)).
+- [ ] GitHub ([recipe](/docs/cookbook/social-login/add-social-provider-github)).
+
+### MFA
+
+- [ ] Decide policy (universal? admin-only? voluntary?).
+- [ ] Enable methods (TOTP, WebAuthn).
+- [ ] Plan rollout (see [Feature flag MFA rollout](/docs/cookbook/mfa/feature-flag-mfa-rollout)).
+
+## Ongoing
+
+### Monthly
+
+- [ ] Review audit log for anomalies.
+- [ ] Check uptime / SLO compliance.
+- [ ] Verify backups (restore drill quarterly).
+
+### Quarterly
+
+- [ ] Rotate secrets (see [Secrets rotation](/docs/cookbook/secrets-encryption/secrets-rotation)).
+- [ ] Run chaos drills.
+- [ ] Access review (admin accounts still valid).
+- [ ] Update dependencies.
+
+### Annually
+
+- [ ] Penetration test.
+- [ ] Compliance audit (if applicable).
+- [ ] Disaster recovery drill.
+
+## Common first-week issues
+
+### "Verification emails not arriving"
+
+Check: SMTP credentials, sender reputation (SPF/DKIM), spam folder. See [Email not sending](/docs/troubleshooting/infrastructure-issues/email-not-sending).
+
+### "Cookies don't persist across login"
+
+Check: SameSite=Lax, Secure flag set (requires HTTPS). See [Cookies not persisting](/docs/troubleshooting/auth-issues/cookies-not-persisting).
+
+### "Cert expired immediately"
+
+Caddy needs time to fetch from Let's Encrypt. Wait 1 min. See [Cert expired](/docs/troubleshooting/infrastructure-issues/cert-expired).
+
+### "Login loops"
+
+Often a misconfigured callback URL. See [Login loops](/docs/troubleshooting/auth-issues/login-loops).
+
+## Validation tests
+
+Run before declaring "live":
+
+```bash
+# scripts/smoke-test.sh
+set -e
+echo "Testing health..."
+curl -fsS https://ciam.your-domain.com/health/ready
+
+echo "Testing OIDC discovery..."
+curl -fsS https://ciam.your-domain.com/.well-known/openid-configuration | jq .issuer
+
+echo "Testing JWKS..."
+curl -fsS https://ciam.your-domain.com/.well-known/jwks.json | jq '.keys | length'
+
+echo "All smoke tests passed."
+```
+
+If green: ship.
+
+## Related
+
+- [Deploy, First steps](/docs/deploy/first-steps)
+- [Cookbook, Dev team onboarding](/docs/cookbook/tools/dev-team-onboarding)
+- [Cookbook, Single-VPS deployment](/docs/cookbook/deployment/single-vps-deployment)
+- [Operate, Health endpoints](/docs/operate/monitoring/health-endpoints)

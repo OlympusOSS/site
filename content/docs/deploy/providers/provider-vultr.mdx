@@ -1,0 +1,45 @@
+---
+title: Provider, Vultr
+description: Deploy Olympus on a Vultr VPS
+---
+
+Vultr offers VPS plans in 30+ locations starting at $6/mo. Not natively supported by Daedalus, so use the [Direct SSH](/docs/deploy/providers/provider-direct-ssh) path.
+
+## Recommended instance
+
+| Plan | RAM | vCPU | Disk | Monthly |
+|---|---|---|---|---|
+| Regular Performance | 4GB | 2 | 80GB SSD | $12 |
+| High Frequency | 4GB | 2 | 128GB NVMe | $18 |
+| Optimized Cloud Compute | 4GB | 2 | 80GB NVMe | $32 |
+
+For Olympus with self-hosted Postgres on the same host: at least the 4GB plan.
+
+## Setup
+
+1. Create a Vultr instance (Cloud Compute → choose region → Ubuntu 22.04).
+2. SSH in, harden:
+   ```bash
+   ufw allow 22/tcp from <your-ip>
+   ufw allow 80/tcp
+   ufw allow 443/tcp
+   ufw default deny incoming
+   ufw enable
+   apt update && apt upgrade -y
+   apt install -y podman podman-compose
+   ```
+3. In Daedalus, choose **Direct SSH** provider, point at your Vultr instance.
+4. Walk through the wizard normally.
+
+## DNS
+
+Vultr offers free DNS hosting. Set A records via Vultr's DNS dashboard or your registrar, see [Deploy, DNS and Domains](/docs/deploy/production/dns-and-domains).
+
+## Backups
+
+Vultr's automated backups: +20% of instance cost. Useful but not a substitute for application-level Postgres backups, see [Operate, Backups (Postgres)](/docs/operate/backups-recovery/backups-postgres).
+
+## Where next
+
+- [Deploy, Provider, Direct SSH](/docs/deploy/providers/provider-direct-ssh), the provisioning path.
+- [Deploy, First production deploy](/docs/deploy/production/first-production-deploy)

@@ -3,7 +3,7 @@ title: Overview
 description: Architecture Decision Records for Olympus
 ---
 
-The ADRs section records the **non-obvious architectural decisions** behind Olympus — the ones where the chosen path is one of several reasonable paths, and where a reader fifteen months from now will want to know why we picked this one.
+The ADRs section records the **non-obvious architectural decisions** behind Olympus, the ones where the chosen path is one of several reasonable paths, and where a reader fifteen months from now will want to know why we picked this one.
 
 Format: lightweight MADR-style records. Each ADR has Status, Context, Decision, Consequences, and Alternatives.
 
@@ -13,14 +13,14 @@ The full list of 26 ADRs is registered in this section's `meta.json`. The first 
 
 A few that are already implicit and should be made explicit early:
 
-- **0001 — Dual-domain architecture** — separating CIAM and IAM into independent Kratos+Hydra instances.
-- **0002 — Kratos + Hydra over Keycloak** — what we evaluated and rejected.
-- **0003 — Source-only licensing** — the Olympus Free Container License rationale.
-- **0006 — AES-256-GCM + HKDF-SHA256** — for SDK settings encryption.
-- **0010 — Podman over Docker** — daemonless, rootless, native compose.
-- **0017 — Recovery HMAC token** — versus signed cookies.
-- **0019 — PKCE mandatory for public clients** — RFC 9700 alignment.
-- **0022 — MCP localhost only** — Daedalus's deploy-driving surface.
+- **0001, Dual-domain architecture**, separating CIAM and IAM into independent Kratos+Hydra instances.
+- **0002, Kratos + Hydra over Keycloak**, what we evaluated and rejected.
+- **0003, Source-only licensing**, the Olympus Free Container License rationale.
+- **0006, AES-256-GCM + HKDF-SHA256**, for SDK settings encryption.
+- **0010, Podman over Docker**, daemonless, rootless, native compose.
+- **0017, Recovery HMAC token**, versus signed cookies.
+- **0019, PKCE mandatory for public clients**, RFC 9700 alignment.
+- **0022, MCP localhost only**, Daedalus's deploy-driving surface.
 
 ## Status
 

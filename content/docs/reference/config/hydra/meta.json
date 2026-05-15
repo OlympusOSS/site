@@ -1,10 +1,6 @@
 {
   "title": "hydra.yml",
   "pages": [
-    "overview",
-    "oidc",
-    "secrets",
-    "serve",
-    "urls"
+    "overview"
   ]
 }

@@ -1,0 +1,69 @@
+---
+title: Failover from one IdP provider to another
+description: Disaster recovery when a social IdP is down
+---
+
+Google has an outage. Users who only know "Continue with Google" are locked out. Mitigate.
+
+## Approach 1: Multiple IdPs offered
+
+Encourage users to enable multiple sign-in methods:
+- Password + Google.
+- Or Google + Apple.
+- Or password + WebAuthn.
+
+Olympus's account-linking flow supports this, see [Identity, Account linking](/docs/identity/account-linking).
+
+## Approach 2: Fallback to recovery flow
+
+If IdP is the only sign-in method and it's down, the user can:
+1. Click "Forgot password" (even if they never had one, the flow doesn't care).
+2. Receive a recovery email.
+3. Set a password via the recovery flow.
+4. Now they can log in with password while Google is down.
+
+This works because Kratos's recovery flow uses verifiable email, not credential type.
+
+## Approach 3: Magic-link as universal fallback
+
+Implement email magic-link as a default "I can't access my account" path. See [Cookbook, Email-only magic-link auth](/docs/cookbook/auth-flows/email-only-magic-link).
+
+## Approach 4: Disable broken provider
+
+If Google OAuth is broken (e.g. Google deprecated an API), disable in Athena → Social Connections. Users see the option grayed out; encourage them to use other methods.
+
+Don't permanently remove, Google usually recovers.
+
+## During an actual IdP outage
+
+1. **Monitor**: subscribe to provider status pages (status.google.com, etc.).
+2. **Inform**: status banner on your login page: "Google sign-in is currently degraded. Try Apple or password reset."
+3. **Don't auto-disable**: a temporary blip doesn't warrant the operational action.
+4. **Capture metrics**: how many users hit the issue? Inform future UX decisions.
+
+## After the outage
+
+Post-incident:
+- Did anyone fail to recover? Reach out via secondary channel.
+- Was the fallback flow correct? Update docs if not.
+- Should you add another IdP option to reduce single-point-of-failure?
+
+## Multi-IdP architecture
+
+For high-availability auth:
+- 2-3 social IdPs supported.
+- Email/password as universal fallback.
+- WebAuthn as the strongest fallback.
+
+Users who enable 2+ rarely get stuck.
+
+## Communication
+
+The auth page should make clear "If you can't sign in, try password reset", not bury it.
+
+## Related
+
+- [Identity, Account linking](/docs/identity/account-linking)
+- [Identity, Flow recovery](/docs/identity/flow-recovery)
+- [Cookbook, Email-only magic-link auth](/docs/cookbook/auth-flows/email-only-magic-link)
+- [Cookbook, Recover lost encryption key](/docs/cookbook/secrets-encryption/recover-lost-encryption-key), different but analogous DR pattern.

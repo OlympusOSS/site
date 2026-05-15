@@ -1,0 +1,8 @@
+{
+  "title": "Administration",
+  "pages": [
+    "network-topology",
+    "pgadmin-dba-offboarding",
+    "upgrades"
+  ]
+}

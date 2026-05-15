@@ -7,8 +7,8 @@ End-to-end sequence diagrams for the major Olympus flows. Each is a single Merma
 
 ## OAuth2 flows
 
-- [Authorization Code + PKCE](./seq-authorization-code-pkce) — the main user-facing login flow.
-- [Client Credentials (M2M)](./seq-client-credentials) — server-to-server.
+- [Authorization Code + PKCE](./seq-authorization-code-pkce), the main user-facing login flow.
+- [Client Credentials (M2M)](./seq-client-credentials), server-to-server.
 - [Refresh token rotation](./seq-refresh-token).
 - [RP-initiated logout](./seq-rp-initiated-logout).
 
@@ -22,18 +22,18 @@ End-to-end sequence diagrams for the major Olympus flows. Each is a single Merma
 
 ## Internal service calls
 
-- [Athena → Kratos admin](./seq-athena-to-kratos-admin) — admin API auth chain.
-- [Caddy → backend routing](./seq-caddy-routing) — proxy decisions.
+- [Athena → Kratos admin](./seq-athena-to-kratos-admin), admin API auth chain.
+- [Caddy → backend routing](./seq-caddy-routing), proxy decisions.
 
 ## Operations
 
-- [Production deploy pipeline](./seq-deploy-pipeline) — git push to running containers.
-- [Encryption key rotation](./seq-secrets-rotation) — zero-downtime.
+- [Production deploy pipeline](./seq-deploy-pipeline), git push to running containers.
+- [Encryption key rotation](./seq-secrets-rotation), zero-downtime.
 
 ## Integration
 
-- [pgAdmin OIDC SSO](./seq-pgadmin-sso) — DBA login via IAM.
-- [Claude-driven Daedalus deploy](./seq-mcp-driven-deploy) — agent driving the wizard.
+- [pgAdmin OIDC SSO](./seq-pgadmin-sso), DBA login via IAM.
+- [Claude-driven Daedalus deploy](./seq-mcp-driven-deploy), agent driving the wizard.
 
 ## How these render
 

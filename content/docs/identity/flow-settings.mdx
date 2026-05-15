@@ -1,11 +1,11 @@
 ---
 title: Settings flow
-description: How users change their own identity data — email, password, MFA
+description: How users change their own identity data, email, password, MFA
 ---
 
 The settings flow lets a logged-in user change their identity: update traits (name, email), change password, enroll/disenroll TOTP or WebAuthn, link/unlink social IdPs.
 
-Settings flows are **session-authenticated** — the user must have an active session (AAL1 minimum, AAL2 for security-sensitive operations).
+Settings flows are **session-authenticated**, the user must have an active session (AAL1 minimum, AAL2 for security-sensitive operations).
 
 ## What can be changed
 
@@ -42,7 +42,7 @@ Sensitive operations (changing password, disenrolling MFA, linking/unlinking IdP
 
 This protects against session-cookie-stolen-while-AAL1 attackers from modifying credentials.
 
-See [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh).
+See [Identity, Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh).
 
 ## Password change
 
@@ -80,7 +80,7 @@ Content-Type: application/json
 
 The TOTP credential is stored on the identity. From then on, MFA enrollment counts as a second factor.
 
-See [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn).
+See [Identity, TOTP and WebAuthn](/docs/identity/totp-and-webauthn).
 
 ## WebAuthn registration
 
@@ -91,7 +91,7 @@ Content-Type: application/json
 { "method": "webauthn", "webauthn_register": "<credential JSON>", "csrf_token": "..." }
 ```
 
-The credential JSON comes from the browser's `navigator.credentials.create()` call. Hera handles this via a WebAuthn JS library — your operators don't see the raw protocol.
+The credential JSON comes from the browser's `navigator.credentials.create()` call. Hera handles this via a WebAuthn JS library, your operators don't see the raw protocol.
 
 ## Profile (trait) updates
 
@@ -102,7 +102,7 @@ Content-Type: application/json
 { "method": "profile", "traits": { "name": { "first": "New", "last": "Name" } }, "csrf_token": "..." }
 ```
 
-Traits are validated against the identity schema. Updates to verified traits (e.g. changing email) typically trigger re-verification — see [Identity — Flow verification](/docs/identity/flow-verification).
+Traits are validated against the identity schema. Updates to verified traits (e.g. changing email) typically trigger re-verification, see [Identity, Flow verification](/docs/identity/flow-verification).
 
 ## OIDC link/unlink
 
@@ -122,9 +122,9 @@ POST /self-service/settings?flow=FLOW_ID
 { "method": "oidc", "unlink": "google", "csrf_token": "..." }
 ```
 
-Olympus does not allow unlinking the last credential — if Google is the user's only login method, they'd be locked out. The unlink is rejected with `last_credential_protection`.
+Olympus does not allow unlinking the last credential, if Google is the user's only login method, they'd be locked out. The unlink is rejected with `last_credential_protection`.
 
-See [Identity — Account linking](/docs/identity/account-linking).
+See [Identity, Account linking](/docs/identity/account-linking).
 
 ## Failure modes
 
@@ -138,7 +138,7 @@ See [Identity — Account linking](/docs/identity/account-linking).
 
 ## Related
 
-- [Identity — Flow login](/docs/identity/flow-login)
-- [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
-- [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)
-- [Identity — Account linking](/docs/identity/account-linking)
+- [Identity, Flow login](/docs/identity/flow-login)
+- [Identity, TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
+- [Identity, Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)
+- [Identity, Account linking](/docs/identity/account-linking)

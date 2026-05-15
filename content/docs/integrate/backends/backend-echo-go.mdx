@@ -1,0 +1,112 @@
+---
+title: Echo (Go) integration
+description: Authenticate Echo routes against Olympus
+---
+
+Echo is a high-performance Go web framework. Olympus integration via middleware.
+
+## Middleware
+
+```go
+package main
+
+import (
+    "encoding/json"
+    "net/http"
+    "net/url"
+    "os"
+    "strings"
+
+    "github.com/labstack/echo/v4"
+)
+
+type TokenInfo struct {
+    Active bool   `json:"active"`
+    Sub    string `json:"sub"`
+    Scope  string `json:"scope"`
+}
+
+func OlympusAuth() echo.MiddlewareFunc {
+    return func(next echo.HandlerFunc) echo.HandlerFunc {
+        return func(c echo.Context) error {
+            auth := c.Request().Header.Get("Authorization")
+            if !strings.HasPrefix(auth, "Bearer ") {
+                return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing_token"})
+            }
+            token := strings.TrimPrefix(auth, "Bearer ")
+
+            form := url.Values{}
+            form.Set("token", token)
+            req, _ := http.NewRequestWithContext(
+                c.Request().Context(),
+                "POST",
+                os.Getenv("OLYMPUS_ISSUER")+"/admin/oauth2/introspect",
+                strings.NewReader(form.Encode()),
+            )
+            req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+            req.SetBasicAuth(os.Getenv("HYDRA_ADMIN_USER"), os.Getenv("HYDRA_ADMIN_PASS"))
+
+            resp, err := http.DefaultClient.Do(req)
+            if err != nil {
+                return c.JSON(http.StatusInternalServerError, map[string]string{"error": "introspect_failed"})
+            }
+            defer resp.Body.Close()
+
+            var info TokenInfo
+            json.NewDecoder(resp.Body).Decode(&info)
+            if !info.Active {
+                return c.JSON(http.StatusUnauthorized, map[string]string{"error": "inactive"})
+            }
+
+            c.Set("user_sub", info.Sub)
+            c.Set("scopes", strings.Fields(info.Scope))
+            return next(c)
+        }
+    }
+}
+```
+
+## Wire up
+
+```go
+e := echo.New()
+api := e.Group("/api")
+api.Use(OlympusAuth())
+
+api.GET("/widgets", func(c echo.Context) error {
+    return c.JSON(200, map[string]interface{}{
+        "user": c.Get("user_sub"),
+        "widgets": []string{},
+    })
+})
+
+e.Logger.Fatal(e.Start(":8080"))
+```
+
+## Scope checking
+
+```go
+func RequireScope(scope string) echo.MiddlewareFunc {
+    return func(next echo.HandlerFunc) echo.HandlerFunc {
+        return func(c echo.Context) error {
+            scopes := c.Get("scopes").([]string)
+            for _, s := range scopes {
+                if s == scope {
+                    return next(c)
+                }
+            }
+            return c.JSON(http.StatusForbidden, map[string]string{"error": "insufficient_scope"})
+        }
+    }
+}
+
+api.POST("/widgets", RequireScope("write:widgets"), func(c echo.Context) error {
+    // ...
+})
+```
+
+## Related
+
+- [Integrate, Gin integration](/docs/integrate/backends/backend-gin)
+- [Cookbook, Validate access token (Go)](/docs/cookbook/tokens-oauth2/validate-token-go)
+- [Cookbook, Add OAuth2 scope](/docs/cookbook/tokens-oauth2/add-oauth2-scope)

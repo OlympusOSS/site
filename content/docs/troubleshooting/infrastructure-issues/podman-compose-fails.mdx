@@ -1,0 +1,178 @@
+---
+title: podman compose up fails
+description: Triage the most common Compose startup failures
+---
+
+`podman compose up -d` or `octl deploy` fails. This page walks the most common causes in roughly the order you should check them.
+
+## 1. Podman machine not running (macOS only)
+
+Symptom:
+
+```
+Error: cannot connect to Podman. Is the daemon running?
+```
+
+Fix:
+
+```bash
+podman machine init  # only the first time
+podman machine start
+```
+
+Then re-run.
+
+## 2. Sibling repo missing
+
+The dev compose references `../athena`, `../hera`, `../site` as volume mounts. If you're running from somewhere other than `Olympus/platform/dev`, or the sibling repos aren't cloned, you'll see errors about missing mount sources:
+
+```
+Error: stat /Users/.../athena: no such file or directory
+```
+
+Fix: verify your layout is `Olympus/{platform,athena,hera,site,...}/`. See [Develop, Workspace Setup](/docs/develop/workspace-setup).
+
+## 3. Port conflicts
+
+Symptom:
+
+```
+Error: rootlessport listen tcp4 :3000: bind: address already in use
+```
+
+Some service on your host is already on the port (often a stray Next.js dev server or Vite).
+
+Fix: find and kill the conflicting process.
+
+```bash
+lsof -nP -iTCP:3000 -sTCP:LISTEN
+kill <PID>
+```
+
+## 4. Postgres init failed
+
+Symptom: `ciam-kratos` or `iam-kratos` exits 1 within seconds of starting. Logs show:
+
+```
+FATAL: database "ciam_kratos" does not exist
+```
+
+The `init-db.sql` script runs once on first Postgres start. If you brought up Postgres with an existing volume that wasn't initialized, the script never ran.
+
+Fix:
+
+```bash
+podman compose down -v   # -v removes the volumes
+podman compose up -d
+```
+
+Note: `-v` destroys data. Only use this when initialization is genuinely incomplete.
+
+## 5. Migrations never ran
+
+Symptom: Kratos starts, then exits a few seconds later with:
+
+```
+ERROR: database has not been initialized
+```
+
+The Kratos / Hydra schemas come from migration containers that run once per fresh DB. The compose has `ciam-kratos-migrate` and similar.
+
+```bash
+podman compose -f compose.dev.yml logs ciam-kratos-migrate
+```
+
+If the migrate container exited non-zero, look at the log. Usually a Postgres TLS or auth issue. See [Deploy, Database SSL overview](/docs/deploy/database/database-ssl-overview).
+
+## 6. Seed script failed
+
+Symptom: most containers up, but Athena gives 500 on every route. Logs show "no admin identity found."
+
+The dev seed (`athena-seed-dev` or `iam-seed-dev.sh`) creates the demo admin identity. If it failed mid-way, Athena can't log anyone in.
+
+Fix:
+
+```bash
+podman compose -f compose.dev.yml logs athena-seed-dev
+podman compose -f compose.dev.yml restart athena-seed-dev
+```
+
+If the seed keeps failing, the underlying cause is usually a Kratos schema mismatch (you changed the identity schema without resetting the DB).
+
+## 7. SELinux denial (Linux only)
+
+Symptom:
+
+```
+Error: permission denied accessing volume
+```
+
+On RHEL / Fedora with SELinux enforcing, volume mounts may need a relabel flag.
+
+Fix in `compose.dev.yml` (development only): add `:Z` to the mount:
+
+```yaml
+volumes:
+  - ../athena:/app:Z
+```
+
+Or temporarily set SELinux to permissive: `sudo setenforce 0`.
+
+## 8. Disk full
+
+Symptom: container fails to start with cryptic write errors.
+
+```bash
+df -h /var/home/core   # or wherever Podman's storage lives
+podman system df       # podman-specific storage breakdown
+```
+
+Clean up:
+
+```bash
+podman system prune -af --volumes
+```
+
+(Destructive: removes unused images, networks, volumes.)
+
+## 9. Image pull failure
+
+Symptom: container can't start because its image can't be pulled.
+
+```
+Error: short-name resolution: docker.io/.../...:latest: no resolvers
+```
+
+Fix: this is a `registries.conf` configuration. Add to `~/.config/containers/registries.conf`:
+
+```
+unqualified-search-registries = ["docker.io", "ghcr.io", "quay.io"]
+```
+
+## 10. The classic, try `octl destroy` then `octl deploy`
+
+If you've changed many things and the state is confused:
+
+```bash
+octl destroy
+octl deploy
+```
+
+This nukes everything and starts clean. You lose all dev data. For production, **never** do this.
+
+## When everything looks fine but something's wrong
+
+Compose hides container exit codes; check directly:
+
+```bash
+podman ps -a              # see exited containers
+podman logs <container>   # inspect their output
+```
+
+A container in state `Exited (1)` and not restarting is your culprit.
+
+## Related
+
+- [Get Started, Quickstart with podman compose](/docs/get-started/quickstart-podman-compose)
+- [Operate, Health Endpoints](/docs/operate/monitoring/health-endpoints), to identify which service is unhealthy.
+- [Operate, Incident Response](/docs/operate/backups-recovery/incident-response)

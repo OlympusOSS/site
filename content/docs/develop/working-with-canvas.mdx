@@ -3,23 +3,23 @@ title: Working with Canvas
 description: Adding components, the source-only contract, contributing
 ---
 
-[Canvas](https://github.com/OlympusOSS/canvas) is the Olympus design system — 105 React components used by Athena, Hera, and Site. Canvas has its own dedicated docs site with a live playground: [olympusoss.github.io/canvas](https://olympusoss.github.io/canvas/).
+[Canvas](https://github.com/OlympusOSS/canvas) is the Olympus design system, 105 React components used by Athena, Hera, and Site. Canvas has its own dedicated docs site with a live playground: [olympusoss.github.io/canvas](https://olympusoss.github.io/canvas/).
 
 This page is for engineers **editing Canvas itself**.
 
 ## Atomic-design tiers
 
 Components live under one of:
-- `atoms/` — indivisible primitives.
-- `molecules/` — combinations of atoms.
-- `organisms/` — complete sections.
-- `charts/` — data visualisation wrappers.
+- `atoms/`, indivisible primitives.
+- `molecules/`, combinations of atoms.
+- `organisms/`, complete sections.
+- `charts/`, data visualisation wrappers.
 
-When adding a component, choose the tier deliberately. If unsure, see [ADR 0026 — Atomic design in Canvas](/docs/adrs/0026-atomic-design-canvas).
+When adding a component, choose the tier deliberately. If unsure, see [ADR 0026, Atomic design in Canvas](/docs/adrs/0026-atomic-design-canvas).
 
 ## Source-only contract
 
-Canvas ships TypeScript source (`main: ./src/index.ts`), not a built bundle. The consumer's build pipeline (Next.js, Vite) transpiles it. See [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages).
+Canvas ships TypeScript source (`main: ./src/index.ts`), not a built bundle. The consumer's build pipeline (Next.js, Vite) transpiles it. See [ADR 0012, Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages).
 
 Consequences for component authors:
 - **Only use syntax the consumers support.** Bun + Next.js (Webpack) is the lower bound. Avoid bleeding-edge TS features not supported there.
@@ -72,7 +72,7 @@ test("renders danger variant", () => {
 });
 ```
 
-`playground.tsx` — used by Canvas's own docs site:
+`playground.tsx`, used by Canvas's own docs site:
 
 ```tsx
 import { BadgePulse } from "./index";
@@ -140,7 +140,7 @@ bun install   # re-pull the published version
 
 ## Related
 
-- [Repo map — Canvas](/docs/repo-map)
-- [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
-- [ADR 0026 — Atomic design in Canvas](/docs/adrs/0026-atomic-design-canvas)
+- [Repo map, Canvas](/docs/repo-map)
+- [ADR 0012, Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
+- [ADR 0026, Atomic design in Canvas](/docs/adrs/0026-atomic-design-canvas)
 - [Canvas component playground](https://olympusoss.github.io/canvas/)

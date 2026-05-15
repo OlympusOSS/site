@@ -1,0 +1,12 @@
+{
+  "title": "Sessions",
+  "pages": [
+    "cross-origin-cookies",
+    "idle-session-timeout",
+    "idle-token-revocation",
+    "login-history-page",
+    "login-link-deep-linking",
+    "refresh-on-app-foreground",
+    "session-binding-to-device"
+  ]
+}

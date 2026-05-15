@@ -1,0 +1,191 @@
+---
+title: Social engineering defense
+description: Help users resist phishing and pretexting
+---
+
+Most successful attacks against Olympus deployments aren't technical, they're social. Attacker calls customer support, claims to be the user, and convinces support to reset their account.
+
+## Common attacks
+
+### Phone call to support
+
+"Hi, I lost my phone and can't get my 2FA codes. Can you disable 2FA on my account? I'm John Smith, alice@example.com."
+
+If support is convinced (perhaps the caller knows public info), they reset → attacker has access.
+
+### Phishing email
+
+"Your account has been flagged. Click here to verify." Link looks legit, leads to attacker's site that mimics yours. User types password. Phished.
+
+### Pretext call to user
+
+Attacker calls user pretending to be your support. "We noticed suspicious activity. To verify, what's your password?"
+
+Compromised user reveals password.
+
+### Helpdesk impersonation
+
+Attacker pretends to be IT calling for "system update." User types their MFA code into attacker's website.
+
+## Defenses
+
+### Support: never disable MFA without verification
+
+Train your support agents:
+- Don't take user identity claims at face value.
+- Require out-of-band verification (callback to known phone, video call, ID upload).
+- Document the verification in the ticket.
+
+Internal policy:
+
+```
+1. Caller claims to be User X.
+2. Look up User X.
+3. Phone number on file → call them back (don't use number caller provides).
+4. Confirm the issue.
+5. Only then proceed.
+```
+
+For high-stakes (financial transfer), even stricter.
+
+### Educate users about phishing
+
+In-app messages:
+- "We will never ask you for your password."
+- "Our official URL is https://your-domain.com. Always check the URL bar."
+- "If you're unsure, contact us at support@your-domain.com."
+
+### Email-source verification
+
+Send transactional emails from one address. Promote it: "Emails from us come from no-reply@your-domain.com."
+
+Users learn to recognize legit emails.
+
+### Code signing in emails
+
+Some banks include the last 4 digits of the user's account in transactional emails. Phishers don't have it.
+
+```
+Subject: Sign-in attempt to your account ****-1234
+
+Hi Alice,
+
+We noticed a sign-in to your account ending in 1234 from a new device.
+```
+
+Phisher emails without the right last-4 are detected.
+
+### URL canonicalization
+
+Help users see the real URL:
+
+- All emails use the same canonical URL: `https://your-domain.com/recovery`.
+- No URL shorteners.
+- No subdomains that look like the main domain (`your-corp-secure.com` is suspicious).
+
+### Browser pinning
+
+For high-value accounts, use security indicators:
+- Bookmark your real URL.
+- Add to password manager's autofill.
+
+Password managers won't autofill on look-alike domains, natural phishing detection.
+
+### Bot protection on contact
+
+Phishers often spam customer support to harvest info. Rate limit:
+
+```
+- Contact form: 1 submission per 15 min per IP.
+- Email-based: spam filter aggressive on unverified senders.
+```
+
+### Multi-step recovery
+
+Don't allow account recovery in one step:
+
+```
+Step 1: User clicks "Forgot password"
+Step 2: Email link → set new password
+Step 3: After login, force MFA re-verify OR show "your password was reset. If this wasn't you, click here."
+```
+
+Slow + visible breaks rapid attacker iteration.
+
+### Time-delay sensitive changes
+
+Critical account changes (MFA disable, email change, large transactions), delay 24h with email notification:
+
+```
+"You requested to disable 2FA. This will take effect in 24 hours.
+To cancel: click here."
+```
+
+If wasn't them, user has time to act.
+
+For high-friction services, this is acceptable trade-off.
+
+## Specific scams to watch
+
+### "Verify your identity to keep your account"
+
+Phishing. Often sent right after a new device login alert (legitimate email made by you, scam follow-up made by attacker).
+
+### "Suspicious activity detected"
+
+If the email asks for any password / personal info, it's phishing.
+
+### "Your subscription is expiring"
+
+Often a credit-card-grab. Real renewals shouldn't require credit card re-entry.
+
+## Train ALL teams
+
+- Support: ID verification, escalation.
+- Engineers: secrets handling, phishing simulation.
+- Sales: don't disclose customer details, even to "potential customers."
+- Marketing: don't link from emails (use plain text URLs).
+
+Annual training. Phishing simulations (Knowbe4, Wombat).
+
+## Detection telemetry
+
+```sql
+-- Suspicious patterns in support inquiries
+SELECT 
+  caller_phone, 
+  COUNT(DISTINCT ticket_id) AS tickets,
+  COUNT(DISTINCT user_email) AS users_referenced
+FROM support_calls
+WHERE created_at > NOW() - INTERVAL '7 days'
+GROUP BY 1
+HAVING COUNT(DISTINCT user_email) > 1;
+```
+
+One phone calling about multiple users → social engineering attempt.
+
+## Incident response
+
+If a user reports they were socially engineered:
+1. Reset their account credentials.
+2. Revoke all their sessions.
+3. Investigate what attacker accessed.
+4. Notify other users if a broader campaign.
+5. Update training material with the new scam pattern.
+
+## Cultural
+
+Foster culture where:
+- Anyone can flag a suspicious request without judgment.
+- No question is too small to ask "is this legit?".
+- Errors are learning opportunities, not blame.
+
+Tech alone doesn't stop social engineering. Culture does.
+
+## Related
+
+- [Operate, Incident response](/docs/operate/backups-recovery/incident-response)
+- [Cookbook, Customer support tooling](/docs/cookbook/tools/customer-support-tooling)
+- [Cookbook, Notification templates](/docs/cookbook/ui-content/notification-templates)
+- [Cookbook, Account takeover response](/docs/cookbook/defensive-security/account-takeover-response)
+- [Security, Threat model](/docs/security/infrastructure/threat-model)

@@ -1,0 +1,95 @@
+---
+title: Missing claim in ID token
+description: Expected `role`, `groups`, or custom claim isn't in the JWT
+---
+
+You expect `id_token.role` or another custom claim, but it's not there. Several causes.
+
+## Diagnostic: decode the token
+
+```bash
+echo "$ID_TOKEN" | cut -d. -f2 | base64 -d | jq
+```
+
+What's actually in there?
+
+## Common causes
+
+### Identity doesn't have the trait
+
+```bash
+curl http://localhost:3101/admin/identities/<id> | jq .traits
+```
+
+If `role` is missing from `traits`, the identity doesn't have it. Set via Athena → Edit identity → traits.
+
+### Schema doesn't declare the trait
+
+If the trait isn't in the identity schema, Kratos rejects it on write. Check `platform/dev/ciam-kratos/identity.schema.json`:
+
+```json
+"role": { "type": "string", "enum": ["admin", "user"] }
+```
+
+If absent, add and reload (see [Operate, Reload API key rotation](/docs/operate/rotation/reload-api-key-rotation)).
+
+### Hydra doesn't include identity traits in the ID token
+
+By default, Olympus's Hydra includes Kratos traits. Verify via `hydra.yml`:
+
+```yaml
+strategies:
+  access_token: opaque   # or jwt
+oauth2:
+  include_jti_in_session: true
+  # Customize claims via consent flow
+```
+
+The actual claim mapping happens in Hera's consent handler. Check `hera/src/app/consent/page.tsx`:
+
+```ts
+await acceptConsentChallenge(challenge, {
+  grant_scope: requestedScopes,
+  session: {
+    id_token: {
+      role: identity.traits.role,
+      groups: identity.traits.groups,
+    }
+  }
+});
+```
+
+If `role` isn't in this `id_token` object, it won't appear in the token.
+
+### Scope not granted
+
+Some claims are gated by scope:
+- `email`, `email_verified` require `email` scope.
+- `profile` data (name, given_name) requires `profile` scope.
+
+Verify your client requested the scope and the user granted it:
+
+```bash
+echo "$ID_TOKEN" | cut -d. -f2 | base64 -d | jq .scope
+```
+
+### Userinfo vs ID token
+
+For some claims, the answer is "look at userinfo, not the ID token":
+
+```bash
+curl -H "Authorization: Bearer $ACCESS_TOKEN" https://ciam.your-domain/userinfo | jq
+```
+
+Userinfo always reflects current trait values; ID token has the snapshot at issuance time.
+
+## Adding a custom claim
+
+See [Cookbook, Add a custom claim to the ID token](/docs/cookbook/tokens-oauth2/add-custom-claim-id-token).
+
+## Related
+
+- [Cookbook, Add custom claim](/docs/cookbook/tokens-oauth2/add-custom-claim-id-token)
+- [Identity, Identity schemas](/docs/identity/identity-schemas)
+- [Reference, OIDC claims](/docs/reference/oidc-claims/overview)
+- [Integrate, OIDC userinfo](/docs/integrate/oauth2/oidc-userinfo)

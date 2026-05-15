@@ -52,7 +52,7 @@ The session cookie is an HMAC-SHA256-signed JSON payload. Any tampered or missin
 
 ## Obtaining a Session
 
-Athena uses the OAuth2 Authorization Code + PKCE flow through the Olympus IAM OAuth2 server. There is no API key, bearer token, or server-to-server auth path — only browser-initiated OAuth2 sessions are supported. See [athena#50](https://github.com/OlympusOSS/athena/issues/50) for the planned M2M credential flow for service-to-service use cases.
+Athena uses the OAuth2 Authorization Code + PKCE flow through the Olympus IAM OAuth2 server. There is no API key, bearer token, or server-to-server auth path, only browser-initiated OAuth2 sessions are supported. See [athena#50](https://github.com/OlympusOSS/athena/issues/50) for the planned M2M credential flow for service-to-service use cases.
 
 ### Full Login Flow
 
@@ -124,7 +124,7 @@ curl -b "athena-session=<cookie-value>" \
   http://localhost:4001/api/settings
 ```
 
-> **Note**: The session cookie is `HttpOnly`. You cannot read its value from JavaScript — that is intentional. In a browser, the cookie is sent automatically on every same-origin request. For `curl` testing, copy the cookie value from your browser's DevTools (Application > Cookies > `athena-session`).
+> **Note**: The session cookie is `HttpOnly`. You cannot read its value from JavaScript, that is intentional. In a browser, the cookie is sent automatically on every same-origin request. For `curl` testing, copy the cookie value from your browser's DevTools (Application > Cookies > `athena-session`).
 
 ---
 
@@ -178,7 +178,7 @@ fetch("GET /api/auth/session")
   → Dashboard renders
 ```
 
-The session check runs once on mount. The `hasCheckedSession` ref prevents duplicate calls. No polling occurs — if the session expires mid-use, API calls return `401` and the next page navigation triggers the auth redirect.
+The session check runs once on mount. The `hasCheckedSession` ref prevents duplicate calls. No polling occurs, if the session expires mid-use, API calls return `401` and the next page navigation triggers the auth redirect.
 
 ### Dual-Domain Session Isolation
 
@@ -190,7 +190,7 @@ CIAM Athena (`:3001`) and IAM Athena (`:4001`) each have their own `athena-sessi
 
 Athena has no server-to-server authentication path. There is no API key, bearer token, or `client_credentials` flow for Athena.
 
-**Why**: Athena is an admin dashboard UI, not an API service. It is not designed to be called by other services. The authentication model — browser-initiated OAuth2 sessions — is intentional.
+**Why**: Athena is an admin dashboard UI, not an API service. It is not designed to be called by other services. The authentication model, browser-initiated OAuth2 sessions, is intentional.
 
 **If you need service-to-service access**: Use the Olympus IAM OAuth2 server's `client_credentials` flow directly (see [athena#50](https://github.com/OlympusOSS/athena/issues/50) for the planned M2M capability). Do not attempt to build an alternative auth path into Athena.
 
@@ -200,8 +200,8 @@ Athena has no server-to-server authentication path. There is no API key, bearer 
 
 | Route | Method | Auth Required | Role Required |
 |-------|--------|--------------|---------------|
-| `/api/health` | GET | None (public) | — |
-| `/api/auth/**` | ANY | None (public) | — |
+| `/api/health` | GET | None (public) | - |
+| `/api/auth/**` | ANY | None (public) | - |
 | `/api/settings` | GET | Session | admin |
 | `/api/settings` | POST | Session | admin |
 | `/api/settings/:key` | GET | Session | admin |
@@ -210,21 +210,21 @@ Athena has no server-to-server authentication path. There is no API key, bearer 
 | `/api/config` | GET | Session | admin |
 | `/api/security/**` | ANY | Session | admin |
 | `/api/identities` | GET | Session | admin |
-| `/api/connections/social` | GET | None (read-only provider list) | — |
+| `/api/connections/social` | GET | None (read-only provider list) | - |
 | `/api/dashboard/layout` | GET, PUT | Session | any authenticated |
 | `/api/session-locations` | GET | Session | any authenticated |
 | `/api/geo` | GET | Session | any authenticated |
 | `/api/services/**` | ANY | Session | any authenticated |
-| `/api/kratos/**` | ANY | Proxy (Olympus identity APIs enforce auth) | — |
-| `/api/kratos-admin/**` | ANY | Proxy (Olympus identity APIs enforce auth) | — |
-| `/api/iam-kratos/**` | ANY | Proxy (Olympus identity APIs enforce auth) | — |
-| `/api/iam-kratos-admin/**` | ANY | Proxy (Olympus identity APIs enforce auth) | — |
-| `/api/hydra/**` | ANY | Proxy (Olympus identity APIs enforce auth) | — |
-| `/api/hydra-admin/**` | ANY | Proxy (Olympus identity APIs enforce auth) | — |
+| `/api/kratos/**` | ANY | Proxy (Olympus identity APIs enforce auth) | - |
+| `/api/kratos-admin/**` | ANY | Proxy (Olympus identity APIs enforce auth) | - |
+| `/api/iam-kratos/**` | ANY | Proxy (Olympus identity APIs enforce auth) | - |
+| `/api/iam-kratos-admin/**` | ANY | Proxy (Olympus identity APIs enforce auth) | - |
+| `/api/hydra/**` | ANY | Proxy (Olympus identity APIs enforce auth) | - |
+| `/api/hydra-admin/**` | ANY | Proxy (Olympus identity APIs enforce auth) | - |
 
 **Roles**:
-- `admin` — full access to all protected routes
-- `viewer` — can access dashboard, session-locations, and geo routes; cannot access settings, encrypt, config, or security routes
+- `admin`, full access to all protected routes
+- `viewer`, can access dashboard, session-locations, and geo routes; cannot access settings, encrypt, config, or security routes
 
 Role is determined at login from the identity's `traits.role` field in the Olympus identity store and embedded in the session cookie. It cannot be changed without re-logging in.
 
@@ -232,7 +232,7 @@ Role is determined at login from the identity's `traits.role` field in the Olymp
 
 ## Error Responses
 
-All Athena API authentication errors return a consistent JSON shape. This applies to middleware-enforced 401 and 403 responses. Error codes are stable — callers can rely on the `error` field value without parsing the `message` field.
+All Athena API authentication errors return a consistent JSON shape. This applies to middleware-enforced 401 and 403 responses. Error codes are stable, callers can rely on the `error` field value without parsing the `message` field.
 
 ```json
 {
@@ -246,7 +246,7 @@ The `Content-Type` header on all auth error responses is `application/json`. No 
 
 **What never appears in error responses**: PII (email addresses, session tokens, identity IDs), internal service names (Kratos, Hydra), internal hostnames, ports, or stack traces.
 
-### 401 — Not Authenticated
+### 401, Not Authenticated
 
 Returned when the `athena-session` cookie is absent, expired, or fails HMAC verification.
 
@@ -258,16 +258,16 @@ Returned when the `athena-session` cookie is absent, expired, or fails HMAC veri
 }
 ```
 
-**Error code**: `not_authenticated` — stable, machine-readable, will not change without a versioning event.
+**Error code**: `not_authenticated`, stable, machine-readable, will not change without a versioning event.
 
 **Common causes**:
-- Cookie not sent — check that `curl -b` includes the cookie or that the browser has the cookie for the correct domain
-- Cookie expired — the session lifetime matches the OAuth2 token `expires_in`; re-authenticate
-- Cookie tampered — any modification to the cookie value invalidates the HMAC signature
+- Cookie not sent, check that `curl -b` includes the cookie or that the browser has the cookie for the correct domain
+- Cookie expired, the session lifetime matches the OAuth2 token `expires_in`; re-authenticate
+- Cookie tampered, any modification to the cookie value invalidates the HMAC signature
 
 **Remediation**: Obtain a session via `GET /api/auth/login` and include the resulting `athena-session` cookie on subsequent requests.
 
-### 403 — Forbidden
+### 403, Forbidden
 
 Returned when the session is valid but the identity's role is not sufficient for the route.
 
@@ -279,9 +279,9 @@ Returned when the session is valid but the identity's role is not sufficient for
 }
 ```
 
-**Error code**: `forbidden` — stable, machine-readable, will not change without a versioning event.
+**Error code**: `forbidden`, stable, machine-readable, will not change without a versioning event.
 
-**Remediation**: Log in with an identity that has the `admin` role assigned in the Olympus identity store. The role is embedded in the session at login time — changing the role in the admin panel requires a new login to take effect.
+**Remediation**: Log in with an identity that has the `admin` role assigned in the Olympus identity store. The role is embedded in the session at login time, changing the role in the admin panel requires a new login to take effect.
 
 ### Canonical Error Code Reference
 
@@ -305,11 +305,11 @@ The `athena-session` cookie is protected by four security attributes that are no
 | `Secure` | true (production), false (localhost dev) | Cookie is only sent over HTTPS in production. Prevents interception on the wire. The flag is false in local development to allow HTTP on localhost. |
 | `MaxAge` | `min(expires_in, 28800)` | Admin sessions are capped at 8 hours regardless of what the OAuth2 server returns in `expires_in`. Prevents multi-day admin sessions. |
 
-Cookie attributes are centralized in `src/lib/cookie-options.ts`. All cookie write and delete operations in the codebase import from this single source of truth — future changes require updating only one file. A CI step enforces this requirement: any `cookies.set("athena-session", ...)` call with an inline options object outside this helper fails the build. See [Athena Testing Guide — Cookie Audit](testing.md#cookie-audit--ci-gate) for the full requirement for new routes.
+Cookie attributes are centralized in `src/lib/cookie-options.ts`. All cookie write and delete operations in the codebase import from this single source of truth, future changes require updating only one file. A CI step enforces this requirement: any `cookies.set("athena-session", ...)` call with an inline options object outside this helper fails the build. See [Athena Testing Guide, Cookie Audit](testing.md#cookie-audit--ci-gate) for the full requirement for new routes.
 
-Do not disable or weaken these attributes. Do not attempt to read the session cookie from `document.cookie` — `HttpOnly` means it is not accessible from JavaScript, and this is intentional.
+Do not disable or weaken these attributes. Do not attempt to read the session cookie from `document.cookie`, `HttpOnly` means it is not accessible from JavaScript, and this is intentional.
 
-> **GDPR note**: The `athena-session` cookie is tied to a specific Olympus identity (`kratosIdentityId`). If a user exercises their right to erasure, their identity record must be deleted from the Olympus identity store — this automatically invalidates all active sessions for that identity.
+> **GDPR note**: The `athena-session` cookie is tied to a specific Olympus identity (`kratosIdentityId`). If a user exercises their right to erasure, their identity record must be deleted from the Olympus identity store, this automatically invalidates all active sessions for that identity.
 
 ---
 
@@ -330,9 +330,9 @@ Routes under `/api/kratos/**`, `/api/kratos-admin/**`, `/api/iam-kratos/**`, `/a
 
 ### Missing `SESSION_SIGNING_KEY` Environment Variable
 
-If `SESSION_SIGNING_KEY` is not set in the container, Athena fails to start with a fatal error. See [session-signing-key.md](/docs/operate/session-signing-key-rotation) for the full startup validation behavior and fix command. Verify with `GET /api/health` — if it returns `200`, the environment is configured correctly.
+If `SESSION_SIGNING_KEY` is not set in the container, Athena fails to start with a fatal error. See [session-signing-key.md](/docs/operate/rotation/session-signing-key-rotation) for the full startup validation behavior and fix command. Verify with `GET /api/health`, if it returns `200`, the environment is configured correctly.
 
-Note: `ENCRYPTION_KEY` is a separate key used for SDK settings encryption. Missing `ENCRYPTION_KEY` affects settings decryption, not session authentication. See [session-signing-key.md](/docs/operate/session-signing-key-rotation) for key separation details.
+Note: `ENCRYPTION_KEY` is a separate key used for SDK settings encryption. Missing `ENCRYPTION_KEY` affects settings decryption, not session authentication. See [session-signing-key.md](/docs/operate/rotation/session-signing-key-rotation) for key separation details.
 
 ### `/api/healthcheck` vs `/api/health`
 
@@ -354,9 +354,9 @@ If the `oauth_state` cookie is missing or does not match the `state` query param
 
 ## Security Considerations
 
-- **Session tampering**: The `athena-session` cookie is HMAC-SHA256-signed with `SESSION_SIGNING_KEY` (not `ENCRYPTION_KEY` — these are separate keys as of athena#99). Any modification to the cookie payload invalidates the signature and returns `401`. See [session-signing-key.md](/docs/operate/session-signing-key-rotation) for key configuration and rotation.
+- **Session tampering**: The `athena-session` cookie is HMAC-SHA256-signed with `SESSION_SIGNING_KEY` (not `ENCRYPTION_KEY`, these are separate keys as of athena#99). Any modification to the cookie payload invalidates the signature and returns `401`. See [session-signing-key.md](/docs/operate/rotation/session-signing-key-rotation) for key configuration and rotation.
 - **Cookie security**: In production, the cookie is `HttpOnly` and `Secure`. Do not disable these attributes. See [Cookie Security](#cookie-security) above.
-- **No fallback paths**: There is no alternative authentication path (API key, bearer token, basic auth). There is no secret endpoint. If the middleware is bypassed, only `/api/dashboard/layout` has an inline `verifySession()` call as a secondary layer — all other routes would be unprotected.
+- **No fallback paths**: There is no alternative authentication path (API key, bearer token, basic auth). There is no secret endpoint. If the middleware is bypassed, only `/api/dashboard/layout` has an inline `verifySession()` call as a secondary layer, all other routes would be unprotected.
 - **Secret decryption route**: `GET /api/settings/:key?decrypt=true` returns the plaintext value of an AES-256-GCM encrypted secret. This route requires an admin session. See [athena#51](https://github.com/OlympusOSS/athena/issues/51) for the security fix that enforced this.
 - **Port exposure**: Port 4001 (IAM Athena) must not be internet-accessible. The proxy routes to Olympus identity service admin APIs are authenticated by API keys, not by Athena session auth. A publicly reachable port 4001 allows any actor with network access to use the admin proxy.
 - **PKCE enforcement**: The OAuth2 login flow uses `code_challenge_method=S256`. The plain method is not used. See [athena#52](https://github.com/OlympusOSS/athena/issues/52) for PKCE enforcement details.
@@ -365,16 +365,16 @@ If the `oauth_state` cookie is missing or does not match the `state` query param
 
 ## Related Issues
 
-- [athena#50](https://github.com/OlympusOSS/athena/issues/50) — Planned M2M credential flow (server-to-server auth)
-- [athena#51](https://github.com/OlympusOSS/athena/issues/51) — Security fix: `proxy.ts` → `middleware.ts` (auth enforcement was dead code)
-- [athena#52](https://github.com/OlympusOSS/athena/issues/52) — PKCE S256 enforcement and JWKS verification
-- [athena#57](https://github.com/OlympusOSS/athena/issues/57) — Security fix: session cookie `Secure` flag, `SameSite=Strict`, and `maxAge` cap
-- [athena#60](https://github.com/OlympusOSS/athena/issues/60) — Standardized 401/403 error response shape (`not_authenticated` / `forbidden`)
-- [athena#61](https://github.com/OlympusOSS/athena/issues/61) — This document
-- [athena#63](https://github.com/OlympusOSS/athena/issues/63) — PKCE + public client OAuth2 integration guide
-- [athena#99](https://github.com/OlympusOSS/athena/issues/99) — SESSION_SIGNING_KEY separation from ENCRYPTION_KEY (see [session-signing-key.md](/docs/operate/session-signing-key-rotation))
-- [athena#66](https://github.com/OlympusOSS/athena/issues/66) — CI enforcement: `audit:cookies` step for `cookie-options.ts` usage
+- [athena#50](https://github.com/OlympusOSS/athena/issues/50), Planned M2M credential flow (server-to-server auth)
+- [athena#51](https://github.com/OlympusOSS/athena/issues/51), Security fix: `proxy.ts` → `middleware.ts` (auth enforcement was dead code)
+- [athena#52](https://github.com/OlympusOSS/athena/issues/52), PKCE S256 enforcement and JWKS verification
+- [athena#57](https://github.com/OlympusOSS/athena/issues/57), Security fix: session cookie `Secure` flag, `SameSite=Strict`, and `maxAge` cap
+- [athena#60](https://github.com/OlympusOSS/athena/issues/60), Standardized 401/403 error response shape (`not_authenticated` / `forbidden`)
+- [athena#61](https://github.com/OlympusOSS/athena/issues/61), This document
+- [athena#63](https://github.com/OlympusOSS/athena/issues/63), PKCE + public client OAuth2 integration guide
+- [athena#99](https://github.com/OlympusOSS/athena/issues/99), SESSION_SIGNING_KEY separation from ENCRYPTION_KEY (see [session-signing-key.md](/docs/operate/rotation/session-signing-key-rotation))
+- [athena#66](https://github.com/OlympusOSS/athena/issues/66), CI enforcement: `audit:cookies` step for `cookie-options.ts` usage
 
 ---
 
-*Last updated: 2026-04-08 (Technical Writer — corrected error response field name from `suggestion` to `hint` to match middleware source, updated 401/403 message text to match implementation)*
+*Last updated: 2026-04-08 (Technical Writer, corrected error response field name from `suggestion` to `hint` to match middleware source, updated 401/403 message text to match implementation)*

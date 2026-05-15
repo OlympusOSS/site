@@ -1,0 +1,70 @@
+---
+title: Add a custom claim to the ID token
+description: Include an extra field in the JWT issued at login
+---
+
+By default Olympus's ID token includes standard OIDC claims (`sub`, `email`, `email_verified`, `name`, `iss`, `aud`, `iat`, `exp`). To add a custom claim (e.g. `role`, `team_id`, `tier`):
+
+## Step 1: Add the trait to the identity schema
+
+Most custom claims are sourced from identity traits. If you want `role` in the token, declare `role` on the identity schema:
+
+```json
+"role": {
+  "type": "string",
+  "enum": ["admin", "user", "moderator"],
+  "default": "user"
+}
+```
+
+## Step 2: Hydra automatically includes identity traits
+
+When Hera accepts the consent challenge for an OAuth2 flow, it passes the Kratos identity's traits to Hydra via the `consent_request.context.identity.traits` field. Hydra includes these in the ID token.
+
+So no Hydra config changes needed, adding a trait to the identity schema automatically surfaces it.
+
+## Step 3: Verify in the issued token
+
+Decode a sample ID token:
+
+```bash
+echo "$ID_TOKEN" | cut -d. -f2 | base64 -d | jq
+```
+
+Expect to see your custom field alongside the standard claims.
+
+## What if you want a derived/computed claim
+
+Sometimes the claim isn't directly a trait, e.g. `feature_flags: ["beta", "premium"]` derived from a separate service.
+
+The Kratos flow's `after.password.hooks` and `consent.after.hooks` can include a `web_hook` that mutates the consent request context:
+
+```yaml
+consent:
+  after:
+    hooks:
+      - hook: web_hook
+        config:
+          url: https://internal/derive-claims
+          body: |
+            {
+              "identity_id": "{{ .Identity.Id }}",
+              "traits": {{ toJson .Identity.Traits }}
+            }
+```
+
+Your webhook returns extra fields to merge into the consent context. Hydra includes the merged context in the ID token.
+
+This is more complex; reserve for when the claim genuinely can't live on the identity.
+
+## What NOT to put in the ID token
+
+- **Secrets.** ID tokens are visible to the client app and any audit log along the way.
+- **Large data.** Tokens get into headers and cookies; oversized tokens cause request-header-too-large errors.
+- **Rapidly-changing data.** Tokens are issued at login time. Claims that change every minute (e.g. balance, online status) shouldn't be in the token; the app should fetch them live.
+
+## Related
+
+- [Integrate, OIDC userinfo](/docs/integrate/oauth2/oidc-userinfo), alternative to claims.
+- [Identity, Identity schemas](/docs/identity/identity-schemas)
+- [Cookbook, Map roles to scopes](/docs/cookbook/tokens-oauth2/map-roles-to-scopes)

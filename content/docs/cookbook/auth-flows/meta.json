@@ -1,0 +1,27 @@
+{
+  "title": "Auth flows",
+  "pages": [
+    "abandoned-cart-recovery",
+    "account-linking-strategies",
+    "account-recovery-questions",
+    "age-verification",
+    "auto-link-by-email",
+    "email-aliases-and-plus-addressing",
+    "email-change-flow",
+    "email-only-magic-link",
+    "email-verification-strategies",
+    "feature-detect-passkeys",
+    "forgot-email",
+    "identity-merging",
+    "invitation-based-signup",
+    "multi-factor-recovery",
+    "passkey-cross-device",
+    "passkey-discoverable",
+    "passkey-only-flow",
+    "passwordless-fallback",
+    "passwordless-magic-link",
+    "recovery-codes-best-practices",
+    "recovery-flow-customization",
+    "registration-funnel-optimization"
+  ]
+}

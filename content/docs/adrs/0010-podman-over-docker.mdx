@@ -1,5 +1,5 @@
 ---
-title: "0010 — Podman over Docker"
+title: "0010, Podman over Docker"
 description: Why Olympus targets Podman instead of Docker for its container runtime
 ---
 
@@ -13,7 +13,7 @@ Olympus is delivered as a set of OCI containers. The deployment relies on a Comp
 
 ## Considered alternatives
 
-### Option A — Docker (Docker Engine + Docker Compose)
+### Option A, Docker (Docker Engine + Docker Compose)
 
 The default.
 
@@ -23,11 +23,11 @@ The default.
   - Mature, ample documentation.
 - *Cons*:
   - **Root daemon.** `dockerd` runs as root by default. Compromise of the daemon (or its socket) is root on the host.
-  - **License changes.** Docker Desktop changed its commercial terms in 2021 — companies above 250 employees need a license. Even if Olympus's audience is below that threshold, the precedent is uncomfortable.
+  - **License changes.** Docker Desktop changed its commercial terms in 2021, companies above 250 employees need a license. Even if Olympus's audience is below that threshold, the precedent is uncomfortable.
   - Rootless Docker exists but is opt-in and second-class.
   - Docker Compose v2 is now a plugin, but it relies on the Docker daemon being up.
 
-### Option B — Podman ✓
+### Option B, Podman ✓
 
 A drop-in `docker` replacement from Red Hat that doesn't require a daemon.
 
@@ -40,22 +40,22 @@ A drop-in `docker` replacement from Red Hat that doesn't require a daemon.
 - *Cons*:
   - Less ubiquitous than Docker; developers may need to install it explicitly.
   - Some Compose features have subtle differences (network DNS resolution, volume mounting in rootless mode).
-  - On macOS, Podman runs in a VM via `podman machine` — small startup latency.
+  - On macOS, Podman runs in a VM via `podman machine`, small startup latency.
 
-### Option C — Containerd directly
+### Option C, Containerd directly
 
 The lower-level runtime, with `nerdctl` as the CLI.
 
 - *Pros*: minimal.
 - *Cons*: too low-level for an operator-friendly story.
 
-### Option D — Kubernetes
+### Option D, Kubernetes
 
 Out of scope. Multi-node K8s for a single-VPS identity platform is over-engineering; [ADR 0010 declines K8s](/docs/adrs/0001-dual-domain-architecture).
 
 ## Decision
 
-**Option B — Podman.**
+**Option B, Podman.**
 
 ## Consequences
 
@@ -91,9 +91,9 @@ A few Compose features behave slightly differently:
 
 ## Related
 
-- [Get Started — Prerequisites](/docs/get-started/prerequisites)
-- [Get Started — Quickstart with podman compose](/docs/get-started/quickstart-podman-compose)
-- [Operate — Network Topology](/docs/operate/network-topology) — Compose network and rootless DNS behaviour.
+- [Get Started, Prerequisites](/docs/get-started/prerequisites)
+- [Get Started, Quickstart with podman compose](/docs/get-started/quickstart-podman-compose)
+- [Operate, Network Topology](/docs/operate/administration/network-topology), Compose network and rootless DNS behaviour.
 
 ## Revisit triggers
 

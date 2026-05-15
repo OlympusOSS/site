@@ -1,0 +1,110 @@
+---
+title: Risk-based authentication
+description: Adaptive auth that escalates based on signals
+---
+
+Static "everyone uses MFA always" is friction. Risk-based auth applies more friction only when signals warrant, new device, unusual location, recent failures.
+
+## Signal sources
+
+| Signal | Source | Weight |
+|---|---|---|
+| New device fingerprint | Tracked locally | High |
+| New IP / country | Tracked locally + geo-IP | High |
+| Recent failed logins on the account | `login_attempts` table | Medium |
+| Off-hours login | Request timestamp | Low |
+| User-agent anomaly (e.g. headless) | Request header | Medium |
+| ASN reputation (known VPN, Tor) | Third-party | Medium-high |
+| Compromised password (HIBP) | Already enforced at registration | n/a |
+
+## Composite score
+
+```ts
+async function computeRiskScore(req, identity): Promise<number> {
+  let score = 0;
+
+  // New device
+  const fingerprint = fingerprintRequest(req);
+  const knownDevice = await checkKnownDevice(identity.id, fingerprint);
+  if (!knownDevice) score += 30;
+
+  // New location
+  const geo = await geoLookup(getIp(req));
+  const recentLocations = await getRecentLocations(identity.id, 30); // last 30 days
+  if (!recentLocations.some((l) => l.country === geo.country)) score += 25;
+
+  // Recent failures
+  const recentFails = await db`
+    SELECT COUNT(*) FROM login_attempts
+    WHERE identifier = ${identity.email}
+      AND success = false
+      AND created_at > NOW() - INTERVAL '1 hour'
+  `.first();
+  if (recentFails > 3) score += 20;
+
+  // Off-hours
+  const hour = new Date().getUTCHours();
+  if (hour < 6 || hour > 22) score += 5;
+
+  // Headless / bot-ish UA
+  const ua = req.headers["user-agent"] ?? "";
+  if (/headless|curl|wget|python/i.test(ua)) score += 30;
+
+  return score;
+}
+```
+
+## Decision based on score
+
+```ts
+const score = await computeRiskScore(req, identity);
+
+if (score >= 60) {
+  // Block or hard-require step-up
+  return { action: "step_up_to_aal2", reason: "high_risk" };
+}
+if (score >= 30) {
+  // Soft-require: prompt step-up unless already AAL2
+  return { action: "soft_step_up_to_aal2", reason: "medium_risk" };
+}
+// Low risk, allow normal login.
+return { action: "allow" };
+```
+
+## Implementation
+
+Run the risk evaluation in a Kratos hook (`after.password.hooks`) or in your app's post-login middleware.
+
+If using a Kratos hook, the webhook can return a redirect:
+
+```ts
+return Response.json({
+  redirect_to: "/self-service/login/browser?aal=aal2&refresh=true&reason=risk",
+});
+```
+
+Kratos honors this and redirects the user.
+
+## Calibration
+
+Risk-based auth requires tuning. Start permissive (high threshold for step-up) and tighten as you collect data:
+
+- Log scores for every login (not the decision, just the components).
+- Watch the distribution. Pick a threshold that step-ups &lt;5% of normal logins.
+- Increase threshold during incidents.
+
+## Continuous authentication
+
+Beyond login, monitor for risk during the session:
+- Sudden IP change mid-session → re-auth.
+- Anomalous request patterns → re-auth.
+
+Olympus's session model is binary (logged-in or not). Continuous re-auth requires app-side logic above the session.
+
+## Related
+
+- [Cookbook, Detect impossible travel](/docs/cookbook/defensive-security/detect-impossible-travel)
+- [Cookbook, Notify on new device](/docs/cookbook/defensive-security/notify-new-device)
+- [Cookbook, Force MFA by role](/docs/cookbook/mfa/force-mfa-by-role)
+- [Cookbook, Enforce step-up auth](/docs/cookbook/mfa/enforce-step-up-auth)
+- [Identity, MFA policy](/docs/identity/mfa-policy)

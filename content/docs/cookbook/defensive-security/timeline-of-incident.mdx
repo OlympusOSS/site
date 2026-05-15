@@ -1,0 +1,235 @@
+---
+title: Reconstruct an incident timeline
+description: Detective work in audit logs after a security event
+---
+
+You're hours into a possible breach. You need to know: what happened, when, by whom. Reconstruction from logs.
+
+## Tools
+
+- Audit log (security_audit table).
+- Caddy access logs.
+- Kratos / Hydra logs.
+- App logs.
+- External monitoring (Sentry, Datadog).
+
+## Start at the report
+
+User says "I think my account was breached at 3 PM yesterday."
+
+Anchor: 3 PM, user identity_id = X.
+
+```sql
+SELECT created_at, event_type, source_ip, user_agent, outcome, metadata
+FROM security_audit
+WHERE identity_id = 'X'
+  AND created_at BETWEEN '2026-05-12 14:00:00' AND '2026-05-12 16:00:00'
+ORDER BY created_at;
+```
+
+Look for:
+- Login events.
+- Settings changes.
+- Privilege escalation.
+- Data exports.
+- API calls outside normal patterns.
+
+## Build a chronological narrative
+
+```
+14:01 - User logs in normally from 192.0.2.1 (their usual IP).
+14:32 - User logs out.
+14:45 - Login attempt failed from 198.51.100.50 (Dallas).
+14:46 - Login attempt failed.
+14:47 - Login attempt failed.
+14:48 - Login succeeded from 198.51.100.50 with password.
+14:48 - Session created.
+14:49 - Settings: password changed.
+14:50 - Settings: recovery email changed.
+14:51 - Resource export: 5,000 records downloaded.
+15:00 - Session: still active.
+15:30 - User notices issue, resets password.
+```
+
+This tells you:
+- Attacker was at 198.51.100.50.
+- Got in via password (suggests password leaked/cracked).
+- 4 attempts before success (account lockout was 5, barely missed).
+- Modified settings to lock real user out.
+- Exfiltrated data.
+
+## Identify scope
+
+Now: are there other affected accounts from the same IP?
+
+```sql
+SELECT DISTINCT identity_id, COUNT(*) AS event_count
+FROM security_audit
+WHERE source_ip = '198.51.100.50'
+  AND created_at BETWEEN '2026-05-12 12:00:00' AND '2026-05-12 18:00:00'
+GROUP BY identity_id;
+```
+
+Maybe other users have the same pattern. Broader incident.
+
+## ASN / geo analysis
+
+```sql
+SELECT 
+  CASE 
+    WHEN source_ip <<= '198.51.100.0/24' THEN 'compromise-related'
+    ELSE 'other'
+  END AS ip_class,
+  COUNT(*)
+FROM security_audit
+WHERE event_type = 'login' AND outcome = 'success'
+  AND created_at > NOW() - INTERVAL '24 hours'
+GROUP BY 1;
+```
+
+How many users hit by the same attacker?
+
+## What attacker did
+
+Beyond audit log, application data:
+
+```sql
+-- Which records did they access?
+SELECT * FROM resource_access_log
+WHERE actor_id = $compromised_user
+  AND created_at BETWEEN ... AND ...;
+```
+
+App logs each resource read/write, you can list specific records accessed.
+
+```sql
+-- Did they create new resources?
+SELECT * FROM created_resources
+WHERE creator_id = $compromised_user
+  AND created_at BETWEEN ...;
+```
+
+Backdoors? New API keys? OAuth grants?
+
+## Look for foothold persistence
+
+Did the attacker set up persistent access?
+
+```sql
+-- New OAuth2 clients created?
+SELECT * FROM hydra_client
+WHERE created_at > $event_start
+  AND owner = $compromised_user::text;
+
+-- New API keys / PATs?
+SELECT * FROM personal_access_tokens
+WHERE identity_id = $compromised_user
+  AND created_at > $event_start;
+
+-- Settings vault changes?
+SELECT * FROM settings
+WHERE updated_at > $event_start
+  AND updated_by = $compromised_user;
+```
+
+If any: revoke immediately. Attacker might still be using them.
+
+## Coordinate timeline with external
+
+If you suspect external coordination (multi-attacker, phishing campaign, etc.):
+
+- Cross-reference with mailbox provider abuse reports.
+- DNS query logs for unusual destinations.
+- VPN / network egress data.
+
+## Snapshot for forensics
+
+Before things change further, dump current state:
+
+```bash
+# Snapshot the user's identity record
+psql -c "SELECT * FROM identities WHERE id = '$X'" > snapshot-identity.txt
+
+# Audit events for this user
+psql -c "SELECT * FROM security_audit WHERE identity_id = '$X' ORDER BY created_at" > snapshot-audit.txt
+
+# Active sessions
+psql -c "SELECT * FROM kratos.sessions WHERE identity_id = '$X'" > snapshot-sessions.txt
+```
+
+Don't modify before snapshotting. Evidence preservation.
+
+## Containment
+
+After understanding scope:
+
+1. Revoke all sessions for affected user(s).
+2. Disable affected credentials.
+3. Block attacker IP at Caddy.
+4. Block attacker IP at Cloudflare (if used).
+5. Force password reset for affected.
+6. Notify affected.
+
+```bash
+# Revoke sessions
+podman exec ciam-kratos kratos sessions revoke --identity-id $X --all
+
+# Disable password
+curl -X PATCH $KRATOS_ADMIN/admin/identities/$X -d '[{"op":"remove","path":"/credentials/password"}]'
+
+# Block IP
+echo "198.51.100.50" >> /etc/caddy/blocked-ips
+caddy reload
+```
+
+## Postmortem
+
+Within 5 days of incident:
+
+```
+What happened
+-------------
+[X account compromised between Y and Z, accessed by W.]
+
+Timeline
+--------
+[Chronological narrative from logs.]
+
+Impact
+------
+[Records / data accessed. Other accounts affected.]
+
+How they got in
+---------------
+[Password compromise / Phishing / etc.]
+
+What we did
+-----------
+[Containment, notification, recovery.]
+
+What we'd change
+----------------
+[Defenses, alerting, response time.]
+
+Action items
+------------
+[Implement X within Y days. Owner: Z.]
+```
+
+## Practice
+
+Don't wait for a real incident. Tabletop exercises:
+- Pretend an account is compromised.
+- Walk through detection, response, recovery.
+- Time the process.
+- Identify gaps.
+
+Quarterly is sane cadence.
+
+## Related
+
+- [Operate, Incident response](/docs/operate/backups-recovery/incident-response)
+- [Cookbook, Account takeover response](/docs/cookbook/defensive-security/account-takeover-response)
+- [Cookbook, Anomaly detection](/docs/cookbook/defensive-security/anomaly-detection)
+- [Operate, Audit log query](/docs/operate/audit-log-query)
+- [Cookbook, Audit log immutability](/docs/cookbook/defensive-security/audit-log-immutability)

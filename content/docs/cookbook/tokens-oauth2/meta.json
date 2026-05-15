@@ -1,0 +1,29 @@
+{
+  "title": "Tokens & OAuth2",
+  "pages": [
+    "access-token-from-cookie",
+    "add-custom-claim-id-token",
+    "add-oauth2-scope",
+    "api-gateway-pattern",
+    "api-versioning-with-scopes",
+    "cli-device-flow",
+    "cli-pat-tokens",
+    "jwt-claim-shaping",
+    "jwt-vs-opaque-tokens",
+    "m2m-call-from-worker",
+    "m2m-service-account",
+    "map-roles-to-scopes",
+    "oauth2-error-handling-app",
+    "oauth2-pkce-spa-detail",
+    "oidc-token-shapes",
+    "openid-iss-validation",
+    "openid-rp-initiated-logout",
+    "refresh-token-rotation",
+    "spa-token-refresh",
+    "validate-token-go",
+    "validate-token-node",
+    "validate-token-python",
+    "validate-token-rust",
+    "whoami-bff"
+  ]
+}

@@ -1,0 +1,233 @@
+---
+title: Build a product tour
+description: Onboard new users with guided in-app tour
+---
+
+After signup, point users at features they should know. A product tour reduces "how do I" tickets and accelerates time-to-value.
+
+## Pattern
+
+```
+1. User signs up + first login.
+2. Tour starts: spotlights first feature.
+3. User clicks "Next" through 4-7 steps.
+4. Tour completes. Optional: rerun later.
+```
+
+## Implementation
+
+Libraries:
+- [Driver.js](https://driverjs.com/), vanilla.
+- [Shepherd.js](https://shepherdjs.dev/), vanilla.
+- [react-joyride](https://github.com/gilbarbara/react-joyride), React.
+
+```tsx
+import Joyride from "react-joyride";
+
+const steps = [
+  { target: "#nav-projects", content: "Your projects are here." },
+  { target: "#create-button", content: "Click to create your first project." },
+  { target: "#settings-icon", content: "Update your profile in settings." },
+];
+
+export function Tour({ user }) {
+  const [run, setRun] = useState(!user.tour_completed);
+  
+  return (
+    <Joyride
+      steps={steps}
+      run={run}
+      callback={(data) => {
+        if (data.status === "finished" || data.status === "skipped") {
+          markTourComplete(user.id);
+          setRun(false);
+        }
+      }}
+    />
+  );
+}
+```
+
+## Persisting state
+
+```sql
+ALTER TABLE identities ADD COLUMN tour_completed BOOLEAN DEFAULT false;
+```
+
+Or in metadata:
+
+```ts
+await kratos.adminPatch(userId, [
+  { op: "add", path: "/metadata_public/tour_completed", value: true }
+]);
+```
+
+Don't re-show.
+
+## Tour content
+
+Keep each step tight:
+- 1-2 sentences.
+- One action ("Click this") or one feature.
+- Visual highlight.
+
+Bad:
+```
+"This is the projects nav. From here you can create new projects, edit existing ones, archive old ones, and share with teammates. To create a project, click..."
+```
+
+Too much.
+
+Good:
+```
+"Projects live here. Click to create your first."
+```
+
+## Skippable
+
+Always offer "skip":
+
+```tsx
+<Joyride showSkipButton={true} />
+```
+
+Users in a hurry: don't trap them.
+
+## Re-trigger
+
+Settings → "Restart product tour":
+
+```tsx
+<Button onClick={() => {
+  setTourCompleted(false);
+  startTour();
+}}>
+  Take the tour again
+</Button>
+```
+
+For when they forgot.
+
+## Different tours per role
+
+```ts
+const tours = {
+  admin: [adminSteps],
+  user: [userSteps],
+  support: [supportSteps],
+};
+const userTour = tours[user.role];
+```
+
+Show what's relevant to them.
+
+## Tour for new features
+
+When you ship feature X, existing users haven't seen it. Tour them:
+
+```ts
+const lastSeen = user.metadata.features_seen?.["new_export"];
+const featureLaunched = new Date("2026-05-01");
+if (!lastSeen && featureLaunched < user.created_at) {
+  showNewFeatureTour();
+}
+```
+
+```tsx
+const steps = [
+  { target: "#export-button", content: "Now you can export data! Click to try." },
+];
+```
+
+Single-step tour. "Hey, here's the new thing."
+
+## A/B test
+
+Different tour orderings, different copy. Measure activation rate.
+
+```ts
+const variant = hashToBucket(user.id, 2);
+const tour = variant === 0 ? tourA : tourB;
+```
+
+## Trigger on milestones
+
+Beyond signup:
+- First project created → tour about sharing.
+- First team member invited → tour about permissions.
+- First export → tour about scheduled reports.
+
+Just-in-time learning.
+
+## Tooltips (always-on hints)
+
+Quick info on hover:
+
+```tsx
+<Tooltip content="Click to share this project">
+  <ShareIcon />
+</Tooltip>
+```
+
+Discoverable without tour. Use for less-critical info.
+
+## Accessibility
+
+Tours can break for keyboard / screen reader users:
+- Make all controls keyboard-accessible.
+- ARIA labels.
+- Don't trap focus.
+
+Test with screen reader before shipping.
+
+## Mobile
+
+Tours on mobile are harder:
+- Limited screen.
+- Touch targets.
+- Different gestures.
+
+Consider:
+- Skip tour on mobile.
+- Different mobile-only tour.
+- Drag/swipe-based.
+
+## Analytics
+
+```ts
+posthog.capture("tour_started");
+posthog.capture("tour_step_completed", { step: 1 });
+posthog.capture("tour_skipped", { at_step: 3 });
+posthog.capture("tour_completed");
+```
+
+Find drop-off points. Improve copy / target.
+
+## Tour vs documentation
+
+Tour: how to use the app.
+Docs: deep reference for power users.
+
+Both. Tour for onboarding. Docs for everything else.
+
+## When to skip the tour
+
+Some users:
+- Returning users (have already used your app).
+- Imported users (don't need basics).
+- Specific roles (admins doing dev work).
+
+Skip via flag:
+
+```ts
+if (user.account_age > 30days || user.role === "admin") {
+  return null;
+}
+```
+
+## Related
+
+- [Cookbook, User onboarding checklist page](/docs/cookbook/tools/user-onboarding-checklist-page)
+- [Cookbook, Registration funnel optimization](/docs/cookbook/auth-flows/registration-funnel-optimization)
+- [Cookbook, Localize Hera UI](/docs/cookbook/ui-content/localize-hera-ui)
+- [Cookbook, Usage analytics events](/docs/cookbook/operations/usage-analytics-events)

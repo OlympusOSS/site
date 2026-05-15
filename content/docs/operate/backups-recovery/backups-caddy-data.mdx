@@ -1,0 +1,86 @@
+---
+title: Backups, Caddy data
+description: Backing up Caddy's certificate and ACME account state
+---
+
+Caddy stores its ACME account, issued certificates, and renewal state in `/data` (mapped to a named Compose volume). If this volume is lost:
+- Caddy re-requests certs from Let's Encrypt.
+- Hits the Let's Encrypt rate limit if many domains.
+- Service is degraded until rate limit clears.
+
+Backup is cheap and prevents this.
+
+## What's in `/data`
+
+```
+/data/caddy/
+├── certificates/
+│   └── acme-v02.api.letsencrypt.org-directory/
+│       └── <domain>/
+│           ├── <domain>.crt          # public cert
+│           ├── <domain>.key          # private key
+│           └── <domain>.json         # ACME metadata
+├── locks/
+└── ocsp/
+```
+
+`<domain>.key` is sensitive, treat the backup as you would secrets.
+
+## Backup
+
+Nightly cron:
+
+```bash
+# Snapshot the Caddy data volume
+podman volume inspect olympus_caddy_data --format '{{.Mountpoint}}'
+# Returns e.g. /var/lib/containers/storage/volumes/olympus_caddy_data/_data
+
+# Tar + encrypt
+tar czf - -C /var/lib/.../olympus_caddy_data _data \
+  | gpg --encrypt --recipient ops@your-domain.com \
+  > /backups/$(date +%Y%m%d)-caddy.tar.gz.gpg
+
+# Stash off-host
+rclone copy /backups/$(date +%Y%m%d)-caddy.tar.gz.gpg s3:olympus-backups/caddy/
+```
+
+## Retention
+
+- Daily: 14 days.
+- Weekly: 90 days.
+
+Certs are short-lived (90 days TTL); older backups have less value.
+
+## Restore
+
+```bash
+# Decrypt
+gpg --decrypt /backups/20260301-caddy.tar.gz.gpg > /tmp/caddy-restore.tar.gz
+
+# Stop Caddy
+podman compose stop caddy
+
+# Replace the volume contents
+podman volume inspect olympus_caddy_data --format '{{.Mountpoint}}'
+sudo tar xzf /tmp/caddy-restore.tar.gz -C /var/lib/.../olympus_caddy_data/
+
+# Start Caddy
+podman compose start caddy
+```
+
+Caddy resumes with the restored certs and won't re-request from Let's Encrypt unless they're near expiry.
+
+## When backup may be wrong / outdated
+
+- After cert renewal, the backup is stale by ~24h.
+- If you've added a new domain and not yet backed up, the new domain's certs aren't in the backup.
+
+Mitigate by:
+- Backing up more frequently if you have many domains.
+- After significant changes, manually trigger a backup before going home.
+
+## Related
+
+- [Operate, Cert rotation](/docs/operate/rotation/cert-rotation)
+- [Operate, Backups (Postgres)](/docs/operate/backups-recovery/backups-postgres)
+- [Security, Caddy supply chain](/docs/security/infrastructure/caddy-supply-chain)

@@ -1,0 +1,61 @@
+---
+title: Add Slack as a social login provider
+description: Sign in with Slack workspaces
+---
+
+Slack OAuth is useful when your app is collaboration-focused and your users live in Slack.
+
+## Step 1: Register a Slack app
+
+1. [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → From scratch.
+2. Pick the workspace it belongs to.
+3. **OAuth & Permissions** → Redirect URLs → add `https://ciam.your-domain/self-service/methods/oidc/callback/slack`.
+4. Set scopes: `openid`, `email`, `profile`.
+5. Install to workspace.
+6. Copy Client ID and Client Secret.
+
+## Step 2: Configure Kratos
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: slack
+            provider: generic
+            issuer_url: https://slack.com
+            client_id: <slack-client-id>
+            client_secret: <slack-client-secret>
+            scope: [openid, email, profile]
+            mapper_url: file:///etc/config/kratos/oidc.slack.jsonnet
+```
+
+`oidc.slack.jsonnet`:
+
+```text
+local claims = std.extVar('claims');
+{
+  identity: {
+    traits: {
+      email: claims.email,
+      name: { first: claims.given_name, last: claims.family_name },
+    },
+  },
+}
+```
+
+## Workspace restriction
+
+To restrict logins to one Slack workspace only, validate `team_id` claim post-OIDC. Kratos doesn't gate this natively; do it in a Kratos `after.oidc.hooks.web_hook` that rejects if `team_id != "T0123456"`.
+
+## Use cases
+
+- Internal tools where everyone has a Slack account.
+- Community products where the user base lives in a Slack community.
+- B2B with workspace SSO.
+
+## Related
+
+- [Identity, Social login](/docs/identity/social-login)
+- [Cookbook, Add Google](/docs/cookbook/social-login/add-social-provider-google)

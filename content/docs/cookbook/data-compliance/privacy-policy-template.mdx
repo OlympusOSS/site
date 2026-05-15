@@ -1,0 +1,131 @@
+---
+title: Privacy policy template (auth-specific sections)
+description: The identity-relevant parts of your privacy policy
+---
+
+A privacy policy is a legal document, your lawyer should write the final version. But the *auth-specific* sections are mostly mechanical. This is a starting template.
+
+> Disclaimer: not legal advice. Have a lawyer review the final document for your jurisdiction.
+
+## Data we collect for authentication
+
+| Field | Source | Purpose | Retention |
+|---|---|---|---|
+| Email address | Registration | Account identification, communication | Until account deleted + 30d |
+| Password hash (Argon2id) | Registration / settings | Authentication | Until account deleted |
+| Display name | User-provided | Personalization | Until account deleted |
+| Profile photo | User-provided (optional) | Personalization | Until removed by user |
+| OAuth provider identifiers | OIDC linking | Social login continuity | Until unlinked |
+| IP address at login | Automatic | Fraud detection, audit | 90 days |
+| User agent | Automatic | Device recognition, support | 90 days |
+| MFA factors (TOTP secret encrypted, WebAuthn credential ID) | Enrollment | 2FA | Until removed |
+| Backup codes (hashed) | MFA enrollment | Recovery | Until used or regenerated |
+| Login timestamps | Automatic | Audit, support | 12 months |
+| Failed login attempts | Automatic | Brute-force defense | 30 days |
+| Recovery tokens (hashed) | Recovery flow | Password reset | 1 hour after issue |
+
+## Legal basis (GDPR Article 6)
+
+- **Contract performance** (6(1)(b)): authentication itself, account management.
+- **Legal obligation** (6(1)(c)): audit logs retained per applicable financial / regulatory laws.
+- **Legitimate interest** (6(1)(f)): security telemetry, fraud detection. Balanced against user privacy.
+- **Consent** (6(1)(a)): optional marketing communications. NOT used for transactional auth emails.
+
+## Subprocessors used in authentication
+
+| Sub-processor | Role | Region |
+|---|---|---|
+| [Hosting provider] | Server hosting | [Region] |
+| [Email service] | Transactional email delivery | [Region] |
+| [Optional: SMS service] | SMS-based MFA | [Region] |
+
+## Cookies set by authentication
+
+| Cookie | Purpose | Lifetime | Type |
+|---|---|---|---|
+| `ory_kratos_session` | Identifies your session after login | 24 hours (default) | Essential |
+| `ory_hydra_login_csrf_*` | CSRF protection for OAuth2 login | Flow duration | Essential |
+| `ory_hydra_consent_csrf_*` | CSRF protection for consent screen | Flow duration | Essential |
+| `csrf_token` | Form-level CSRF protection | Browser session | Essential |
+
+All authentication cookies are classified as **strictly necessary** (no consent required under ePrivacy directive). They are HttpOnly, Secure, and SameSite=Lax.
+
+## Your rights
+
+Under GDPR (and most modern privacy laws), you have the right to:
+
+### Access
+Request a copy of all personal data we hold about you. Submit via your account settings → Privacy → Download my data. Response within 30 days.
+
+### Rectification
+Update inaccurate data: profile settings → edit.
+
+### Erasure (right to be forgotten)
+Delete your account: account settings → Delete account. Data is purged within 30 days except where retention is legally required.
+
+### Restriction
+Pause processing while a dispute is resolved. Contact `privacy@your-domain.com`.
+
+### Portability
+Export your data in machine-readable format (JSON). Self-serve via account settings → Privacy → Export.
+
+### Objection
+Object to processing under legitimate interest. Contact us; we'll evaluate.
+
+### Withdraw consent
+For consent-based processing (marketing): unsubscribe link in every email, or settings → Notifications.
+
+## Data retention
+
+| Data category | Retention |
+|---|---|
+| Account data | Active account: indefinite. Deleted account: 30 days then purged. |
+| Audit logs (security events) | 90 days (routine) / 2 years (security-relevant) |
+| Payment data | 7 years (tax regulations) |
+| Marketing data | Until consent withdrawn + 30 days |
+
+## Security
+
+- Passwords are hashed with Argon2id (memory: 64MB, parallelism: 2, iterations: 2).
+- Sensitive identity attributes are encrypted at rest (AES-256-GCM).
+- Database backups are encrypted.
+- TLS 1.3 in transit (HSTS preload).
+- Two-factor authentication recommended.
+- Quarterly access reviews.
+- Annual penetration testing (or as required by certifications).
+
+## Breach notification
+
+In the event of a personal data breach affecting your account, we will notify you within 72 hours of becoming aware (GDPR Article 33-34) via email and in-app notice.
+
+## International transfers
+
+We process data in [region]. If we transfer data outside [region], we rely on:
+- Adequacy decisions where available.
+- Standard Contractual Clauses (SCCs) where not.
+- Sub-processors with binding corporate rules.
+
+## Children
+
+Our service is not intended for users under 16 (or under 13 in the US per COPPA). We do not knowingly collect data from children. If we learn we have collected such data, we delete it.
+
+## Contact
+
+Data Protection Officer (if applicable): `dpo@your-domain.com`
+Privacy inquiries: `privacy@your-domain.com`
+Postal: [Your company address]
+
+EU representative (if applicable, Article 27): [Name and address]
+
+## Changes
+
+Material changes to this policy will be notified to active accounts via email and in-app banner at least 30 days before taking effect.
+
+Last updated: [Date]
+
+## Related
+
+- [Security, Compliance, GDPR](/docs/security/compliance/compliance-gdpr)
+- [Cookbook, GDPR DSR export](/docs/cookbook/data-compliance/gdpr-dsr-export)
+- [Cookbook, Self-service account deletion](/docs/cookbook/data-compliance/self-service-account-deletion)
+- [Cookbook, Data residency, EU](/docs/cookbook/data-compliance/data-residency-eu)

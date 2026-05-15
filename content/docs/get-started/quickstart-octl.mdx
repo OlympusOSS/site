@@ -13,10 +13,10 @@ npx @olympusoss/octl deploy
 
 That's the whole command. It will:
 
-1. **Detect and install dependencies** — Podman, `podman-compose`, and `kubectl` via Homebrew on macOS if not present. (On Linux, install Podman yourself before running.)
+1. **Detect and install dependencies**, Podman, `podman-compose`, and `kubectl` via Homebrew on macOS if not present. (On Linux, install Podman yourself before running.)
 2. **Initialize and start the Podman machine** if one isn't running.
 3. **Build dev images** for Athena, Hera, and Site if they aren't cached.
-4. **Start services** in dependency order — Postgres → Kratos/Hydra migrations → Ory services → apps → seed.
+4. **Start services** in dependency order, Postgres → Kratos/Hydra migrations → Ory services → apps → seed.
 5. **Verify health** of every service.
 6. **Print access URLs and test credentials.**
 
@@ -54,6 +54,6 @@ Stops every container, removes volumes, and removes the dev images. The Podman m
 
 ## Where next
 
-- [Access URLs and credentials](/docs/get-started/access-urls-and-credentials) — log into Athena.
-- [First login](/docs/get-started/first-login) — walk through a real login flow.
-- [Quickstart with podman compose](/docs/get-started/quickstart-podman-compose) — what `octl deploy` actually does, expanded.
+- [Access URLs and credentials](/docs/get-started/access-urls-and-credentials), log into Athena.
+- [First login](/docs/get-started/first-login), walk through a real login flow.
+- [Quickstart with podman compose](/docs/get-started/quickstart-podman-compose), what `octl deploy` actually does, expanded.

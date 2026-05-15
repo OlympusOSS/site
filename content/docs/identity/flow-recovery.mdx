@@ -43,10 +43,10 @@ Content-Type: application/json
 
 Kratos:
 1. Looks up the identity by `email` identifier.
-2. If found, generates a recovery code (HMAC-signed using `secrets.cipher` — see [ADR 0017](/docs/adrs/0017-recovery-hmac-token)).
+2. If found, generates a recovery code (HMAC-signed using `secrets.cipher`, see [ADR 0017](/docs/adrs/0017-recovery-hmac-token)).
 3. Embeds the code in a recovery URL: `https://ciam.<domain>/recovery?flow=FLOW_ID&token=<code>`.
 4. Sends the URL via Kratos courier.
-5. Returns 200 to Hera. **Whether or not the email exists, the response is identical** — this prevents enumeration.
+5. Returns 200 to Hera. **Whether or not the email exists, the response is identical**, this prevents enumeration.
 
 ## Step 3: User clicks the link
 
@@ -99,7 +99,7 @@ The new password is checked against HaveIBeenPwned before commit. A breach hit r
 
 ### Account-lockout doesn't apply
 
-Recovery isn't a login — the brute-force lockout doesn't gate it. (Brute-force protection at the email-sending layer is different — see [Security — Rate Limiting](/docs/security/rate-limiting) for Caddy-level rate-limit on `/self-service/recovery`.)
+Recovery isn't a login, the brute-force lockout doesn't gate it. (Brute-force protection at the email-sending layer is different, see [Security, Rate Limiting](/docs/security/web-attacks/rate-limiting) for Caddy-level rate-limit on `/self-service/recovery`.)
 
 ## What if the user is logged in?
 
@@ -112,13 +112,13 @@ If the user has an active Kratos session and goes through recovery, the new pass
 | "If your email is on file, you'll receive a recovery link" but no email | Either the email isn't in the database (intentional non-disclosure), or the courier failed. Check Athena → Messages or MailSlurper in dev. |
 | Link clicks return "this recovery link has expired" | Token TTL exceeded (default 1 hour). Re-initiate. |
 | Link clicks return "token already used" | Single-use; user clicked the link twice. Re-initiate. |
-| Email arrives but link goes to wrong domain | Kratos `selfservice.flows.recovery.ui_url` is misconfigured. Verify in [Reference — kratos.yml](/docs/reference/config/kratos-yml). |
+| Email arrives but link goes to wrong domain | Kratos `selfservice.flows.recovery.ui_url` is misconfigured. Verify in [Reference, kratos.yml](/docs/reference/config/kratos-yml). |
 | "This password has appeared in data breaches" | The new password is in HIBP. Pick a different one. |
 
 ## Related
 
-- [Identity — Flow login](/docs/identity/flow-login)
-- [Identity — Flow verification](/docs/identity/flow-verification)
-- [Identity — Flow settings](/docs/identity/flow-settings)
-- [ADR 0017 — Recovery HMAC token](/docs/adrs/0017-recovery-hmac-token)
-- [Security — Breached Password](/docs/security/breached-password)
+- [Identity, Flow login](/docs/identity/flow-login)
+- [Identity, Flow verification](/docs/identity/flow-verification)
+- [Identity, Flow settings](/docs/identity/flow-settings)
+- [ADR 0017, Recovery HMAC token](/docs/adrs/0017-recovery-hmac-token)
+- [Security, Breached Password](/docs/security/identity-protection/breached-password)

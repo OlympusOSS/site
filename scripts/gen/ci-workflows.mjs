@@ -85,8 +85,17 @@ for (const w of workflows) {
 				body += `Runs on: \`${job["runs-on"] || "(default)"}\`\n\n`;
 				body += `Steps:\n\n`;
 				for (const step of job.steps) {
-					const name = step.name || step.uses || step.run?.split("\n")[0]?.slice(0, 60) || "(unnamed)";
-					body += `- ${name.replace(/[`|]/g, "")}\n`;
+					// Prefer step.name, then step.uses, then the first line of step.run.
+					// Truncate long lines at a word boundary so we don't chop mid-word.
+					let raw = step.name || step.uses || step.run?.split("\n")[0] || "(unnamed)";
+					if (raw.length > 100) {
+						raw = `${raw.slice(0, 100).replace(/\s+\S*$/, "")}…`;
+					}
+					// Wrap in inline code so MDX/Turbopack doesn't interpret `${{ ... }}`
+					// (GitHub Actions expressions) as JSX. Strip backticks inside the
+					// name itself so the wrapper stays intact.
+					const safe = raw.replace(/`/g, "'").replace(/\|/g, "\\|");
+					body += `- \`${safe}\`\n`;
 				}
 				body += `\n`;
 			}

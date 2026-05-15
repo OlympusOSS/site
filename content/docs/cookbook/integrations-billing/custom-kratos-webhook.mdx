@@ -1,0 +1,112 @@
+---
+title: Custom Kratos webhook
+description: Hook into registration, login, recovery, or settings flows with your own backend
+---
+
+Kratos supports webhook hooks at specific points in each flow:
+- After registration.
+- Before/after login.
+- After password change.
+- Before/after recovery.
+- Before/after verification.
+
+Useful for: provisioning per-user resources, syncing to your CRM, sending welcome emails outside Kratos's courier.
+
+## Configure a webhook
+
+In `kratos.yml`:
+
+```yaml
+selfservice:
+  flows:
+    registration:
+      after:
+        password:
+          hooks:
+            - hook: web_hook
+              config:
+                url: https://your-backend/internal/post-registration
+                method: POST
+                auth:
+                  type: api_key
+                  config:
+                    name: Authorization
+                    value: Bearer <secret>
+                    in: header
+                body: file:///etc/config/kratos/hooks/post-registration.jsonnet
+                response:
+                  ignore: false
+                  parse: false
+```
+
+## The Jsonnet body
+
+`platform/prod/ciam-kratos/hooks/post-registration.jsonnet`:
+
+```text
+local ctx = std.extVar('ctx');
+{
+  identity_id: ctx.identity.id,
+  email: ctx.identity.traits.email,
+  registration_time: ctx.flow.issued_at,
+  source_ip: ctx.request_url,
+  // ... whatever you need
+}
+```
+
+`ctx` includes:
+- `ctx.identity`, the identity that just registered.
+- `ctx.flow`, the registration flow's state.
+- `ctx.request_url`, `ctx.request_headers`, original request metadata.
+
+## Your backend
+
+```ts
+export async function POST(request: Request) {
+  const auth = request.headers.get("authorization");
+  if (auth !== `Bearer ${process.env.KRATOS_WEBHOOK_SECRET}`) {
+    return new Response("unauth", { status: 401 });
+  }
+
+  const body = await request.json();
+  // body.identity_id, body.email, etc.
+
+  // Do stuff: send welcome email, create CRM contact, allocate quotas, etc.
+  await sendWelcomeEmail(body.email);
+  await createCrmContact({ id: body.identity_id, email: body.email });
+
+  return new Response(null, { status: 200 });
+}
+```
+
+## Synchronous vs async
+
+`response.ignore: false` means Kratos **waits** for your webhook's response before completing the flow. Slow webhooks slow user-visible registration.
+
+Recommended: webhook returns 200 fast, queues background work, processes async.
+
+If you set `response.ignore: true`, Kratos fires the webhook and proceeds regardless of the result. Good for telemetry, bad for anything user-visible.
+
+## Failure modes
+
+| What if your webhook is down? | Set `response.ignore: true` for non-critical hooks. Otherwise registration fails. |
+| What if your webhook is slow? | Same, registration hangs. Keep webhooks fast or async. |
+| Retry behavior? | Kratos doesn't retry. Implement idempotency on your side. |
+
+## Hook locations
+
+Available hook points (see [Kratos hooks docs](https://www.ory.sh/docs/kratos/hooks/configure-hooks)):
+
+| Flow | Available hooks |
+|---|---|
+| Registration | `after.password.hooks`, `after.oidc.hooks` |
+| Login | `before.hooks`, `after.password.hooks` |
+| Settings | `after.profile.hooks`, `after.password.hooks` |
+| Recovery | `after.hooks` |
+| Verification | `after.hooks` |
+
+## Related
+
+- [Identity, Flow registration](/docs/identity/flow-registration)
+- [Cookbook, Add custom claim to ID token](/docs/cookbook/tokens-oauth2/add-custom-claim-id-token)
+- [Internals, Hera Kratos integration](/docs/internals/hera/hera-kratos-integration)

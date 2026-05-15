@@ -13,14 +13,14 @@ The MFA Policy settings panel in Athena gives CIAM administrators control over m
 
 ## How It Works
 
-MFA policy is stored in the `ciam_settings` table via the SDK. Hera reads these settings at login time and enforces enrollment redirects when required. Kratos enforces AAL2 (second factor required if enrolled) natively — Athena and Hera handle the policy layer on top.
+MFA policy is stored in the `ciam_settings` table via the SDK. Hera reads these settings at login time and enforces enrollment redirects when required. Kratos enforces AAL2 (second factor required if enrolled) natively, Athena and Hera handle the policy layer on top.
 
 ### Policy Change Flow
 
 1. Administrator saves settings in the Athena MFA Policy panel
-2. Athena writes all setting keys atomically via `POST /api/settings/batch` (single Postgres transaction — all keys commit or none do)
+2. Athena writes all setting keys atomically via `POST /api/settings/batch` (single Postgres transaction, all keys commit or none do)
 3. SDK cache is invalidated; policy is live within the SDK TTL (default 60 seconds)
-4. Policy takes effect on the **next login** — existing active sessions are not invalidated
+4. Policy takes effect on the **next login**, existing active sessions are not invalidated
 
 ### User Login with MFA Required
 
@@ -35,7 +35,7 @@ When `mfa.required` is `true` and a user logs in:
 
 ### Grace Period Semantics (Case B)
 
-The grace period is measured from the moment `mfa.required` first transitions from `false` to `true`, stored as `mfa.policy_enabled_at`. All users — including those who registered before the policy was enabled — get the full grace window from the policy activation timestamp.
+The grace period is measured from the moment `mfa.required` first transitions from `false` to `true`, stored as `mfa.policy_enabled_at`. All users, including those who registered before the policy was enabled, get the full grace window from the policy activation timestamp.
 
 Grace period expiry computation (used in Hera middleware):
 
@@ -65,7 +65,7 @@ All MFA policy settings are stored in `ciam_settings` with category `mfa` via th
 | `mfa.grace_period_days` | integer | `0` | Athena | Hera middleware |
 | `mfa.policy_enabled_at` | ISO timestamp | `null` | Athena (automatic) | Hera middleware |
 
-`mfa.policy_enabled_at` is set automatically by Athena when `mfa.required` first transitions `false → true`. It is not rendered in the admin UI and cannot be set manually via the panel. It must never be overwritten after it is initially set — doing so resets the grace period for all existing users.
+`mfa.policy_enabled_at` is set automatically by Athena when `mfa.required` first transitions `false → true`. It is not rendered in the admin UI and cannot be set manually via the panel. It must never be overwritten after it is initially set, doing so resets the grace period for all existing users.
 
 ### Batch Settings Endpoint
 
@@ -96,7 +96,7 @@ Writes multiple settings atomically. All keys commit or none do (Postgres transa
 { "ok": true }
 ```
 
-**Response (failure — any key fails, full rollback)**:
+**Response (failure, any key fails, full rollback)**:
 
 ```json
 {
@@ -125,7 +125,7 @@ Writes multiple settings atomically. All keys commit or none do (Postgres transa
 
 The `mfa_no_methods_enabled` check is both client-side (disables the Save button) and server-side (returns `400` before any write is attempted). This prevents a complete platform lockout: if MFA is required but no method is enabled, users have no enrollment path.
 
-**Resulting-state evaluation (Guard C):** The server-side guard evaluates the *resulting state* after merging the payload with persisted values — not just the keys present in the payload. This means a batch that sends only `mfa.methods.totp=false` and `mfa.methods.webauthn=false` (without `mfa.required`) will trigger `mfa_no_methods_enabled` if `mfa.required` is already `true` in the database. The guard reads persisted values for any `mfa.*` keys absent from the payload and merges before validating the invariant.
+**Resulting-state evaluation (Guard C):** The server-side guard evaluates the *resulting state* after merging the payload with persisted values, not just the keys present in the payload. This means a batch that sends only `mfa.methods.totp=false` and `mfa.methods.webauthn=false` (without `mfa.required`) will trigger `mfa_no_methods_enabled` if `mfa.required` is already `true` in the database. The guard reads persisted values for any `mfa.*` keys absent from the payload and merges before validating the invariant.
 
 Example: guard triggers on a partial payload when MFA is already required:
 
@@ -141,10 +141,10 @@ curl -X POST \
     ]
   }' \
   http://localhost:3001/api/settings/batch
-# Returns 400 mfa_no_methods_enabled — mfa.required was read from DB and merged
+# Returns 400 mfa_no_methods_enabled, mfa.required was read from DB and merged
 ```
 
-**Zero-grace-period modal is UI-only:** When `mfa.required=true` and `mfa.grace_period_days=0`, the admin UI shows a confirmation modal before sending the batch request. This modal is a client-side safety prompt only — it is not enforced at the API level. Calling `POST /api/settings/batch` directly with this combination is accepted without confirmation. The server-side invariant enforced by this endpoint is Guard C (`mfa_no_methods_enabled`), not the zero-grace-period condition. See [Security Considerations — Mass lockout prevention](#mass-lockout-prevention) for the guard design rationale.
+**Zero-grace-period modal is UI-only:** When `mfa.required=true` and `mfa.grace_period_days=0`, the admin UI shows a confirmation modal before sending the batch request. This modal is a client-side safety prompt only, it is not enforced at the API level. Calling `POST /api/settings/batch` directly with this combination is accepted without confirmation. The server-side invariant enforced by this endpoint is Guard C (`mfa_no_methods_enabled`), not the zero-grace-period condition. See [Security Considerations, Mass lockout prevention](#mass-lockout-prevention) for the guard design rationale.
 
 ### MFA Stats Endpoint
 
@@ -172,7 +172,7 @@ Returns aggregate MFA enrollment statistics. Requires an authenticated admin ses
 
 Stats are computed by paginating the Kratos admin API (`GET /_admin/identities`) and counting enrolled credentials. Results are cached in-process with a 5-minute TTL. A background `setInterval` refreshes the cache every 4 minutes before the TTL expires.
 
-**Cold start**: On first load after Athena restarts, the stats call triggers inline Kratos pagination. For tenants with many identities this may take several seconds. The endpoint has a 10-second timeout — if pagination does not complete within 10 seconds, the endpoint resolves with a stats-unavailable response. The UI renders a loading spinner during this window (not an error state).
+**Cold start**: On first load after Athena restarts, the stats call triggers inline Kratos pagination. For tenants with many identities this may take several seconds. The endpoint has a 10-second timeout, if pagination does not complete within 10 seconds, the endpoint resolves with a stats-unavailable response. The UI renders a loading spinner during this window (not an error state).
 
 **Stats UI states** (three distinct states):
 
@@ -188,7 +188,7 @@ Stats are computed by paginating the Kratos admin API (`GET /_admin/identities`)
 # Read current MFA settings on page load
 GET /api/settings?category=mfa
 
-# Write MFA settings (batch — use this, not individual POSTs)
+# Write MFA settings (batch, use this, not individual POSTs)
 POST /api/settings/batch
 
 # Read enrollment stats on page load
@@ -200,7 +200,7 @@ GET /api/mfa/stats
 The Athena batch endpoint requires the `batchSetSettings()` function from `@olympusoss/sdk`:
 
 ```typescript
-// Atomic multi-key write — all keys commit or none do (Postgres transaction)
+// Atomic multi-key write, all keys commit or none do (Postgres transaction)
 await batchSetSettings([
   { key: 'mfa.required', value: 'true', category: 'mfa' },
   { key: 'mfa.methods.totp', value: 'true', category: 'mfa' },
@@ -269,7 +269,7 @@ This state occurs if `mfa.required` is seeded directly via the SDK without going
 
 ### SDK cache staleness (60-second window)
 
-After an admin disables MFA Required, users continue to see the enforcement redirect for up to 60 seconds until the SDK cache expires. This is a V1 limitation — inform operators so they set accurate expectations.
+After an admin disables MFA Required, users continue to see the enforcement redirect for up to 60 seconds until the SDK cache expires. This is a V1 limitation, inform operators so they set accurate expectations.
 
 ### `grace_period_days` stored as string
 
@@ -286,13 +286,13 @@ The Athena UI shows an inline warning before saving when `mfa.methods.totp` is b
 When `mfa.required` transitions `false → true` with `grace_period_days = 0`, Athena shows a confirmation modal before writing:
 
 - **Stats available path**: "You are enabling MFA enforcement with a 0-day grace period. Users without MFA enrolled will be required to enroll immediately on their next login. [N enrolled / M total] users are currently enrolled."
-- **Stats unavailable path**: "We cannot confirm how many users will be affected by this change. MFA grace period is 0 days — unenrolled users will be blocked on their next login. Proceed anyway?"
+- **Stats unavailable path**: "We cannot confirm how many users will be affected by this change. MFA grace period is 0 days, unenrolled users will be blocked on their next login. Proceed anyway?"
 
 Both paths require explicit admin confirmation. This modal also fires when stats are unavailable and `mfa.required` is being enabled (regardless of grace period value), since the admin cannot see the enrollment impact.
 
 ### Stats cold start on large tenants
 
-For tenants with 10K+ identities, the first stats load after Athena restarts may take up to the 10-second timeout. The UI shows a loading spinner during this time. The save button is available while stats are loading — but if the admin enables `mfa.required` while stats are still loading, the zero-grace confirmation (if applicable) fires with "Stats unavailable" copy.
+For tenants with 10K+ identities, the first stats load after Athena restarts may take up to the 10-second timeout. The UI shows a loading spinner during this time. The save button is available while stats are loading, but if the admin enables `mfa.required` while stats are still loading, the zero-grace confirmation (if applicable) fires with "Stats unavailable" copy.
 
 ### Concurrent admin saves
 
@@ -304,11 +304,11 @@ Two concurrent admin saves that both transition `mfa.required` from `false` to `
 
 ### V1 browser-only enforcement limitation
 
-MFA enforcement in V1 applies only to browser-based logins through Hera. Clients that authenticate directly against Kratos — API clients, mobile SDKs, server-side integrations, machine-to-machine flows — obtain valid Kratos sessions with no MFA challenge regardless of the `mfa.required` policy setting.
+MFA enforcement in V1 applies only to browser-based logins through Hera. Clients that authenticate directly against Kratos, API clients, mobile SDKs, server-side integrations, machine-to-machine flows, obtain valid Kratos sessions with no MFA challenge regardless of the `mfa.required` policy setting.
 
 The MFA Policy page displays a persistent informational notice: "MFA enforcement applies to browser-based logins through Olympus. Applications using the Kratos API directly, mobile SDKs, and machine-to-machine flows are not covered by this policy in V1."
 
-This limitation is documented in ADR-002. The correct V2 enforcement layer is the Hydra consent flow — reject token issuance when the session AAL is below AAL2 and `mfa.required` is true. Tracked as SR-MFA-3.
+This limitation is documented in ADR-002. The correct V2 enforcement layer is the Hydra consent flow, reject token issuance when the session AAL is below AAL2 and `mfa.required` is true. Tracked as SR-MFA-3.
 
 **SOC2 note**: V1 browser-only enforcement means MFA coverage is incomplete for API integrations. Any SOC2 audit documentation must note this limitation explicitly. Do not claim end-to-end MFA enforcement in V1 audit controls.
 
@@ -326,11 +326,11 @@ Never set `grace_period_days = 0` without reviewing the unenrolled user count. U
 
 ### `mfa.policy_enabled_at` invariant
 
-The batch handler must never overwrite `mfa.policy_enabled_at` if it is already set in the database. The handler reads the current DB value before constructing the batch — it does not use the submitted payload to determine whether to write this key. A unit test enforces this invariant as a CI gate.
+The batch handler must never overwrite `mfa.policy_enabled_at` if it is already set in the database. The handler reads the current DB value before constructing the batch, it does not use the submitted payload to determine whether to write this key. A unit test enforces this invariant as a CI gate.
 
 ### Input validation
 
-`mfa.grace_period_days` is validated server-side: must be a non-negative integer in `[0, 365]`. The Canvas `Input[type=number, min=0]` is not a security control — server-side validation is the gate.
+`mfa.grace_period_days` is validated server-side: must be a non-negative integer in `[0, 365]`. The Canvas `Input[type=number, min=0]` is not a security control, server-side validation is the gate.
 
 ### Audit logging
 
@@ -338,17 +338,17 @@ Every successful `POST /api/settings/batch` emits a structured audit log entry: 
 
 ### Stats endpoint access
 
-`GET /api/mfa/stats` is an authenticated admin-only route. The Athena middleware gate validates the session and admin role before the handler runs. Unauthenticated requests return `401`. Stats contain only aggregate counts — no individual user identification data is returned.
+`GET /api/mfa/stats` is an authenticated admin-only route. The Athena middleware gate validates the session and admin role before the handler runs. Unauthenticated requests return `401`. Stats contain only aggregate counts, no individual user identification data is returned.
 
 ---
 
 ## Related
 
-- [athena#48](https://github.com/OlympusOSS/athena/issues/48) — feature story
-- [athena#67](https://github.com/OlympusOSS/athena/issues/67) — Guard C: server-side invariant preventing mfa.required=true with no methods
-- [athena#68](https://github.com/OlympusOSS/athena/issues/68) — Zero-grace-period confirmation modal (SR-MFA-2)
-- [platform#14](https://github.com/OlympusOSS/platform/issues/14) — MFA policy setting keys and stats endpoint design
-- [platform#13](https://github.com/OlympusOSS/platform/issues/13) — TOTP implementation
+- [athena#48](https://github.com/OlympusOSS/athena/issues/48), feature story
+- [athena#67](https://github.com/OlympusOSS/athena/issues/67), Guard C: server-side invariant preventing mfa.required=true with no methods
+- [athena#68](https://github.com/OlympusOSS/athena/issues/68), Zero-grace-period confirmation modal (SR-MFA-2)
+- [platform#14](https://github.com/OlympusOSS/platform/issues/14), MFA policy setting keys and stats endpoint design
+- [platform#13](https://github.com/OlympusOSS/platform/issues/13), TOTP implementation
 ---
 
-*Last updated: 2026-04-06 (Technical Writer — athena#67 Guard C resulting-state evaluation, athena#68 zero-grace-period modal UI-only note)*
+*Last updated: 2026-04-06 (Technical Writer, athena#67 Guard C resulting-state evaluation, athena#68 zero-grace-period modal UI-only note)*

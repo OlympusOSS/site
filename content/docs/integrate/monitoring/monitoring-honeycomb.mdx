@@ -1,0 +1,107 @@
+---
+title: Honeycomb integration
+description: Distributed tracing for Olympus with Honeycomb
+---
+
+[Honeycomb](https://honeycomb.io) excels at high-cardinality observability, finding the one user whose auth flow broke last night. Useful for Olympus's many-service chain (Caddy → Hera → Kratos → Postgres).
+
+## Setup
+
+Use OpenTelemetry, then ship to Honeycomb.
+
+### Per app
+
+```bash
+bun add @opentelemetry/api @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node \
+  @opentelemetry/exporter-trace-otlp-http
+```
+
+`instrumentation.ts` (load before any other imports):
+
+```ts
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+
+const sdk = new NodeSDK({
+  traceExporter: new OTLPTraceExporter({
+    url: "https://api.honeycomb.io/v1/traces",
+    headers: { "x-honeycomb-team": process.env.HONEYCOMB_API_KEY! },
+  }),
+  instrumentations: [getNodeAutoInstrumentations()],
+  serviceName: "athena",
+});
+sdk.start();
+```
+
+### Kratos / Hydra
+
+Ory binaries support OpenTelemetry natively. Add to `kratos.yml`:
+
+```yaml
+tracing:
+  provider: otel
+  providers:
+    otlp:
+      sampling_ratio: 0.1
+      server_url: https://api.honeycomb.io
+      insecure: false
+  service_name: kratos-ciam
+```
+
+Same for `hydra.yml` with `service_name: hydra-ciam`.
+
+## What to instrument
+
+Per-request:
+- HTTP request → response (auto).
+- Kratos flow ID (`flow_id`).
+- Identity ID (`user.id`).
+- Domain (`olympus.domain: ciam | iam`).
+- Auth method (`auth.method: password | oidc | webauthn`).
+
+Custom span:
+
+```ts
+import { trace } from "@opentelemetry/api";
+
+const tracer = trace.getTracer("athena");
+
+async function deleteIdentity(id: string) {
+  return tracer.startActiveSpan("identity.delete", async (span) => {
+    span.setAttribute("identity.id", id);
+    try {
+      await kratosDelete(id);
+      span.setStatus({ code: 1 }); // OK
+    } catch (e) {
+      span.recordException(e as Error);
+      span.setStatus({ code: 2, message: (e as Error).message });
+      throw e;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+## Honeycomb queries
+
+Useful queries:
+
+- **Slow login flows**: `WHERE service.name = "kratos" AND http.target = "/self-service/login" GROUP BY http.status_code HEAVY_HITTERS duration`
+- **Locked accounts in last 1h**: trace events with `event_type = "lockout.applied"`.
+- **Failed OAuth2 by client**: `WHERE service.name = "hydra" AND oauth2.error = "invalid_grant" GROUP BY oauth2.client_id`.
+
+## BubbleUp
+
+Honeycomb's BubbleUp surfaces what distinguishes outliers. Critical for auth: when 5% of logins fail, BubbleUp tells you "they all have `user_agent: iOS 18.0.1`."
+
+## Cost
+
+Free tier: 20M events/month. Paid: starts ~$130/mo.
+
+## Related
+
+- [Operate, Logs and observability](/docs/operate/monitoring/logs-and-observability)
+- [Integrate, Sentry integration](/docs/integrate/monitoring/monitoring-sentry)
+- [Cookbook, Analytics destination](/docs/cookbook/operations/analytics-destination)

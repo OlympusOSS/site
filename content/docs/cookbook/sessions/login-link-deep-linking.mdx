@@ -1,0 +1,238 @@
+---
+title: Preserve deep links across sign-in
+description: User clicks a link, gets sent to login, lands at the original
+---
+
+User has a URL `https://your-app.com/projects/123/edit`. They're not signed in. Site redirects to login. After login: they should land at the original URL, not the dashboard.
+
+## Pattern
+
+```
+1. User visits /projects/123/edit (not signed in).
+2. Middleware sees no session → redirects to /login?return_to=/projects/123/edit.
+3. User signs in.
+4. Login page reads return_to → redirects to /projects/123/edit after success.
+```
+
+## Implementation
+
+### Middleware
+
+```ts
+// middleware.ts
+export async function middleware(req) {
+  const session = await getSession(req);
+  if (!session && isProtectedPath(req.nextUrl.pathname)) {
+    const returnTo = encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search);
+    return NextResponse.redirect(`/login?return_to=${returnTo}`, req.url);
+  }
+}
+```
+
+### Login page
+
+```tsx
+// app/login/page.tsx
+"use client";
+import { useSearchParams } from "next/navigation";
+
+export default function Login() {
+  const params = useSearchParams();
+  const returnTo = params.get("return_to") ?? "/";
+  
+  async function onSubmit(data) {
+    const result = await signIn(data);
+    if (result.ok) {
+      window.location.href = returnTo;  // back to original
+    }
+  }
+  
+  return <LoginForm onSubmit={onSubmit} />;
+}
+```
+
+## Security: validate the URL
+
+NEVER trust `return_to` blindly. Attacker could send users to phishing:
+
+```
+/login?return_to=https://attacker.com/fake-login
+```
+
+After login, redirect to attacker's site → they pretend to ask for password again → user types it.
+
+Validate:
+
+```ts
+function safeReturnTo(returnTo: string): string {
+  // Only allow same-origin paths
+  if (!returnTo.startsWith("/")) return "/";
+  if (returnTo.startsWith("//")) return "/";  // protocol-relative
+  return returnTo;
+}
+```
+
+Block:
+- Full URLs (`https://...`).
+- Protocol-relative (`//attacker.com`).
+- Anything not starting with `/`.
+
+## OAuth2 state
+
+For OAuth2 flows, use `state` parameter for return URL:
+
+```ts
+// SPA initiates
+const state = btoa(JSON.stringify({ returnTo: window.location.pathname }));
+window.location.href = `${HYDRA}/oauth2/auth?state=${state}&...`;
+```
+
+On callback:
+```ts
+const state = new URLSearchParams(window.location.search).get("state");
+const { returnTo } = JSON.parse(atob(state));
+window.location.href = safeReturnTo(returnTo);
+```
+
+`state` is OAuth2-protected (verified on callback for CSRF).
+
+## Kratos return_to
+
+Kratos's login flow has `return_to`:
+
+```
+/self-service/login/browser?return_to=/projects/123/edit
+```
+
+After successful login, Kratos redirects to `return_to`. Validates against `allowed_return_urls` config:
+
+```yaml
+selfservice:
+  allowed_return_urls:
+    - https://your-app.com
+    - https://staging.your-app.com
+```
+
+Only listed origins/prefixes accepted.
+
+## Across subdomains
+
+User on `app.your-domain.com` redirected to `ciam.your-domain.com/login`. After login, back to `app.your-domain.com`.
+
+Allowed URLs must include the app subdomain:
+
+```yaml
+allowed_return_urls:
+  - https://app.your-domain.com
+  - https://billing.your-domain.com
+```
+
+## Anti-patterns
+
+### Storing in localStorage
+
+```ts
+localStorage.setItem("returnTo", window.location.href);
+// At login, read it.
+```
+
+Doesn't work cross-domain. Use URL param.
+
+### Server-side cookie
+
+```ts
+// On 401, set cookie with intended path
+res.cookie("return_to", req.url);
+res.redirect("/login");
+```
+
+Works but adds cookie state. Less explicit. Prefer URL param.
+
+## Edge cases
+
+### POST requests
+
+User submits a form → 401. URL param doesn't carry form data.
+
+Options:
+- Show "your session expired" page; user re-submits.
+- Briefly cache request body server-side, replay after auth.
+
+For most cases: ask user to re-submit. Trying to "replay" raises security issues (the body wasn't auth'd at the time).
+
+### Already-signed-in users
+
+If user is already signed in and visits `/login?return_to=X`, redirect to `X` immediately:
+
+```ts
+if (session) {
+  return redirect(safeReturnTo(returnTo));
+}
+```
+
+Avoids confusing "click login when already logged in" loop.
+
+### OAuth2 deep link
+
+User clicks `/projects/123/edit`. Middleware → OAuth2 flow → callback → ?
+
+Callback handler must preserve `return_to`:
+
+```ts
+// /api/auth/callback
+const { state } = req.query;
+const { returnTo } = JSON.parse(atob(state));
+// Exchange code, set session, then:
+return res.redirect(safeReturnTo(returnTo));
+```
+
+## Login page brand intent
+
+```
+Sign in to continue to /projects/123/edit
+```
+
+Show what they're being redirected to. User context-aware.
+
+```tsx
+<h1>Sign in to continue</h1>
+{returnTo !== "/" && (
+  <p className="muted">You'll be redirected to {prettyName(returnTo)}</p>
+)}
+```
+
+## Tracking
+
+Track conversion:
+- Visited deep link → redirected to login.
+- Signed in.
+- Returned to deep link.
+
+If gap between sign-in and deep-link-return: bug. Investigate.
+
+## Cross-app deep links
+
+Multi-app SaaS:
+- App A redirects to login.
+- Login is on different subdomain.
+- After login, back to App A.
+
+Same pattern. Allowed URLs in Kratos config.
+
+## Magic link emails
+
+Email contains:
+```
+https://your-app.com/login?token=abc&return_to=/welcome
+```
+
+After token validates → return to /welcome (the post-signup tour).
+
+Different from session expiry deep linking but same concept.
+
+## Related
+
+- [Identity, Login flow](/docs/identity/login-flow)
+- [Cookbook, Customize Hera UI](/docs/cookbook/customize-hera-ui)
+- [Cookbook, OpenID RP-initiated logout](/docs/cookbook/tokens-oauth2/openid-rp-initiated-logout)
+- [Security, CSRF defense](/docs/security/web-attacks/csrf-defense)

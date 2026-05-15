@@ -26,7 +26,7 @@ sequenceDiagram
 
     Note over Attacker: Attempts 2-5 (similar)
 
-    Note over Attacker: Attempt 6 — threshold hit
+    Note over Attacker: Attempt 6, threshold hit
     Attacker->>Hera: POST login
     Hera->>SDK: isLockedOut("ciam", "victim@example.com")
     SDK->>DB: SELECT count(*) FROM login_attempts<br/>WHERE identifier=... AND created_at > NOW()-15min<br/>AND success=false
@@ -54,10 +54,10 @@ The lockout is **per identifier**. The Caddy rate limit is **per IP**. Both fire
 
 ## Manual unlock
 
-Admins can unlock via Athena → Locked Accounts. See [Operate — Locked account unlock](/docs/operate/locked-account-unlock).
+Admins can unlock via Athena → Locked Accounts. See [Operate, Locked account unlock](/docs/operate/backups-recovery/locked-account-unlock).
 
 ## Where to learn more
 
-- [Security — Brute-force protection](/docs/security/brute-force)
-- [Security — Account lockout](/docs/security/account-lockout)
-- [Cookbook — Test brute-force locally](/docs/cookbook/test-brute-force-locally)
+- [Security, Brute-force protection](/docs/security/web-attacks/brute-force)
+- [Security, Account lockout](/docs/security/web-attacks/account-lockout)
+- [Cookbook, Test brute-force locally](/docs/cookbook/tools/test-brute-force-locally)

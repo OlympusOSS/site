@@ -59,7 +59,7 @@ If state doesn't match (step 16), Kratos rejects. If nonce doesn't match (step 2
 
 Step 17-18: Kratos exchanges the authorization code for tokens directly with Google (backend-to-backend). The user's browser never sees Google's tokens.
 
-This is Authorization Code grant — appropriate because Kratos can hold a client_secret. (For pure SPAs, you'd use PKCE without client_secret; Kratos uses the secret because it's a confidential client to Google.)
+This is Authorization Code grant, appropriate because Kratos can hold a client_secret. (For pure SPAs, you'd use PKCE without client_secret; Kratos uses the secret because it's a confidential client to Google.)
 
 ### Token verification
 
@@ -110,7 +110,7 @@ If no match → check by email (if your mapper sets email):
   - If existing identity with this email but no OIDC credential → link (subject to your linking policy).
   - Otherwise → new identity.
 
-See [Cookbook — Account linking](/docs/cookbook/account-linking-strategies) for the trade-offs.
+See [Cookbook, Account linking](/docs/cookbook/auth-flows/account-linking-strategies) for the trade-offs.
 
 ## Why these checks matter
 
@@ -140,7 +140,7 @@ Step 17 fails. Kratos returns 503. User retries.
 
 ## See also
 
-- [Identity — Social login](/docs/identity/social-login)
-- [Cookbook — Add social provider — Google](/docs/cookbook/add-social-provider-google)
-- [Cookbook — Account linking strategies](/docs/cookbook/account-linking-strategies)
-- [Reference — Diagrams — Social login linking](/docs/reference/diagrams/seq-social-login-link)
+- [Identity, Social login](/docs/identity/social-login)
+- [Cookbook, Add social provider, Google](/docs/cookbook/social-login/add-social-provider-google)
+- [Cookbook, Account linking strategies](/docs/cookbook/auth-flows/account-linking-strategies)
+- [Reference, Diagrams, Social login linking](/docs/reference/diagrams/seq-social-login-link)

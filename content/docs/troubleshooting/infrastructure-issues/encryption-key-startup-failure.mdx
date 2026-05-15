@@ -1,0 +1,114 @@
+---
+title: encryption_key_not_set startup failure
+description: Container refuses to start with encryption_key_not_set or encryption_key_blocklisted
+---
+
+Athena, Hera, and Site each call into the Olympus SDK on startup. The SDK validates that `ENCRYPTION_KEY` is set and not on the blocklist of known-weak values. A failed check fatally rejects the container.
+
+## Error shapes
+
+The exact error appears in the container log on the first second after start:
+
+### Missing `ENCRYPTION_KEY`
+
+```
+[FATAL] ENCRYPTION_KEY is required but not set.
+[FATAL] Generate one with: openssl rand -base64 32
+[FATAL] Refusing to start.
+```
+
+### Blocklisted `ENCRYPTION_KEY`
+
+```
+[FATAL] ENCRYPTION_KEY is on the encryption-key blocklist.
+[FATAL] This value is publicly known. Generate a new one with: openssl rand -base64 32
+[FATAL] Refusing to start.
+```
+
+### Malformed `ENCRYPTION_KEY`
+
+```
+[FATAL] ENCRYPTION_KEY decoded to <N> bytes, expected exactly 32.
+[FATAL] Refusing to start.
+```
+
+## Why it's checked
+
+The SDK encrypts sensitive settings (OAuth2 client secrets, social IdP secrets, SMTP credentials) using `ENCRYPTION_KEY` as the master key. Without a valid key, the app can't read any of its own encrypted settings, it would crash later on the first settings read. Failing at startup is loud and instructive; failing later would be cryptic.
+
+The blocklist covers values like:
+- Defaults from sample `.env.example` files in this repo.
+- Empty string.
+- Predictable patterns (`"changeme"`, `"replaceme"`, `"00000000000000000000000000000000"`).
+- Known-published values from blog posts and tutorials.
+
+See [Security, Encryption Key Blocklist](/docs/security/encryption-keys/encryption-key-blocklist) for the full list.
+
+## Fix, missing key
+
+Generate a 32-byte key:
+
+```bash
+openssl rand -base64 32
+```
+
+Set it in the deployment environment. The path depends on where you deploy:
+
+### Local dev (`octl deploy`)
+
+`octl deploy` should have generated `.env.dev` with a valid key. If you've deleted `.env.dev` or it's corrupted:
+
+```bash
+# Regenerate
+octl deploy --reset
+```
+
+### Production (Daedalus or manual)
+
+Set `ENCRYPTION_KEY` in your GitHub repository Secrets:
+
+```bash
+gh secret set ENCRYPTION_KEY --body "$(openssl rand -base64 32)" -R OlympusOSS/platform
+```
+
+Then trigger the `deploy.yml` workflow. The new value is injected into the container env.
+
+### Production (custom infrastructure-as-code)
+
+Update wherever your env vars come from (Terraform, K8s secret, etc.) and redeploy.
+
+## Fix, blocklisted key
+
+Generate a new key, same `openssl rand -base64 32`. The blocklist exists to catch accidents; once you have a freshly generated random value, you'll pass.
+
+The keys on the blocklist are public knowledge or trivially guessable. **Do not "edit" a blocklisted value to make it not match** (e.g. by appending one character). The right move is always to generate a fresh random key.
+
+## Fix, malformed key
+
+`ENCRYPTION_KEY` must base64-decode to exactly 32 bytes:
+
+```bash
+echo -n "$ENCRYPTION_KEY" | base64 -d | wc -c
+# expected: 32
+```
+
+If the value came from an env var, check that no trailing newline or whitespace got concatenated. The `openssl rand -base64 32` output is fine; if you copy-pasted it through a quoted environment, you might have inadvertently included `'` or `"` characters.
+
+## Why the container restarts forever
+
+Compose's `restart: always` will keep restarting the container, each restart fails the same check, and you'll see the log message repeated every few seconds. This is intentional, it means a deploy with a misconfigured key is loud and impossible to miss.
+
+Once you fix the key, the container starts cleanly within seconds of the next start attempt.
+
+## What if I've forgotten my old key?
+
+If you set `ENCRYPTION_KEY` to a real value, encrypted some settings, then **lost** the key, those settings are unrecoverable. The encryption is sound; there's no backdoor.
+
+You can wipe the encrypted settings rows from the `olympus` database, set a new `ENCRYPTION_KEY`, and start over. You'll lose all encrypted settings (OAuth2 client secrets, social IdP credentials, SMTP credentials) and need to re-enter them. This is a destructive operation, keep your `ENCRYPTION_KEY` in a password manager.
+
+## Related
+
+- [Security, Encryption at Rest](/docs/security/encryption-keys/encryption-at-rest), what's encrypted, how.
+- [Security, Encryption Key Blocklist](/docs/security/encryption-keys/encryption-key-blocklist), the blocklist.
+- [Operate, Encryption Key Rotation](/docs/operate/rotation/encryption-key-rotation), when and how to rotate.
+- [ADR 0007, Encryption Key Blocklist](/docs/adrs/0007-encryption-key-blocklist), why we have the blocklist.

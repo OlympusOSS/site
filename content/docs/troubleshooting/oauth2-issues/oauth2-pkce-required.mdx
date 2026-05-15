@@ -1,0 +1,91 @@
+---
+title: OAuth2 pkce_required
+description: Hydra rejects a public-client flow without PKCE
+---
+
+```
+error: invalid_request
+error_description: PKCE is required for public clients
+```
+
+Olympus enforces PKCE for all public OAuth2 clients ([ADR 0019](/docs/adrs/0019-pkce-mandatory-public-clients)). A flow without `code_challenge` against a public client (`token_endpoint_auth_method=none`) fails immediately.
+
+## Fix
+
+Add PKCE to your authorization request:
+
+```ts
+// 1. Generate a verifier
+const codeVerifier = base64url(crypto.randomBytes(32));
+
+// 2. Hash it for the challenge
+const codeChallenge = base64url(
+  crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier))
+);
+
+// 3. Store the verifier somewhere durable across the redirect
+sessionStorage.setItem('pkce_verifier', codeVerifier);
+
+// 4. Include the challenge in /oauth2/auth
+const url = new URL(`${ISSUER}/oauth2/auth`);
+url.search = new URLSearchParams({
+  client_id: CLIENT_ID,
+  response_type: 'code',
+  redirect_uri: REDIRECT,
+  scope: 'openid profile email',
+  state: generateState(),
+  code_challenge: codeChallenge,
+  code_challenge_method: 'S256',
+}).toString();
+window.location.href = url.toString();
+```
+
+On callback:
+
+```ts
+const verifier = sessionStorage.getItem('pkce_verifier');
+const response = await fetch(`${ISSUER}/oauth2/token`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: CLIENT_ID,
+    code,
+    redirect_uri: REDIRECT,
+    code_verifier: verifier,
+  }),
+});
+```
+
+## Common mistakes
+
+### Using `plain` instead of `S256`
+
+Olympus only accepts `S256`. The deprecated `plain` method (sending the verifier as the challenge directly) is rejected as `unsupported_challenge_method`.
+
+### Verifier lost across the redirect
+
+If the verifier was in memory only and the page reloaded between `/oauth2/auth` and `/callback`, it's gone. Use `sessionStorage` or an HttpOnly cookie.
+
+### Verifier shorter than 43 characters
+
+RFC 7636 requires the verifier be 43-128 unreserved characters. Anything shorter is rejected.
+
+### Client is confidential
+
+If your client has a `client_secret` (confidential client), PKCE is **optional** (recommended but not required). The error wouldn't fire for confidential clients. If you're seeing it, you registered as public, verify in Athena → OAuth2 Clients → your client.
+
+## Why not just disable PKCE enforcement?
+
+You can't. Olympus enforces it at multiple layers:
+- Hydra config: `oauth2.pkce.enforced_for_public_clients: true`.
+- Athena UI: public clients show PKCE as required, not editable.
+- `verify-prod-config.yml` CI: fails the build if PKCE enforcement is turned off in production.
+
+If you genuinely need a non-PKCE public flow, the client probably should be confidential (deploy a backend that holds the secret).
+
+## Related
+
+- [Integrate, OAuth2 PKCE](/docs/integrate/oauth2/oauth2-pkce)
+- [Security, PKCE enforcement](/docs/security/identity-protection/pkce-enforcement)
+- [ADR 0019, PKCE mandatory for public clients](/docs/adrs/0019-pkce-mandatory-public-clients)

@@ -75,7 +75,7 @@ sequenceDiagram
 
 ## Refresh / extension
 
-Default Kratos config: `lifespan: 24h`. Each call to `whoami` does NOT extend by default — the user must re-authenticate after 24h.
+Default Kratos config: `lifespan: 24h`. Each call to `whoami` does NOT extend by default, the user must re-authenticate after 24h.
 
 For sliding expiration (extend on activity):
 
@@ -145,7 +145,7 @@ Daily cron. Otherwise the sessions table grows indefinitely.
 
 ## See also
 
-- [Identity — Sessions](/docs/identity/sessions)
-- [Security — Session cookies](/docs/security/session-cookies)
-- [Cookbook — Enforce step-up auth](/docs/cookbook/enforce-step-up-auth)
-- [Cookbook — Rotate session signing key](/docs/cookbook/rotate-session-signing-key)
+- [Identity, Sessions](/docs/identity/sessions)
+- [Security, Session cookies](/docs/security/identity-protection/session-cookies)
+- [Cookbook, Enforce step-up auth](/docs/cookbook/mfa/enforce-step-up-auth)
+- [Cookbook, Rotate session signing key](/docs/cookbook/secrets-encryption/rotate-session-signing-key)

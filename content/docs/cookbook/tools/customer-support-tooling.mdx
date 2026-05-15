@@ -1,0 +1,217 @@
+---
+title: Customer support tooling
+description: Athena features for your support team
+---
+
+When a customer emails support, the support agent needs to:
+- Look up the user.
+- See their recent activity.
+- Help reset their password.
+- Diagnose login issues.
+- (Sometimes) make changes on their behalf.
+
+Athena has tools for this. Plus, you can build custom support tooling on top.
+
+## Athena's built-in support views
+
+### Identity search
+
+```
+Athena → Identities → search by email
+```
+
+Returns:
+- Profile (name, email, role).
+- Credentials enrolled (password, MFA factors).
+- Recent sessions (where signed in from).
+- Recent audit events.
+
+### Specific actions
+
+| Action | What it does |
+|---|---|
+| Resend verification email | Triggers email courier |
+| Force password reset | Issues recovery link, user must reset |
+| Revoke all sessions | Signs user out everywhere |
+| Lock account | Sets state=inactive |
+| Disable MFA (with auth) | Removes user's MFA factor |
+| Add OAuth client grant | For testing |
+
+## Support workflows
+
+### Workflow A: "I can't log in"
+
+1. Search by email.
+2. Identity exists?
+   - No → "Account not found. Did you sign up?"
+   - Yes → Check audit log for recent failed logins.
+3. Recent failures?
+   - Yes → Locked? Unlock or guide to recovery.
+   - No → Walk through login (UI issue?).
+
+### Workflow B: "I lost my MFA device"
+
+1. Verify identity out-of-band (call back, KBA).
+2. In Athena, disable MFA for the user.
+3. They sign in with password.
+4. They re-enroll MFA.
+5. Audit: log "support_mfa_disabled" with admin id and reason.
+
+### Workflow C: "Someone hacked my account"
+
+1. Revoke all sessions.
+2. Force password reset.
+3. Disable account temporarily.
+4. Send security notification.
+5. Investigate audit log.
+6. See [Account takeover response](/docs/cookbook/defensive-security/account-takeover-response).
+
+## Custom support UI
+
+Beyond Athena, you might want a support-specific tool:
+
+```tsx
+// app/support/user/[id]/page.tsx
+import { kratos } from "@/lib/kratos";
+
+export default async function UserView({ params }) {
+  const id = params.id;
+  const identity = await kratos.adminGetIdentity(id);
+  const sessions = await kratos.adminListSessions({ identity_id: id });
+  const audits = await db`
+    SELECT * FROM security_audit 
+    WHERE identity_id = ${id} 
+    ORDER BY created_at DESC LIMIT 20
+  `;
+  
+  return (
+    <Layout>
+      <UserProfile identity={identity} />
+      <ActiveSessions sessions={sessions} />
+      <RecentActivity audits={audits} />
+      <Actions identity={identity} />
+    </Layout>
+  );
+}
+```
+
+Show:
+- Profile.
+- Subscription / plan (if you have one).
+- Tickets they've opened (link to support tool).
+- Recent audit events.
+
+Limit to support-team role only.
+
+## Permissions
+
+Support agents have access to:
+- ✓ Read any user's profile.
+- ✓ Read any user's audit log.
+- ✓ Trigger password reset emails.
+- ✓ Lock/unlock accounts.
+- ✗ Read passwords (impossible, hashed).
+- ✗ Read MFA secrets (impossible).
+- ✗ Read OAuth2 tokens.
+- ✗ Change billing.
+- ✗ Delete accounts (escalate).
+- ✗ Impersonate (escalate).
+
+Permissions:
+
+```ts
+function canSupportAction(supportUser, action) {
+  const roles = {
+    support_l1: ["read_user", "reset_password", "unlock_account"],
+    support_l2: [...above, "disable_mfa", "lock_account"],
+    support_l3: [...above, "delete_account", "impersonate"],
+  };
+  return roles[supportUser.role].includes(action);
+}
+```
+
+## Audit trail
+
+EVERY support action logged:
+
+```ts
+await db.insert(support_actions).values({
+  agent_id: supportUser.id,
+  target_id: customerId,
+  action: "password_reset",
+  reason: ticketUrl,
+  timestamp: new Date(),
+});
+```
+
+Customer can see what support did:
+
+```
+Settings → Account activity
+  - May 5, 2:30 PM: Support agent reset your password (ticket #12345)
+```
+
+Transparency.
+
+## Information not to share
+
+Support should NEVER:
+- Tell a user "your password contains this character."
+- Email a user's data to themselves (always confirm identity first).
+- Acknowledge whether an email is registered (unless asked by that email's owner).
+
+Pose answers to test:
+- "Hi, I'm Alice, did I make an account at alice@example.com?"
+- BAD: "Yes, you have an account."
+- GOOD: "I can help, please log in to verify."
+
+## Ticket linkage
+
+Embed ticket URL when taking action:
+
+```tsx
+<form action={resetPassword}>
+  <textarea name="reason" placeholder="Ticket #..." required />
+  <button>Reset password</button>
+</form>
+```
+
+Store in the action log. Auditor / oversight: every action has a referenced reason.
+
+## Impersonation (rare)
+
+Sometimes support needs to actually log in as the user to reproduce a bug. This is impersonation, see [Admin impersonate user](/docs/cookbook/tools/admin-impersonate-user).
+
+Reserved for tier 3 (senior support / engineer). Always logged. User notified.
+
+## Out-of-band verification
+
+For high-stakes changes (MFA disable, account delete), verify identity beyond just email:
+- Callback to user's phone on record.
+- Security questions (only if you have them, see [recovery questions](/docs/cookbook/auth-flows/account-recovery-questions)).
+- Video verification.
+- Government ID.
+
+The threshold scales with the action.
+
+## Saved searches
+
+Common queries support uses:
+
+- "Users created in last hour", verify signup is working.
+- "Failed logins for this user", see patterns.
+- "Users with this email domain", bulk operations for company.
+
+Save as quick links in Athena's UI:
+
+```tsx
+<SidebarLink href="/identities?q=created:>1h">Recent signups</SidebarLink>
+<SidebarLink href="/audit?event=login_failed">Recent failed logins</SidebarLink>
+```
+
+## Related
+
+- [Operate, Locked account unlock](/docs/operate/backups-recovery/locked-account-unlock)
+- [Cookbook, Admin impersonate user](/docs/cookbook/tools/admin-impersonate-user)
+- [Operate, Audit log query](/docs/operate/audit-log-query)
+- [Cookbook, Account takeover response](/docs/cookbook/defensive-security/account-takeover-response)

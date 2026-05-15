@@ -5,7 +5,7 @@ description: Every environment variable referenced across every Olympus containe
 
 This catalog lists every environment variable referenced in Olympus source code. The presence of a checkmark in a column means that repo's source reads the variable.
 
-The catalog is generated at build time by grepping `process.env.X` (TypeScript) and `std::env::var("X")` (Rust). If a variable is referenced but missing from this list, the catalog is stale — re-run `bun run scripts/gen/env-vars.mjs`.
+The catalog is generated at build time by grepping `process.env.X` (TypeScript) and `std::env::var("X")` (Rust). If a variable is referenced but missing from this list, the catalog is stale, re-run `bun run scripts/gen/env-vars.mjs`.
 
 ## Catalog
 

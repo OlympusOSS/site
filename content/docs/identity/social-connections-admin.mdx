@@ -5,13 +5,13 @@ description: Managing OIDC social provider connections from Athena
 
 ## Overview
 
-The Social Connections page in Athena CIAM lets administrators configure OAuth2/OIDC social login providers. In V1, Google is the only active provider. Changes to non-secret config (enable/disable, scopes, display name) take effect immediately via the SIGHUP sidecar — no Kratos restart is needed. Changes to the client secret always require a Kratos container restart.
+The Social Connections page in Athena CIAM lets administrators configure OAuth2/OIDC social login providers. In V1, Google is the only active provider. Changes to non-secret config (enable/disable, scopes, display name) take effect immediately via the SIGHUP sidecar, no Kratos restart is needed. Changes to the client secret always require a Kratos container restart.
 
 ---
 
 ## How It Works
 
-Config is stored in the SDK `ciam_settings` table. When an admin saves a non-secret change, Athena calls the SIGHUP sidecar (`POST /internal/kratos/reload`). The sidecar generates a Kratos OIDC config fragment, writes it to a shared named volume, and sends `kill -HUP 1` to the Kratos container via PID namespace sharing — Kratos hot-reloads without a restart and without dropping active sessions.
+Config is stored in the SDK `ciam_settings` table. When an admin saves a non-secret change, Athena calls the SIGHUP sidecar (`POST /internal/kratos/reload`). The sidecar generates a Kratos OIDC config fragment, writes it to a shared named volume, and sends `kill -HUP 1` to the Kratos container via PID namespace sharing, Kratos hot-reloads without a restart and without dropping active sessions.
 
 Client secret changes follow a different path: Athena stores the encrypted secret in the SDK but does not call the sidecar. The admin is instructed to restart `ciam-kratos` with the updated `GOOGLE_CLIENT_SECRET` env var.
 
@@ -21,7 +21,7 @@ See `docs/project-knowledge/social-login.md` for the full architecture, SIGHUP s
 
 ## API / Technical Details
 
-### `GET /api/connections/public` (unauthenticated — Hera integration)
+### `GET /api/connections/public` (unauthenticated, Hera integration)
 
 - **Authentication**: None. Registered outside `ADMIN_PREFIXES`.
 - **Purpose**: Returns the list of enabled provider IDs for Hera to render social login buttons.
@@ -36,13 +36,13 @@ See `docs/project-knowledge/social-login.md` for the full architecture, SIGHUP s
 { "providers": [] }
 ```
 
-Response normalization: "not configured" and "configured but disabled" are both represented as `{ "providers": [] }` — these states are indistinguishable from the outside (Security Condition 2, platform#15).
+Response normalization: "not configured" and "configured but disabled" are both represented as `{ "providers": [] }`, these states are indistinguishable from the outside (Security Condition 2, platform#15).
 
 **V2 advisory**: The response returns provider ID strings only. Hera derives display names locally. If a V2 provider requires a non-derivable display name, extend the response shape to `{ "providers": [{ "id": "google", "display_name": "Google" }] }`. Do not modify the V1 shape without coordination.
 
 ---
 
-### `GET /api/connections/social` (admin — authenticated)
+### `GET /api/connections/social` (admin, authenticated)
 
 - **Authentication**: Admin session required. `ADMIN_PREFIXES` middleware applies.
 - **Purpose**: Returns full connection config for the admin UI.
@@ -66,12 +66,12 @@ Response normalization: "not configured" and "configured but disabled" are both 
 `client_secret` is always masked. The plaintext value is never returned.
 
 **Error responses**:
-- `401` — no admin session (`{ "error": "Unauthorized", "code": 401 }`)
-- `403` — authenticated but not admin (`{ "error": "Forbidden", "code": 403 }`)
+- `401`, no admin session (`{ "error": "Unauthorized", "code": 401 }`)
+- `403`, authenticated but not admin (`{ "error": "Forbidden", "code": 403 }`)
 
 ---
 
-### `POST /api/connections/social` (admin — authenticated)
+### `POST /api/connections/social` (admin, authenticated)
 
 Create or update a social connection.
 
@@ -100,7 +100,7 @@ Create or update a social connection.
 }
 ```
 
-`secretChanged: true` means the client secret was updated — the sidecar was NOT called, and a Kratos restart is required.
+`secretChanged: true` means the client secret was updated, the sidecar was NOT called, and a Kratos restart is required.
 
 **SDK write order**: The T8 route writes SDK keys in this mandatory sequence:
 1. `social.<provider>.provider_id`
@@ -115,7 +115,7 @@ If any write in the sequence fails, `clearProviderSettings()` removes all keys w
 
 ---
 
-### `PATCH /api/connections/social/:provider` (admin — authenticated)
+### `PATCH /api/connections/social/:provider` (admin, authenticated)
 
 Toggle enabled/disabled. Always triggers a SIGHUP reload.
 
@@ -125,7 +125,7 @@ Toggle enabled/disabled. Always triggers a SIGHUP reload.
 
 ---
 
-### `DELETE /api/connections/social/:provider` (admin — authenticated)
+### `DELETE /api/connections/social/:provider` (admin, authenticated)
 
 Remove a social connection. Deletes all `social.<provider>.*` keys from `ciam_settings` and triggers a SIGHUP reload.
 
@@ -146,7 +146,7 @@ All write endpoints (`POST`, `PATCH`, `DELETE`) return a `reloadStatus` field. T
 | `"unreachable"` | Athena could not connect to sidecar. Config persisted in SDK. Check sidecar status. |
 | `"auth_failed"` | Sidecar returned HTTP 401. `CIAM_RELOAD_API_KEY` mismatch. Correct key and restart both containers. |
 | `"misconfigured"` | `CIAM_KRATOS_RELOAD_URL` env var unset. No outbound call attempted. Config persisted in SDK. |
-| `"skipped"` | `client_secret` was changed — sidecar intentionally not called. The response always includes `secretChanged: true` when this status is returned. This is the client-side mechanism for detecting the secret-changed state and displaying the restart warning. Kratos restart required. |
+| `"skipped"` | `client_secret` was changed, sidecar intentionally not called. The response always includes `secretChanged: true` when this status is returned. This is the client-side mechanism for detecting the secret-changed state and displaying the restart warning. Kratos restart required. |
 
 ---
 
@@ -154,12 +154,12 @@ All write endpoints (`POST`, `PATCH`, `DELETE`) return a `reloadStatus` field. T
 
 | Key | Encrypted | Notes |
 |-----|-----------|-------|
-| `social.<provider>.provider_id` | No | Existence marker — written first; presence signals a complete record |
+| `social.<provider>.provider_id` | No | Existence marker, written first; presence signals a complete record |
 | `social.<provider>.enabled` | No | Written second |
 | `social.<provider>.client_id` | No | Written third |
 | `social.<provider>.display_name` | No | Written fourth |
 | `social.<provider>.client_secret` | Yes (AES-256-GCM) | Written last |
-| `social.connections_order` | No | JSON array — controls button order in V2 |
+| `social.connections_order` | No | JSON array, controls button order in V2 |
 
 ---
 
@@ -199,7 +199,7 @@ curl -X PATCH http://localhost:3001/api/connections/social/google \
 |----------|----------|
 | POST with blank `client_secret` on edit | Blank = no change. Existing encrypted secret preserved. Non-secret fields updated normally. |
 | POST with `client_secret` non-empty | Secret rotation path: stored encrypted, sidecar not called, `secretChanged: true` returned. |
-| SDK write fails mid-sequence (partial_save) | `clearProviderSettings()` runs automatically. HTTP 500 returned. Admin must retry — no manual cleanup needed. |
+| SDK write fails mid-sequence (partial_save) | `clearProviderSettings()` runs automatically. HTTP 500 returned. Admin must retry, no manual cleanup needed. |
 | Unknown provider in POST/PATCH/DELETE | 400 returned immediately. No SDK write attempted. |
 | Sidecar down during save | `reloadStatus: "unreachable"`. Config persisted in SDK. Restart sidecar and retrigger a non-secret save. |
 | Delete while users are active | Existing Kratos sessions remain valid. Only new login attempts via that provider are blocked. |
@@ -210,9 +210,9 @@ curl -X PATCH http://localhost:3001/api/connections/social/google \
 
 - `client_secret` is stored encrypted (AES-256-GCM via SDK). Never returned in any API response. Displayed as `••••••••` in the admin UI.
 - Authentication enforcement is at route registration level (`ADMIN_PREFIXES`), not inside handler logic. The public route (`/api/connections/public`) is registered entirely separately.
-- `X-Reload-Api-Key` header used for sidecar authentication must never appear in Athena logs. The header is redacted at the application layer in `src/services/kratos/reload.ts` (implemented in athena#89 — required merge gate before athena#49 ships).
+- `X-Reload-Api-Key` header used for sidecar authentication must never appear in Athena logs. The header is redacted at the application layer in `src/services/kratos/reload.ts` (implemented in athena#89, required merge gate before athena#49 ships).
 - The sidecar reload endpoint is internal-network only. Caddy blocks all `/internal/*` paths. Port 3110 has no host binding.
-- Audit log entries are emitted for all write operations (create, update, enable, disable, delete) — required for SOC2 CC6.2. Audit logging is tracked separately in athena#90.
+- Audit log entries are emitted for all write operations (create, update, enable, disable, delete), required for SOC2 CC6.2. Audit logging is tracked separately in athena#90.
 - All write endpoints (`POST`, `PATCH`, `DELETE`) on `/api/connections/social` require an admin session enforced by middleware.
 
 > **Security:** Do not set `DEBUG=axios*` in production. Axios debug logging emits raw request headers before application-level redaction runs. Setting this variable will expose `X-Reload-Api-Key` in server logs regardless of the redaction logic in `src/services/kratos/reload.ts`.
@@ -223,9 +223,9 @@ curl -X PATCH http://localhost:3001/api/connections/social/google \
 
 | Reference | Description |
 |-----------|-------------|
-| platform#15 | Epic: Social Login Connections — Google OIDC + SIGHUP sidecar |
-| athena#49 | This feature — admin config panel for social connections |
+| platform#15 | Epic: Social Login Connections, Google OIDC + SIGHUP sidecar |
+| athena#49 | This feature, admin config panel for social connections |
 | athena#89 | Prerequisite: Redact `X-Reload-Api-Key` from Athena request logs (must be merged before athena#49 ships) |
 | athena#90 | Audit logging for social connection config changes (SOC2 CC6.2) |
-| hera#30 | Dynamic social login button rendering — must use `GET /api/connections/public` |
+| hera#30 | Dynamic social login button rendering, must use `GET /api/connections/public` |
 | `docs/project-knowledge/social-login.md` | Full platform-level social login doc (architecture, SIGHUP sidecar, Google setup guide, environment variables) |

@@ -1,0 +1,69 @@
+---
+title: Reload API key invalid
+description: Schema reload from Athena fails with reload_api_key_invalid
+---
+
+```
+error: reload_api_key_invalid
+```
+
+Athena's "Reload schema" button triggers a request to the Kratos reload sidecar (see [ADR 0018](/docs/adrs/0018-reload-api-key-sidecar)). The sidecar validates the API key; mismatch = this error.
+
+## Causes
+
+### Key was rotated but not redeployed
+
+You changed `CIAM_RELOAD_API_KEY` in GitHub Secrets but didn't redeploy. Athena holds the old value, sidecar holds the new value, mismatch.
+
+Fix: redeploy. The next deploy pushes the new key to both containers.
+
+### Athena and sidecar see different keys
+
+If your deploy renders different env vars into different containers, they may end up with different `CIAM_RELOAD_API_KEY` values.
+
+Check:
+```bash
+ssh prod 'podman exec ciam-athena env | grep RELOAD'
+ssh prod 'podman exec ciam-kratos-reload env | grep RELOAD'
+```
+
+They must match. If they differ, your env-var injection logic is bugged.
+
+### Key is empty
+
+If the secret is unset in GitHub Secrets, containers start with an empty key. The empty-string match would technically succeed, but the sidecar typically refuses empty keys.
+
+Fix: set the secret.
+
+## Recovery
+
+For a one-time bypass while the key issue is fixed:
+
+```bash
+# SSH into the sidecar container and trigger SIGHUP manually
+ssh prod 'podman exec ciam-kratos kill -HUP 1'
+```
+
+This reloads Kratos's config without going through the sidecar. Then fix the key.
+
+## Verify
+
+Generate a fresh key:
+
+```bash
+openssl rand -base64 32
+```
+
+Set in GitHub Secrets:
+```bash
+gh secret set CIAM_RELOAD_API_KEY --body "<new>"
+gh secret set IAM_RELOAD_API_KEY --body "<other-new>"
+```
+
+Redeploy. Test the reload button in Athena.
+
+## Related
+
+- [Operate, Reload API key rotation](/docs/operate/rotation/reload-api-key-rotation)
+- [ADR 0018, Reload API key sidecar](/docs/adrs/0018-reload-api-key-sidecar)
+- [Security, Secrets management](/docs/security/encryption-keys/secrets-management)

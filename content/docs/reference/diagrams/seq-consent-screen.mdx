@@ -85,7 +85,7 @@ Hydra has a `skip` field on each request:
 
 ### The "double redirect"
 
-You see `GET /oauth2/auth?...` twice — once initially, once after login (step 17). This is because Hydra splits authentication and authorization into two passes:
+You see `GET /oauth2/auth?...` twice, once initially, once after login (step 17). This is because Hydra splits authentication and authorization into two passes:
 1. First pass: determine if login is needed. If so, redirect to Hera. If not, proceed.
 2. Second pass: determine if consent is needed. If so, redirect to Hera. If not, issue code.
 
@@ -142,7 +142,7 @@ Flow expires after configured TTL (default 30 min). Next request: fresh login_ch
 
 ### Same scope, different audience
 
-If client A and client B both request `api:read`, the consent is independent — granting to A doesn't grant to B. Trust boundary is per-client.
+If client A and client B both request `api:read`, the consent is independent, granting to A doesn't grant to B. Trust boundary is per-client.
 
 ### "Trusted" first-party clients
 
@@ -156,7 +156,7 @@ OR auto-accept consent in your Hera consent handler if `client.metadata.first_pa
 
 ## See also
 
-- [Identity — OAuth2 consent](/docs/identity/oauth2-consent)
-- [Cookbook — Brand consent screen](/docs/cookbook/brand-consent-screen)
-- [Reference — OAuth2 grants — Authorization Code](/docs/reference/oauth2/grant-authorization-code)
-- [Reference — Diagrams — Authorization Code + PKCE](/docs/reference/diagrams/seq-authorization-code-pkce)
+- [Identity, OAuth2 consent](/docs/identity/oauth2-consent)
+- [Cookbook, Brand consent screen](/docs/cookbook/ui-content/brand-consent-screen)
+- [Reference, OAuth2 grants, Authorization Code](/docs/reference/oauth2/grant-authorization-code)
+- [Reference, Diagrams, Authorization Code + PKCE](/docs/reference/diagrams/seq-authorization-code-pkce)

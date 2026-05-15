@@ -1,0 +1,272 @@
+---
+title: Saved audit views and dashboards
+description: Common queries packaged for ops
+---
+
+Ops folks repeatedly run the same audit queries: "failed logins this week," "admin actions today," "MFA changes." Save them.
+
+## Storage
+
+```sql
+CREATE TABLE saved_audit_views (
+  id UUID PRIMARY KEY,
+  owner_id UUID,                -- whose view (NULL for global)
+  name TEXT NOT NULL,
+  description TEXT,
+  query JSONB NOT NULL,         -- filters
+  shared BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+Global views: shared with whole team.
+Personal views: only owner sees.
+
+## Sample global views
+
+```ts
+const STANDARD_VIEWS = [
+  {
+    name: "Failed logins (last 24h)",
+    query: { event_type: "login", outcome: "failure", since: "24h" },
+  },
+  {
+    name: "Admin actions (last 7 days)",
+    query: { event_type__in: ["admin_user_locked", "admin_role_changed", "admin_session_revoked"], since: "7d" },
+  },
+  {
+    name: "MFA changes",
+    query: { event_type__in: ["mfa_enrolled", "mfa_removed"], since: "30d" },
+  },
+  {
+    name: "Password changes",
+    query: { event_type: "password_changed", since: "7d" },
+  },
+  {
+    name: "OAuth consent revocations",
+    query: { event_type: "oauth_consent_revoked", since: "30d" },
+  },
+];
+```
+
+Seeded on first deploy.
+
+## UI
+
+Sidebar:
+
+```tsx
+<aside>
+  <h3>Saved views</h3>
+  {standardViews.map(v => (
+    <a href={`/audit?view=${v.id}`}>{v.name}</a>
+  ))}
+  
+  <h3>My views</h3>
+  {personalViews.map(v => (
+    <a href={`/audit?view=${v.id}`}>{v.name}</a>
+  ))}
+</aside>
+```
+
+Click → audit page filtered.
+
+## Save current
+
+```tsx
+<Button onClick={saveCurrent}>Save this view</Button>
+```
+
+```ts
+async function saveCurrent() {
+  const name = prompt("View name:");
+  if (!name) return;
+  await fetch("/api/audit/views", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      query: getCurrentFilters(),
+      owner_id: user.id,
+    }),
+  });
+}
+```
+
+User saves current filter combo. Reuses later.
+
+## Live counters
+
+Sidebar shows current count:
+
+```tsx
+{view.name} <Badge>{liveCount}</Badge>
+```
+
+```ts
+const liveCount = await fetch(`/api/audit/count?${querystring(view.query)}`);
+```
+
+User sees "Failed logins (last 24h): 234." If number spikes, attention.
+
+## Dashboards
+
+A dashboard is multiple views laid out:
+
+```sql
+CREATE TABLE dashboards (
+  id UUID PRIMARY KEY,
+  name TEXT,
+  layout JSONB,     -- array of {view_id, position, size}
+  owner_id UUID,
+  shared BOOLEAN
+);
+```
+
+```tsx
+function Dashboard({ id }) {
+  const { views } = useDashboard(id);
+  return (
+    <Grid>
+      {views.map(v => (
+        <Widget key={v.view_id}>
+          <h4>{v.name}</h4>
+          <Counter value={v.count} />
+          <Sparkline data={v.history} />
+        </Widget>
+      ))}
+    </Grid>
+  );
+}
+```
+
+Drag-and-drop arrangement.
+
+## Auto-refresh
+
+```tsx
+useEffect(() => {
+  const interval = setInterval(() => router.refresh(), 30000);
+  return () => clearInterval(interval);
+}, []);
+```
+
+30s refresh. Real-time-ish.
+
+## Alerts from views
+
+```sql
+CREATE TABLE view_alerts (
+  view_id UUID,
+  threshold INTEGER,    -- alert if count above this
+  notify_channel TEXT,  -- email | slack | webhook
+  created_at TIMESTAMPTZ
+);
+```
+
+Cron checks views, alerts if threshold exceeded:
+
+```bash
+*/5 * * * * node check-view-alerts.js
+```
+
+```ts
+for (const alert of alerts) {
+  const count = await queryView(alert.view_id);
+  if (count > alert.threshold) {
+    await sendAlert(alert.notify_channel, `View "${alert.name}" has ${count} events (threshold: ${alert.threshold})`);
+  }
+}
+```
+
+Threshold-based monitoring.
+
+## Sharing
+
+```tsx
+<Button onClick={shareView}>Share with team</Button>
+```
+
+```ts
+async function shareView() {
+  await fetch(`/api/audit/views/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ shared: true }),
+  });
+}
+```
+
+Now visible to whole team.
+
+## Export
+
+Each view supports CSV export:
+
+```tsx
+<Button onClick={exportView}>Export CSV</Button>
+```
+
+```ts
+const events = await queryView(viewId, { all: true });
+const csv = toCsv(events);
+download(csv, `${viewName}.csv`);
+```
+
+For external analysis.
+
+## Templates
+
+For different roles:
+
+```ts
+// Support agent template
+const SUPPORT_VIEWS = [
+  "Recent failed logins",
+  "Account lockouts (last 24h)",
+  "Recovery requests (today)",
+];
+
+// Security analyst template
+const SECURITY_VIEWS = [
+  "Failed logins (last 7d)",
+  "Brute-force IPs",
+  "Sudden geo changes",
+  "Admin actions on flagged accounts",
+];
+```
+
+Seed per role.
+
+## Customizable
+
+```tsx
+<form action={editView}>
+  <input name="name" defaultValue={view.name} />
+  <textarea name="description" defaultValue={view.description} />
+  <input name="query" defaultValue={JSON.stringify(view.query)} />
+  <Button>Save</Button>
+</form>
+```
+
+Edit existing view.
+
+## Audit of audit views
+
+Yes, log changes:
+
+```sql
+INSERT INTO security_audit (event_type, actor_id, metadata)
+VALUES (
+  'audit_view_created',
+  $user_id,
+  '{"name": "$name", "query": "$query"}'
+);
+```
+
+Who created what.
+
+## Related
+
+- [Cookbook, Admin audit page](/docs/cookbook/tools/admin-audit-page)
+- [Cookbook, Audit search language](/docs/cookbook/defensive-security/audit-search-language)
+- [Cookbook, Dashboard overview page](/docs/cookbook/operations/dashboard-overview-page)
+- [Operate, Audit log query](/docs/operate/audit-log-query)

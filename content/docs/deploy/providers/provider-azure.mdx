@@ -1,0 +1,73 @@
+---
+title: Provider, Azure (Virtual Machine)
+description: Deploy Olympus on an Azure VM
+---
+
+Azure isn't natively supported by Daedalus. Use [Direct SSH](/docs/deploy/providers/provider-direct-ssh).
+
+## VM creation
+
+```bash
+az vm create \
+  --resource-group olympus-rg \
+  --name olympus-prod \
+  --image Ubuntu2204 \
+  --size Standard_B2s \
+  --admin-username azureuser \
+  --ssh-key-values ~/.ssh/id_rsa.pub
+```
+
+`Standard_B2s` (2 vCPU, 4GB RAM): ~$30/month. B-series instances are burstable, good for Olympus's bursty auth traffic pattern.
+
+## Network security group
+
+```bash
+az network nsg rule create \
+  --resource-group olympus-rg \
+  --nsg-name olympus-prodNSG \
+  --name AllowHTTPS \
+  --priority 100 \
+  --destination-port-ranges 80 443 \
+  --access Allow --protocol Tcp
+```
+
+Restrict SSH (port 22) to your IP only.
+
+## Azure Database for PostgreSQL
+
+```bash
+az postgres flexible-server create \
+  --resource-group olympus-rg \
+  --name olympus-db \
+  --location eastus \
+  --tier Burstable \
+  --sku-name Standard_B1ms \
+  --version 17
+```
+
+Configure `verify-full` SSL, Azure provides the CA cert.
+
+## Azure DNS
+
+Use Azure DNS or your existing DNS provider for the Olympus subdomain records.
+
+## Managed identity vs service principal
+
+For CI/CD deploys from GitHub Actions:
+- Create a service principal with `Contributor` role on `olympus-rg`.
+- Store credentials in GitHub Secrets.
+- Use the `azure/login@v1` action in your deploy workflow.
+
+## Cost estimate (1k MAU)
+
+- VM B2s: $30/mo
+- Flexible Postgres B1ms: $25/mo
+- Bandwidth: ~$5
+- **Total: ~$60/mo**
+
+Pricier than DigitalOcean for equivalent specs but useful if your org already uses Azure.
+
+## Where next
+
+- [Deploy, Provider, Direct SSH](/docs/deploy/providers/provider-direct-ssh)
+- [Operate, Backups (Postgres)](/docs/operate/backups-recovery/backups-postgres)

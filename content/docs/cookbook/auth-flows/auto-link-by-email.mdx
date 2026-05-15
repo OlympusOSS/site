@@ -1,0 +1,181 @@
+---
+title: Auto-link OIDC providers by verified email
+description: When it's safe to auto-merge identities
+---
+
+The default safe behavior is NOT to auto-link identities by email. But sometimes you want to: B2B contexts where you trust the IdP's email verification.
+
+## When auto-link is safe
+
+- The OIDC provider's `email_verified` claim is reliable.
+- You trust the provider (Google Workspace, Microsoft Entra, Apple).
+- The cost of forcing manual link is high (UX friction).
+
+## When NOT to auto-link
+
+- Free Gmail (anyone can register `victim@gmail.com` if previously deleted).
+- Unverified OIDC emails.
+- High-stakes accounts (financial, healthcare).
+
+## Pattern
+
+Post-OIDC hook checks for existing identity with this email:
+
+```ts
+export async function POST(req: Request) {
+  const { traits, oidc_provider, oidc_claims } = await req.json();
+  
+  if (!oidc_claims.email_verified) {
+    return Response.json({ ok: true });  // proceed with new identity
+  }
+  
+  const trustedProviders = ["google-workspace", "microsoft-entra", "apple"];
+  if (!trustedProviders.includes(oidc_provider)) {
+    return Response.json({ ok: true });
+  }
+  
+  // Find existing identity by email
+  const existing = await kratos.adminListIdentities({
+    filter: `traits.email eq "${traits.email}"`,
+  });
+  
+  if (existing.length === 0) {
+    return Response.json({ ok: true });  // new identity, proceed
+  }
+  
+  // Existing identity. Auto-link OIDC credential to it.
+  await kratos.adminAddCredential({
+    identity_id: existing[0].id,
+    type: "oidc",
+    config: {
+      providers: [{
+        provider: oidc_provider,
+        subject: oidc_claims.sub,
+      }],
+    },
+  });
+  
+  return Response.json({
+    ok: true,
+    use_identity: existing[0].id,  // sign in as existing
+  });
+}
+```
+
+## Email verification trust
+
+Different providers vary:
+
+- **Google Workspace**: `email_verified: true` is trustworthy (admin verified, employees of the org).
+- **Google personal (@gmail.com)**: `email_verified: true` means the user proved ownership recently. Trust but acknowledge limits.
+- **Microsoft work / school**: similar to Google Workspace.
+- **Microsoft personal (@outlook.com)**: similar to @gmail.com.
+- **Apple**: privately verified. Trust.
+- **Generic OIDC**: unknown, usually don't trust.
+
+```ts
+function isTrustedVerifiedEmail(provider: string, claims: any): boolean {
+  // High-trust providers
+  if (provider.startsWith("google-workspace-") && claims.email_verified === true) return true;
+  if (provider.startsWith("microsoft-entra-") && claims.email_verified === true) return true;
+  if (provider === "apple" && claims.email_verified === true) return true;
+  // Personal providers, verified means user proved it, but ownership can change
+  if (provider === "google" && claims.email_verified === true) return true;
+  // Don't auto-trust unknown providers
+  return false;
+}
+```
+
+## Notification on auto-link
+
+When auto-link happens, notify the user:
+
+```
+Subject: You can now sign in with [Provider]
+
+We noticed you signed in with [Provider] using the email
+linked to your existing [Your App] account.
+
+We've connected your [Provider] account so you can sign in
+with either [Provider] or your password.
+
+If this wasn't you, contact security@your-domain.com.
+```
+
+Audit trail visible to user.
+
+## Threat: account takeover via Google email reuse
+
+Alice's `alice@gmail.com` was deactivated by Google for inactivity. Google releases the address. Attacker registers `alice@gmail.com` (Google occasionally allows this).
+
+If your service auto-links by email: attacker signs in via Google → links to Alice's old account → ATO.
+
+Mitigation:
+- Don't trust auto-link for free email providers.
+- Trust workspace / business accounts only.
+- For free providers, require manual re-link with password.
+
+## Linking provenance
+
+Track when auto-link happened:
+
+```sql
+INSERT INTO identity_credentials_history (...)
+VALUES (..., 'auto_link', { reason: 'verified_email_workspace' });
+```
+
+So you can find auto-linked accounts to audit.
+
+## Reverting
+
+If a user complains the auto-link was wrong (e.g., it linked someone else's account):
+
+1. Sign them out.
+2. Unlink the OIDC credential.
+3. Investigate.
+
+```ts
+await kratos.adminRemoveCredential({
+  identity_id: identityId,
+  type: "oidc",
+});
+```
+
+Rare but possible if email collision happens.
+
+## Strict mode
+
+For high-stakes apps, NEVER auto-link, even with verified emails:
+
+```ts
+// Always require manual link
+return Response.json({
+  reject: true,
+  redirect_to: "/link-account?provider=...&identity_id=...",
+  error: "manual_link_required",
+});
+```
+
+Forces user through verify-password-then-link flow.
+
+## Hybrid: auto-link some, prompt for others
+
+```ts
+if (trustLevel(oidc_provider, oidc_claims) >= 90) {
+  // Auto-link
+} else if (trustLevel >= 60) {
+  // Prompt user
+  return Response.json({ redirect_to: "/confirm-link" });
+} else {
+  // Don't link; new identity
+}
+```
+
+Fine-tune per provider.
+
+## Related
+
+- [Cookbook, Account linking strategies](/docs/cookbook/auth-flows/account-linking-strategies)
+- [Cookbook, Sign in with Google strict](/docs/cookbook/social-login/sign-in-with-google-strict)
+- [Cookbook, Identity merging](/docs/cookbook/auth-flows/identity-merging)
+- [Reference, Diagrams, Social login linking](/docs/reference/diagrams/seq-social-login-link)

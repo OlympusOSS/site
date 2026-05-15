@@ -1,0 +1,12 @@
+{
+  "title": "Infrastructure",
+  "pages": [
+    "caddy-supply-chain",
+    "ciam-iam-isolation",
+    "pgadmin-dba-accounts",
+    "pgadmin-sso",
+    "security-headers",
+    "supply-chain",
+    "threat-model"
+  ]
+}

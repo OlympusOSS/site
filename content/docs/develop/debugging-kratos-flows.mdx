@@ -16,11 +16,11 @@ curl http://localhost:3100/self-service/login/flows?id=<FLOW_ID> | jq
 (Replace 3100 with the right Kratos public port for the domain.)
 
 The response includes:
-- `state` — e.g. `choose_method`, `sent_email`, `passed_challenge`.
-- `ui.nodes` — the form fields Kratos expects you to render.
-- `ui.action` — where the next submission goes.
-- `ui.messages` — any error / status messages.
-- `expires_at` — when this flow becomes invalid.
+- `state`, e.g. `choose_method`, `sent_email`, `passed_challenge`.
+- `ui.nodes`, the form fields Kratos expects you to render.
+- `ui.action`, where the next submission goes.
+- `ui.messages`, any error / status messages.
+- `expires_at`, when this flow becomes invalid.
 
 ## Common state issues
 
@@ -68,15 +68,15 @@ curl http://localhost:3101/admin/identities?credentials_identifier=user@example.
 ```
 
 Response shows:
-- `state` — `active` / `inactive`.
-- `verifiable_addresses` — verification status of each email/phone.
-- `credentials` — what credentials exist (password? oidc? totp?).
-- `metadata_admin` — admin notes.
+- `state`, `active` / `inactive`.
+- `verifiable_addresses`, verification status of each email/phone.
+- `credentials`, what credentials exist (password? oidc? totp?).
+- `metadata_admin`, admin notes.
 
 Common issues:
-- `state: "inactive"` — user was deactivated. Reactivate via PATCH.
-- `verifiable_addresses[0].verified: false` — email isn't verified. If your config requires verification, login is blocked. Trigger verification flow.
-- `credentials.password` missing — user has no password (probably created via OIDC). They need to use social login or set a password via recovery.
+- `state: "inactive"`, user was deactivated. Reactivate via PATCH.
+- `verifiable_addresses[0].verified: false`, email isn't verified. If your config requires verification, login is blocked. Trigger verification flow.
+- `credentials.password` missing, user has no password (probably created via OIDC). They need to use social login or set a password via recovery.
 
 ## Inspecting Kratos sessions
 
@@ -86,8 +86,8 @@ curl http://localhost:3101/admin/sessions?identity_id=<UUID> | jq
 ```
 
 If a user reports being logged out unexpectedly, look here:
-- Recent sessions with `active: false` — expired, revoked, or explicitly logged out.
-- AAL of the latest session — was it AAL2 when it should be?
+- Recent sessions with `active: false`, expired, revoked, or explicitly logged out.
+- AAL of the latest session, was it AAL2 when it should be?
 
 ## Hooks
 
@@ -125,13 +125,13 @@ curl http://localhost:3101/admin/identities/<UUID> | jq
 # After settings submission, re-fetch and diff.
 ```
 
-Use this when a user says "I changed my email but it didn't save" — the patch may have been rejected silently due to schema validation.
+Use this when a user says "I changed my email but it didn't save", the patch may have been rejected silently due to schema validation.
 
 ## Related
 
-- [Identity — Flow login](/docs/identity/flow-login)
-- [Identity — Flow registration](/docs/identity/flow-registration)
-- [Identity — Flow recovery](/docs/identity/flow-recovery)
-- [Identity — Flow verification](/docs/identity/flow-verification)
-- [Identity — Flow settings](/docs/identity/flow-settings)
-- [Develop — Debugging OAuth2 flows](/docs/develop/debugging-oauth2-flows)
+- [Identity, Flow login](/docs/identity/flow-login)
+- [Identity, Flow registration](/docs/identity/flow-registration)
+- [Identity, Flow recovery](/docs/identity/flow-recovery)
+- [Identity, Flow verification](/docs/identity/flow-verification)
+- [Identity, Flow settings](/docs/identity/flow-settings)
+- [Develop, Debugging OAuth2 flows](/docs/develop/debugging-oauth2-flows)

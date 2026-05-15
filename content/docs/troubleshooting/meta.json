@@ -2,22 +2,8 @@
   "title": "Troubleshooting",
   "pages": [
     "overview",
-    "podman-compose-fails",
-    "login-loops",
-    "consent-screen-every-request",
-    "email-not-sending",
-    "locked-out-of-admin",
-    "pgadmin-sso-fails",
-    "encryption-key-startup-failure",
-    "cookies-not-persisting",
-    "cert-expired",
-    "database-ssl-mismatch",
-    "reload-api-key-invalid",
-    "redirect-uri-localhost-in-prod",
-    "oauth2-invalid-grant",
-    "oauth2-pkce-required",
-    "kratos-flow-expired",
-    "kratos-csrf-violation",
-    "kratos-session-aal-too-low"
+    "auth-issues",
+    "oauth2-issues",
+    "infrastructure-issues"
   ]
 }

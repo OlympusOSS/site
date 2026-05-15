@@ -1,0 +1,67 @@
+---
+title: Bunny.net in front of Olympus
+description: Affordable CDN with edge rules
+---
+
+[Bunny.net](https://bunny.net) is a cost-effective CDN. Useful for small-mid Olympus deployments wanting CDN benefits without enterprise pricing.
+
+## Architecture
+
+```
+User → Bunny edge → Caddy on origin → Olympus
+```
+
+## Setup
+
+### Pull Zone
+
+Bunny dashboard → Pull Zones → add a zone:
+- Origin URL: `https://your-caddy-host`
+- Hostname: `ciam.example.com` (custom hostname)
+
+Bunny issues a free Let's Encrypt cert for your custom hostname.
+
+### Edge rules
+
+For auth-sensitive paths, set "Override Cache Time = 0":
+
+```
+URL contains: /oauth2/, /login, /registration, /recovery, /consent, /logout
+Action: Override Cache Time → 0
+```
+
+For static assets:
+
+```
+URL contains: /_next/static/
+Action: Override Cache Time → 1 year
+```
+
+### Real IP
+
+Bunny adds `X-Forwarded-For` and `CF-Connecting-IP` (yes, also called CF). Trust in Caddy.
+
+## Cost
+
+- $0.01-0.06/GB (region-dependent).
+- $1/month per zone minimum.
+
+A typical 1k-MAU Olympus deployment costs &lt;$5/month for Bunny on top.
+
+## When to use
+
+- Small or hobby deployments where CloudFront / Fastly cost is too high.
+- You want edge caching without complex rules.
+
+## Caveats
+
+- Bunny doesn't have a built-in WAF as sophisticated as Cloudflare or AWS.
+- Smaller PoP footprint than Cloudflare.
+
+For DDoS-prone deployments, Cloudflare is safer; for cost-optimized, Bunny is competitive.
+
+## Related
+
+- [Cookbook, Cloudflare in front](/docs/cookbook/deployment/cloudflare-in-front)
+- [Integrate, CloudFront integration](/docs/integrate/cdn/cdn-cloudfront)
+- [Integrate, Fastly integration](/docs/integrate/cdn/cdn-fastly)

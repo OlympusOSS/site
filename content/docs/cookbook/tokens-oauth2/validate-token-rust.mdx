@@ -1,0 +1,93 @@
+---
+title: Validate an access token (Rust)
+description: Verify Olympus access tokens in a Rust backend
+---
+
+```rust
+use reqwest::Client;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+pub struct TokenInfo {
+    pub active: bool,
+    pub sub: Option<String>,
+    pub scope: Option<String>,
+    pub client_id: Option<String>,
+    pub exp: Option<i64>,
+}
+
+pub async fn validate_token(token: &str) -> anyhow::Result<TokenInfo> {
+    let client = Client::new();
+    let response = client
+        .post(&std::env::var("HYDRA_INTROSPECT_URL")?)
+        .basic_auth(
+            std::env::var("HYDRA_ADMIN_USER")?,
+            std::env::var("HYDRA_ADMIN_PASS").ok(),
+        )
+        .form(&[("token", token)])
+        .send()
+        .await?
+        .error_for_status()?;
+
+    let info: TokenInfo = response.json().await?;
+    if !info.active {
+        anyhow::bail!("token inactive");
+    }
+    Ok(info)
+}
+```
+
+Axum middleware:
+
+```rust
+use axum::{
+    body::Body,
+    extract::Request,
+    http::StatusCode,
+    middleware::Next,
+    response::Response,
+};
+
+pub async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
+    let auth = req.headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let token = auth.strip_prefix("Bearer ").ok_or(StatusCode::UNAUTHORIZED)?;
+    let info = validate_token(token).await.map_err(|_| StatusCode::UNAUTHORIZED)?;
+    req.extensions_mut().insert(info);
+    Ok(next.run(req).await)
+}
+```
+
+## JWT verification
+
+Use `jsonwebtoken` crate with the JWKS endpoint:
+
+```rust
+use jsonwebtoken::{decode, jwk::JwkSet, DecodingKey, Validation, Algorithm};
+
+pub async fn validate_jwt(token: &str) -> anyhow::Result<serde_json::Value> {
+    let jwks: JwkSet = reqwest::get(format!("{}/.well-known/jwks.json", issuer))
+        .await?
+        .json()
+        .await?;
+
+    let header = jsonwebtoken::decode_header(token)?;
+    let kid = header.kid.context("missing kid")?;
+    let key = jwks.find(&kid).context("unknown kid")?;
+
+    let decoding_key = DecodingKey::from_jwk(key)?;
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.set_issuer(&[issuer]);
+
+    let data = decode::<serde_json::Value>(token, &decoding_key, &validation)?;
+    Ok(data.claims)
+}
+```
+
+## Related
+
+- [Cookbook, Validate access token (Node)](/docs/cookbook/tokens-oauth2/validate-token-node)
+- [Cookbook, Validate access token (Go)](/docs/cookbook/tokens-oauth2/validate-token-go)

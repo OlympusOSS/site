@@ -15,12 +15,12 @@ You've completed [Your first login](/docs/get-started/first-login). You're logge
 2. Click **New Client**.
 3. Fill in:
    - Name: `playground-client`
-   - Client type: **Public** (it's a CLI — no client secret)
+   - Client type: **Public** (it's a CLI, no client secret)
    - Redirect URI: `http://localhost:8765/callback`
    - Allowed grant types: `authorization_code`, `refresh_token`
    - Allowed scopes: `openid`, `profile`, `email`
    - Response types: `code`
-   - PKCE required: **yes** (Olympus enforces this anyway — see [Security — PKCE Enforcement](/docs/security/pkce-enforcement))
+   - PKCE required: **yes** (Olympus enforces this anyway, see [Security, PKCE Enforcement](/docs/security/identity-protection/pkce-enforcement))
 4. Save. Note the resulting **client ID** (e.g. `c-abc123`).
 
 ## Register the client (via Hydra admin CLI)
@@ -38,7 +38,7 @@ podman exec ciam-hydra-public-dev hydra create client \
   --token-endpoint-auth-method none
 ```
 
-Output includes `CLIENT_ID` — keep it.
+Output includes `CLIENT_ID`, keep it.
 
 ## Run the flow
 
@@ -82,7 +82,7 @@ const server = http.createServer(async (req, res) => {
   }
   const code = url.searchParams.get("code");
   res.writeHead(200, { "content-type": "text/plain" });
-  res.end("Got code — check the terminal.\n");
+  res.end("Got code, check the terminal.\n");
 
   // 4. Exchange code for tokens
   const tokenRes = await fetch(`${HYDRA}/oauth2/token`, {
@@ -128,10 +128,10 @@ You exercised the full Authorization Code + PKCE flow:
 5. Hydra returned a single-use authorization code to your callback.
 6. You exchanged the code (plus the original verifier) for tokens.
 
-The PKCE pair prevents anyone who intercepts the authorization code from being able to redeem it — only the holder of the original verifier can.
+The PKCE pair prevents anyone who intercepts the authorization code from being able to redeem it, only the holder of the original verifier can.
 
 ## Where next
 
-- [Integrate — OAuth2 PKCE](/docs/integrate/oauth2-pkce) — full PKCE reference.
-- [Integrate — OIDC userinfo](/docs/integrate/oidc-userinfo) — get profile data after login.
-- [Integrate — Token validation cookbook](/docs/cookbook/validate-token-node) — validate the access token in your backend.
+- [Integrate, OAuth2 PKCE](/docs/integrate/oauth2/oauth2-pkce), full PKCE reference.
+- [Integrate, OIDC userinfo](/docs/integrate/oauth2/oidc-userinfo), get profile data after login.
+- [Integrate, Token validation cookbook](/docs/cookbook/tokens-oauth2/validate-token-node), validate the access token in your backend.

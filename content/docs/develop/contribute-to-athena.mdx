@@ -66,7 +66,7 @@ export default async function Identities({ searchParams }) {
 }
 ```
 
-Server Component — fetches on the server, no client-side waterfall.
+Server Component, fetches on the server, no client-side waterfall.
 
 ### Identity detail
 
@@ -198,7 +198,7 @@ E2E tests require:
 
 ### Accessing Athena DB from outside Athena
 
-Athena's `db` (its own tables) is separate from Kratos's DB. Don't read Athena tables from Hera or other services — keep them isolated.
+Athena's `db` (its own tables) is separate from Kratos's DB. Don't read Athena tables from Hera or other services, keep them isolated.
 
 Athena reads from Kratos's tables only via Kratos's admin API.
 
@@ -229,7 +229,7 @@ Use this wrapper in actions to enforce.
 
 ## Related
 
-- [Develop — Local dev environment](/docs/develop/local-dev-environment)
-- [Operate — Audit log query](/docs/operate/audit-log-query)
-- [Cookbook — Per-tenant config](/docs/cookbook/per-tenant-config)
-- [Cookbook — Admin impersonate user](/docs/cookbook/admin-impersonate-user)
+- [Develop, Local dev environment](/docs/develop/local-dev-environment)
+- [Operate, Audit log query](/docs/operate/audit-log-query)
+- [Cookbook, Per-tenant config](/docs/cookbook/multi-tenant/per-tenant-config)
+- [Cookbook, Admin impersonate user](/docs/cookbook/tools/admin-impersonate-user)

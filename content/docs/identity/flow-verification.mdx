@@ -5,7 +5,7 @@ description: How Olympus confirms control of an email or other identifier
 
 The verification flow proves the user controls an identifier (typically email). Successful verification marks `verifiable_addresses.<value>.verified=true` on the identity.
 
-In Olympus production, **verification is mandatory** before a user is considered fully active — see [Security — Email verification](/docs/security/email-verification) and the `verify-email-enforcement.yml` CI gate.
+In Olympus production, **verification is mandatory** before a user is considered fully active, see [Security, Email verification](/docs/security/identity-protection/email-verification) and the `verify-email-enforcement.yml` CI gate.
 
 ## State diagram
 
@@ -74,7 +74,7 @@ When a user logs in via Google/GitHub/etc., the OIDC IdP may include `email_veri
 
 The reasoning: an attacker who controls a domain (via takeover, MX hijacking, mailbox squatting) could obtain an Auth0/Google account with `email_verified=true` that matches an Olympus identity's email. Honoring upstream verification would allow takeover via social login pre-linking.
 
-See [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust) and [ADR 0011](/docs/adrs/0011-json-schema-identity).
+See [Security, OIDC email_verified trust](/docs/security/identity-protection/oidc-email-verified-trust) and [ADR 0011](/docs/adrs/0011-json-schema-identity).
 
 ## Enforcement: blocking unverified users
 
@@ -92,7 +92,7 @@ selfservice:
 
 The `require_verified_address` hook fires after every login. If the user isn't verified, they're redirected to the verification flow.
 
-Olympus production deployments enable this hook — verified by `verify-email-enforcement.yml` CI workflow.
+Olympus production deployments enable this hook, verified by `verify-email-enforcement.yml` CI workflow.
 
 ## Multi-step verification (rare)
 
@@ -104,12 +104,12 @@ If your identity schema has multiple verifiable traits (email + phone), Kratos c
 | --- | --- |
 | User reports never receiving verification email | Check MailSlurper (dev) or your email provider's deliverability dashboard. SPAM folder is the usual culprit. Re-send from Athena. |
 | Verification link expired | Default 1 hour TTL. Re-initiate. |
-| User stuck: link works but no session | Verify hook configuration — `require_verified_address` may be triggering a redirect loop. |
+| User stuck: link works but no session | Verify hook configuration, `require_verified_address` may be triggering a redirect loop. |
 | Multiple emails sent quickly (user clicked "resend" repeatedly) | Configure flow rate limit; the user will eventually see "too many recent requests, try again in N minutes." |
 
 ## Related
 
-- [Identity — Flow recovery](/docs/identity/flow-recovery)
-- [Identity — Flow registration](/docs/identity/flow-registration)
-- [Security — Email verification](/docs/security/email-verification)
-- [Security — OIDC email_verified trust](/docs/security/oidc-email-verified-trust)
+- [Identity, Flow recovery](/docs/identity/flow-recovery)
+- [Identity, Flow registration](/docs/identity/flow-registration)
+- [Security, Email verification](/docs/security/identity-protection/email-verification)
+- [Security, OIDC email_verified trust](/docs/security/identity-protection/oidc-email-verified-trust)

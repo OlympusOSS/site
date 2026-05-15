@@ -1,0 +1,286 @@
+---
+title: Build an enterprise SSO portal
+description: One sign-in to access multiple internal apps
+---
+
+For organizations with many internal tools (HR, ops, monitoring), an SSO portal lets users sign in once and click into each app. Olympus as the central IdP.
+
+## Architecture
+
+```
+User signs into Olympus
+   ↓
+Lands on portal: app launcher
+   ↓
+Clicks "Salary management"
+   ↓
+salary-mgmt.your-corp.com (OAuth2 client)
+   ↓
+Already signed in (silent OAuth2)
+   ↓
+Logged in, no second auth.
+```
+
+Same pattern for every app.
+
+## Apps as OAuth2 clients
+
+Each app: a Hydra OAuth2 client.
+
+```bash
+hydra create client \
+  --name "Salary Management" \
+  --grant-types authorization_code,refresh_token \
+  --scope "openid offline_access profile email" \
+  --redirect-uri "https://salary-mgmt.your-corp.com/callback" \
+  --post-logout-redirect-uri "https://salary-mgmt.your-corp.com/" \
+  --skip-consent  # first-party, no consent prompt
+```
+
+Each app: own client_id, own callback.
+
+## Portal UI
+
+```tsx
+// portal/app/page.tsx
+import { getApps } from "@/lib/apps";
+
+export default async function Portal() {
+  const session = await getSession();
+  const apps = await getApps(session.identity);
+  
+  return (
+    <Grid columns={4}>
+      {apps.map(app => (
+        <Tile key={app.id}>
+          <a href={app.url}>
+            <img src={app.icon} />
+            <h3>{app.name}</h3>
+          </a>
+        </Tile>
+      ))}
+    </Grid>
+  );
+}
+```
+
+## App-config table
+
+```sql
+CREATE TABLE apps (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  icon TEXT,
+  description TEXT,
+  required_role TEXT,  -- or roles array
+  enabled BOOLEAN DEFAULT true
+);
+```
+
+App metadata. Admin can add/remove via UI.
+
+## Access control per app
+
+Filter apps by user's role:
+
+```ts
+function getAccessibleApps(identity) {
+  return apps.filter(app => 
+    !app.required_role || identity.traits.role === app.required_role
+  );
+}
+```
+
+User without admin role doesn't see "Admin" tile.
+
+## First-party silent flow
+
+User clicks app → OAuth2 to Hydra. Hydra has Kratos session → silent issuance.
+
+No login screen, no consent. From user's POV: portal → app instantly.
+
+## SSO logout
+
+User clicks "Sign out" in portal:
+
+```ts
+async function signOut() {
+  // 1. Sign out of Kratos
+  await kratos.updateLogoutFlow(...);
+  
+  // 2. Broadcast logout to all RPs via front-channel
+  await Promise.all(rpAppUrls.map(url => 
+    fetch(`${url}/_/oidc-logout?sid=${sessionId}`).catch(() => {})
+  ));
+  
+  // 3. Redirect to logged-out page
+  window.location.href = "/";
+}
+```
+
+Each RP detects via front-channel logout URI. Their session ends too.
+
+## Recent / favorites
+
+```tsx
+<section>
+  <h2>Recent</h2>
+  <Grid>
+    {recentApps.map(app => <Tile {...app} />)}
+  </Grid>
+</section>
+
+<section>
+  <h2>All apps</h2>
+  <Grid>
+    {allApps.map(app => <Tile {...app} />)}
+  </Grid>
+</section>
+```
+
+Track clicks:
+
+```ts
+function onAppClick(appId) {
+  fetch("/api/track-click", { method: "POST", body: JSON.stringify({ appId }) });
+  // Then navigate
+}
+```
+
+Personalization.
+
+## Search
+
+```tsx
+<input 
+  placeholder="Search apps..." 
+  value={query}
+  onChange={(e) => setQuery(e.target.value)}
+/>
+{apps.filter(a => a.name.includes(query)).map(...)}
+```
+
+20+ apps → search helpful.
+
+## Bookmarks per user
+
+Let user favorite apps:
+
+```sql
+CREATE TABLE app_favorites (
+  identity_id UUID,
+  app_id UUID,
+  PRIMARY KEY (identity_id, app_id)
+);
+```
+
+Show favorites first in launcher.
+
+## Subdomain pattern
+
+All apps on subdomains of your-corp.com:
+- `portal.your-corp.com`, launcher.
+- `app1.your-corp.com`, `app2.your-corp.com`, etc.
+
+Caddy:
+
+```caddy
+*.your-corp.com {
+  reverse_proxy auth-portal:3000
+}
+```
+
+Or per-app vhosts.
+
+## Branding consistency
+
+All apps share:
+- Logo (top-left).
+- Help link.
+- Sign-out button.
+- User avatar / menu.
+
+Component library shared:
+
+```tsx
+// @your-corp/internal-app-shell
+import { Shell } from "@your-corp/internal-app-shell";
+
+export default function App() {
+  return (
+    <Shell>
+      {/* app-specific content */}
+    </Shell>
+  );
+}
+```
+
+## Onboarding new apps
+
+When new internal app is built:
+
+1. Engineer registers OAuth2 client via Athena.
+2. Adds entry to apps table.
+3. App imports the shell library.
+4. Configures OAuth2 client_id.
+5. Tile appears in launcher.
+6. Sign-in works silently.
+
+Document in your dev runbook.
+
+## Per-team filtering
+
+```tsx
+<Filter>
+  <FilterChip>HR</FilterChip>
+  <FilterChip>Engineering</FilterChip>
+  <FilterChip>Finance</FilterChip>
+</Filter>
+```
+
+Group apps by tag. Bigger orgs benefit.
+
+## Notifications
+
+Optionally show in-portal notifications:
+
+```tsx
+<header>
+  <Notifications />
+</header>
+```
+
+Notify of: maintenance windows, new app availability, etc.
+
+## SAML for legacy apps
+
+Some legacy apps speak SAML, not OIDC. Run Dex or Keycloak as SAML bridge:
+
+```
+User → Portal → Click legacy-app
+              → Bridge (SAML-OIDC translator)
+              → Hydra (OIDC) ↔ Olympus identity
+              → Legacy app
+```
+
+Each legacy app's SAML metadata is configured in bridge.
+
+See [SAML-OIDC bridge](/docs/cookbook/enterprise-sso/saml-oidc-bridge).
+
+## Single-page or per-app
+
+Two architectures:
+- **Per-app**: each app is a separate web app. Hard links between.
+- **Single SPA**: all apps loaded as routes in one. Subtler.
+
+For internal SSO portal: per-app is normal. Apps can ship independently.
+
+## Related
+
+- [Cookbook, SSO from app launcher](/docs/cookbook/enterprise-sso/sso-from-app-launcher)
+- [Cookbook, Olympus as IdP - Argo CD](/docs/cookbook/tools/olympus-as-idp-argocd)
+- [Cookbook, Olympus as IdP - AWS](/docs/cookbook/tools/olympus-as-idp-aws)
+- [Cookbook, Olympus as IdP - Grafana](/docs/cookbook/tools/olympus-as-idp-grafana)
+- [Cookbook, Olympus as IdP - pgadmin](/docs/cookbook/tools/olympus-as-idp-pgadmin)
+- [Cookbook, OpenID RP-initiated logout](/docs/cookbook/tokens-oauth2/openid-rp-initiated-logout)

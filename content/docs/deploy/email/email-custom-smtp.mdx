@@ -1,0 +1,79 @@
+---
+title: Email, Custom SMTP
+description: Configure any SMTP relay (AWS SES, Sendgrid, your own MTA)
+---
+
+If you're using AWS SES, SendGrid, Mailgun, or your own MTA (Postfix on a separate host), Olympus's Kratos courier connects via standard SMTP, anything that speaks SMTP works.
+
+## Configuration shape
+
+```yaml
+courier:
+  smtp:
+    connection_uri: <protocol>://<user>:<pass>@<host>:<port>/?<options>
+    from_address: noreply@your-domain.com
+    from_name: Your App
+```
+
+`<protocol>` is `smtp://` for STARTTLS or `smtps://` for implicit TLS.
+
+Common ports: 587 (STARTTLS), 465 (implicit TLS), 25 (plaintext, never use in prod).
+
+## Example: AWS SES
+
+```yaml
+courier:
+  smtp:
+    connection_uri: smtp://AKIAIOSFODNN7EXAMPLE:secret@email-smtp.us-east-1.amazonaws.com:587/?skip_ssl_verify=false
+    from_address: noreply@your-domain.com
+```
+
+The SES SMTP credentials are different from your AWS account credentials, generate them in the SES console under SMTP Settings.
+
+For SES production access, you need to leave the sandbox (the SES dashboard prompts; AWS reviews; usually 24h).
+
+## Example: SendGrid
+
+```yaml
+courier:
+  smtp:
+    connection_uri: smtp://apikey:SG.xxxxxxxxxxxx@smtp.sendgrid.net:587
+```
+
+Username is the literal string `apikey`; password is your SendGrid API key.
+
+## Example: Mailgun
+
+```yaml
+courier:
+  smtp:
+    connection_uri: smtp://postmaster@your-domain.com:<smtp_pass>@smtp.mailgun.org:587
+```
+
+## Example: Your own MTA
+
+```yaml
+courier:
+  smtp:
+    connection_uri: smtps://olympus:strong_password@mail.your-domain.com:465
+```
+
+Run Postfix or similar on a separate VPS, configure auth and TLS, point Kratos at it. Suitable for high-volume deployments where commercial pricing becomes a factor.
+
+## Domain authentication
+
+Regardless of provider, set up:
+- **SPF** record: list the provider's IPs as authorized senders.
+- **DKIM** record: provider-issued public key for signing outgoing mail.
+- **DMARC** record: policy for how recipients should treat failures.
+
+See [Deploy, DNS and Domains](/docs/deploy/production/dns-and-domains).
+
+## TLS validation
+
+`skip_ssl_verify=false` is the default, Kratos verifies the SMTP server's certificate. Don't disable this in production.
+
+## Where next
+
+- [Operate, Email deliverability](/docs/operate/performance/email-deliverability)
+- [Security, Email verification](/docs/security/identity-protection/email-verification)

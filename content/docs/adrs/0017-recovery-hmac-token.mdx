@@ -1,11 +1,11 @@
 ---
-title: "0017 — Recovery HMAC token"
+title: "0017, Recovery HMAC token"
 description: Why recovery codes are HMAC-signed rather than stored as opaque database rows
 ---
 
 **Status:** Accepted
 **Date:** 2026-02
-**Stakeholders:** Bobby Nannier (Ory Kratos design — Olympus uses the default)
+**Stakeholders:** Bobby Nannier (Ory Kratos design, Olympus uses the default)
 
 ## Context
 
@@ -35,5 +35,5 @@ Payload includes identity ID, flow ID, expiry. HMAC computed with `secrets.ciphe
 
 ## Related
 
-- [Identity — Flow recovery](/docs/identity/flow-recovery)
-- [Operate — Reload API key rotation](/docs/operate/reload-api-key-rotation) — when secrets like `cipher` rotate, this is the runbook.
+- [Identity, Flow recovery](/docs/identity/flow-recovery)
+- [Operate, Reload API key rotation](/docs/operate/rotation/reload-api-key-rotation), when secrets like `cipher` rotate, this is the runbook.

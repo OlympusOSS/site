@@ -1,0 +1,86 @@
+---
+title: Cloudflare in front of Olympus
+description: Adding Cloudflare for DDoS protection and CDN
+---
+
+Putting Cloudflare in front of Olympus gains DDoS protection, edge caching for static assets, and WAF capabilities. Setup is straightforward but has a few gotchas.
+
+## DNS setup
+
+For each Olympus subdomain (`ciam`, `iam`, `www`):
+
+1. Cloudflare → DNS → add A record pointing at your VPS IP.
+2. **Toggle the orange cloud (proxied) on.** This routes through Cloudflare.
+
+## Critical: TLS mode
+
+In Cloudflare → SSL/TLS → Overview:
+- **Full (strict)**, required.
+
+Cloudflare terminates TLS at the edge; Caddy terminates again at your origin. Without "strict," Cloudflare won't validate Caddy's cert.
+
+## Caddy can't use HTTP-01 ACME behind Cloudflare
+
+Cloudflare's proxy serves a Cloudflare-managed TLS cert, intercepting Caddy's HTTP-01 challenge attempt. Caddy will retry endlessly until it fails.
+
+**Fix: switch Caddy to DNS-01 ACME** using a Cloudflare API token:
+
+1. Create a Cloudflare API token with `Zone.DNS.Edit` for your zone.
+2. Set `CLOUDFLARE_API_TOKEN` in your container env.
+3. Caddyfile:
+   ```caddy
+   ciam.example.com {
+     tls {
+       dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+     }
+     reverse_proxy ciam-hera:3000
+   }
+   ```
+
+Now Caddy proves domain ownership via TXT record (which Cloudflare's API exposes), not HTTP challenge.
+
+## Cache rules
+
+Caching auth pages is dangerous (leaks sessions). Default Cloudflare won't cache them; verify:
+
+- **/login**, **/registration**, **/recovery**, **/oauth2/auth**, **/oauth2/token**, must NOT be cached.
+- **/.well-known/jwks.json**, **/.well-known/openid-configuration**, safe to cache for 5 min.
+- Static assets (Hera's JS/CSS), cache normally.
+
+Add a Page Rule: `*.example.com/oauth2/*` → Cache Level: Bypass.
+
+## Cloudflare's "Pause Cloudflare" mode
+
+For debugging ACME issues or other proxy-interaction problems, temporarily pause via Cloudflare dashboard → Caching → Configuration → Pause site. Traffic bypasses Cloudflare for 3 hours.
+
+## Rate limiting
+
+Cloudflare's rate limiting (paid) complements Caddy's:
+- Caddy `rate_limit`: per IP, ~5-30 requests per 5 minutes for login endpoints.
+- Cloudflare: ASN-level, ML-driven, can block before traffic reaches Caddy.
+
+Set Cloudflare WAF rules for known-bad patterns (huge POST bodies, suspicious user agents).
+
+## Real IP
+
+Cloudflare forwards the user's real IP in `CF-Connecting-IP` header. Caddy needs to honor this:
+
+```caddy
+servers {
+  trusted_proxies cloudflare
+}
+```
+
+This makes Caddy's logs and Olympus's audit events show the user's IP, not Cloudflare's edge IP. Critical for the brute-force lockout per-identifier mechanism.
+
+## Cost
+
+- Cloudflare Free: enough for DDoS protection and basic caching.
+- Pro ($25/mo): WAF, image optimization, more page rules.
+- Business ($200/mo): rate limiting, custom WAF rules.
+
+## Related
+
+- [Deploy, DNS and Domains](/docs/deploy/production/dns-and-domains)
+- [Security, Caddy supply chain](/docs/security/infrastructure/caddy-supply-chain)
+- [Security, Rate limiting](/docs/security/web-attacks/rate-limiting)

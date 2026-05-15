@@ -1,0 +1,228 @@
+---
+title: Bulk identity operations
+description: Mass updates / deletes / queries
+---
+
+Sometimes you need to operate on many users at once: deactivate everyone from a deprecated tenant, add a trait to all users, etc.
+
+## Pattern: SQL for read, API for write
+
+Reads (lookups, exports): direct SQL is fast.
+
+```sql
+SELECT id, traits->>'email' FROM identities WHERE state = 'inactive';
+```
+
+Writes: Kratos admin API for safety (validation, hooks, audit).
+
+```ts
+for (const id of ids) {
+  await fetch(`${KRATOS_ADMIN}/admin/identities/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify([{ op: "replace", path: "/state", value: "inactive" }]),
+  });
+}
+```
+
+DON'T directly `UPDATE identities SET state='inactive'` in SQL, bypasses Kratos's validation and hooks.
+
+## Operations
+
+### Bulk deactivate
+
+Deactivate all users with no logins in 1 year:
+
+```sql
+SELECT i.id FROM identities i
+LEFT JOIN security_audit a ON a.identity_id = i.id AND a.event_type = 'login'
+GROUP BY i.id
+HAVING MAX(a.created_at) < NOW() - INTERVAL '1 year' OR MAX(a.created_at) IS NULL;
+```
+
+For each:
+```ts
+await kratos.adminPatchIdentity(id, [
+  { op: "replace", path: "/state", value: "inactive" }
+]);
+```
+
+### Bulk role change
+
+Promote all "support" users to "support_l2":
+
+```ts
+const supports = await kratos.adminListIdentities({ filter: 'traits.role eq "support"' });
+for (const s of supports) {
+  await kratos.adminPatch(s.id, [{ op: "replace", path: "/traits/role", value: "support_l2" }]);
+}
+```
+
+### Bulk delete
+
+For GDPR cleanup, delete identities inactive 5+ years:
+
+```ts
+const old = await db`
+  SELECT id FROM identities 
+  WHERE state = 'inactive' 
+    AND updated_at < NOW() - INTERVAL '5 years'
+`;
+for (const { id } of old) {
+  await kratos.adminDeleteIdentity(id);
+}
+```
+
+Sit with this one before running. Once gone, gone.
+
+### Bulk add credential
+
+Migrating users to a new MFA factor, can't be done via API automatically (users must enroll). But you can flag them:
+
+```ts
+await kratos.adminPatch(id, [
+  { op: "add", path: "/metadata_admin/require_webauthn_enrollment", value: true }
+]);
+```
+
+App reads flag, prompts user.
+
+### Bulk export
+
+```bash
+psql -d olympus -c "COPY (SELECT id, traits FROM identities) TO STDOUT WITH CSV HEADER" > all-identities.csv
+```
+
+For GDPR, periodic backups, analysis.
+
+## Throttling
+
+Don't slam the admin API. Throttle:
+
+```ts
+async function processBulk<T>(items: T[], fn: (item: T) => Promise<void>, concurrency = 5) {
+  const queue = [...items];
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      if (item) await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
+await processBulk(ids, async (id) => {
+  await kratos.adminPatch(id, [/* ... */]);
+}, 5);
+```
+
+5 concurrent operations. Plenty for most bulk ops, doesn't overload Kratos.
+
+For very large (100k+):
+```ts
+await processBulk(ids, fn, 10);
+```
+
+Or break into smaller batches with sleep between:
+
+```ts
+const BATCH = 1000;
+for (let i = 0; i < ids.length; i += BATCH) {
+  const batch = ids.slice(i, i + BATCH);
+  await processBulk(batch, fn);
+  await sleep(1000);  // breathe
+}
+```
+
+## Idempotency
+
+Operations should be safe to retry:
+
+```ts
+// Safe
+async function deactivate(id: string) {
+  const identity = await kratos.adminGet(id);
+  if (identity.state === "inactive") return;  // already done
+  await kratos.adminPatch(id, [{ op: "replace", path: "/state", value: "inactive" }]);
+}
+```
+
+Re-running this after partial failure: skips already-done. Good.
+
+## Audit
+
+Bulk operations should be audited at the batch level:
+
+```sql
+INSERT INTO security_audit (event_type, actor_id, metadata)
+VALUES (
+  'bulk_operation',
+  $admin_id,
+  $${
+    "operation": "deactivate_inactive",
+    "count": 1234,
+    "started_at": "2026-05-15T10:00:00Z",
+    "completed_at": "2026-05-15T10:05:00Z",
+    "errors": []
+  }$
+);
+```
+
+Per-identity audit too (each individual change). Both levels useful.
+
+## Confirmation
+
+For destructive bulk ops, multi-step confirmation:
+
+```bash
+$ npm run bulk-deactivate -- --filter "last_login < 2025-05-01"
+Identifying targets...
+1,234 identities will be deactivated.
+First 5 examples:
+  alice@example.com (last login: 2024-11-20)
+  bob@example.com (last login: 2024-10-15)
+  ...
+
+Type 'DEACTIVATE' to confirm:
+```
+
+For UI: a typed confirmation in modal.
+
+## Rollback
+
+What if the op is wrong? Build undo when possible:
+
+```ts
+// Save state before
+const targets = await getTargets();
+await fs.writeFile("backup-before-deactivate.json", JSON.stringify(targets));
+
+// Operate
+await processBulk(targets, deactivate);
+
+// To undo:
+const backup = JSON.parse(await fs.readFile("backup-before-deactivate.json"));
+for (const t of backup) {
+  if (t.state === "active") {
+    await kratos.adminPatch(t.id, [{ op: "replace", path: "/state", value: "active" }]);
+  }
+}
+```
+
+For deletions: no undo. Backup first.
+
+## Per-tenant filtering
+
+For multi-tenant Olympus:
+
+```sql
+SELECT id FROM identities WHERE traits->>'tenant_id' = 'tenant-X';
+```
+
+Tenant-scoped bulk operations. Always include in filters to avoid affecting other tenants.
+
+## Related
+
+- [Cookbook, Bulk import identities](/docs/cookbook/data-compliance/bulk-import-identities)
+- [Cookbook, GDPR DSR export](/docs/cookbook/data-compliance/gdpr-dsr-export)
+- [Operate, Database migrations](/docs/operate/db/db-migrations)
+- [Cookbook, Self-service account deletion](/docs/cookbook/data-compliance/self-service-account-deletion)

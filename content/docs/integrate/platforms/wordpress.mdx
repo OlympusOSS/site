@@ -1,0 +1,88 @@
+---
+title: WordPress integration
+description: Use Olympus as the identity provider for a WordPress site
+---
+
+WordPress + Olympus: WordPress users sign in via Olympus instead of WP's local accounts.
+
+## Plugin choice
+
+[OpenID Connect Generic](https://wordpress.org/plugins/daggerhart-openid-connect-generic/) is the most-used OIDC plugin.
+
+```
+WordPress Admin → Plugins → Add New → search "OpenID Connect Generic"
+```
+
+## Configuration
+
+Plugin settings:
+
+| Setting | Value |
+|---|---|
+| Login Type | OAuth2 / OIDC |
+| Client ID | `<your-olympus-client-id>` |
+| Client Secret | `<your-olympus-client-secret>` |
+| OpenID Scope | `openid email profile` |
+| Login Endpoint URL | `https://ciam.your-domain/oauth2/auth` |
+| Userinfo Endpoint URL | `https://ciam.your-domain/userinfo` |
+| Token Validation Endpoint URL | `https://ciam.your-domain/oauth2/token` |
+| End Session Endpoint URL | `https://ciam.your-domain/oauth2/sessions/logout` |
+| Identity Key | `sub` |
+
+## Register the OAuth2 client in Olympus
+
+Athena → OAuth2 Clients → new:
+
+- Name: `wordpress-site`
+- Type: confidential (WordPress is server-side; can keep a secret).
+- Grants: `authorization_code`, `refresh_token`.
+- Redirect URI: `https://your-wp-site.com/?openid-connect-authorize=1`
+- Scopes: `openid`, `email`, `profile`.
+
+## User mapping
+
+The plugin creates a WordPress user on first login. Map OIDC claims → WP user fields:
+
+- `email` → `user_email`
+- `name` → `display_name`
+- `sub` → custom meta key (so re-logins recognize the existing user)
+
+## Role mapping
+
+WordPress has roles (Subscriber, Author, Editor, Administrator). Map from Olympus's `role` trait:
+
+In the plugin's "Role Mapping" settings:
+
+```
+Olympus role: admin → WP Administrator
+Olympus role: editor → WP Editor
+default: → WP Subscriber
+```
+
+## Logout
+
+WordPress's logout link → Olympus RP-initiated logout:
+
+```php
+// In your theme's functions.php
+add_action('wp_logout', function() {
+    wp_redirect('https://ciam.your-domain/oauth2/sessions/logout');
+    exit;
+});
+```
+
+## Caveats
+
+- WordPress's role system is hierarchical but limited compared to Olympus's flexible trait model. You're mapping a complex space to a simple one.
+- WP's login page still works for users with local accounts, to enforce OIDC-only, disable local login via the plugin settings.
+- WP admin (`/wp-admin`) authentication uses the same plugin, so admins must also have Olympus identities.
+
+## Multisite
+
+For WP multisite: each site can have its own OIDC client config, or share one. Sharing means all sites authenticate via the same Olympus tenant.
+
+## Related
+
+- [Integrate, OAuth2 authorization code](/docs/integrate/oauth2/oauth2-authorization-code)
+- [Cookbook, Map roles to scopes](/docs/cookbook/tokens-oauth2/map-roles-to-scopes)
+- [Cookbook, JIT user provisioning](/docs/cookbook/enterprise-sso/jit-user-provisioning)

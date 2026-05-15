@@ -1,0 +1,12 @@
+{
+  "title": "MFA & step-up",
+  "pages": [
+    "add-webauthn",
+    "admin-2fa-required",
+    "enforce-step-up-auth",
+    "feature-flag-mfa-rollout",
+    "force-mfa-by-role",
+    "just-in-time-mfa-prompt",
+    "sms-2fa-secure"
+  ]
+}

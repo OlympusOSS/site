@@ -1,0 +1,24 @@
+{
+  "title": "Operations",
+  "pages": [
+    "alerts-for-cert-expiry",
+    "analytics-destination",
+    "api-deprecation-policy",
+    "api-rate-limit-by-token",
+    "cron-tasks-list",
+    "dashboard-overview-page",
+    "health-check-monitoring",
+    "health-status-endpoint",
+    "log-pii-redaction",
+    "migrate-to-new-major-version",
+    "migration-rollback-plan",
+    "observability-otel-collector",
+    "observability-tracing",
+    "operator-on-call",
+    "redis-for-session-cache",
+    "runbook-format",
+    "uptime-incident-comms",
+    "usage-analytics-events",
+    "usage-billing-with-mau"
+  ]
+}

@@ -1,0 +1,105 @@
+---
+title: MFA enrollment stuck
+description: User can't complete TOTP / WebAuthn setup
+---
+
+User initiates MFA enrollment, scans the QR code or registers the security key, but completion fails. Common causes.
+
+## TOTP-specific
+
+### Clock skew
+
+TOTP codes are time-based. If the user's device clock is off by more than ~30 seconds, codes won't validate.
+
+Check:
+```bash
+# On the user's device
+date
+# Compare to actual time (worldtimeapi.org)
+```
+
+Fix: user enables automatic time sync.
+
+### Wrong app
+
+Some "authenticator" apps (e.g. SMS-based or proprietary) don't support standard TOTP. Use:
+- Google Authenticator
+- Authy
+- 1Password
+- Bitwarden
+- Aegis (Android, FOSS)
+
+### Code expired
+
+User has 30 seconds to enter the code. If they pause, generate a new one in the app.
+
+### Account name issue
+
+The Kratos TOTP enrollment uses `traits.email` as the account name shown in the auth app. If `email` is missing, enrollment fails.
+
+## WebAuthn-specific
+
+### HTTPS required
+
+WebAuthn refuses to operate over HTTP (except localhost). In dev, use the self-signed cert via Caddy on `localhost.olympus.app`.
+
+### Origin mismatch
+
+The `rp.origins` in `kratos.yml` must include the **exact** origin (scheme + host + port) the user sees:
+
+```yaml
+selfservice:
+  methods:
+    webauthn:
+      config:
+        rp:
+          id: ciam.your-domain
+          origins:
+            - https://ciam.your-domain
+```
+
+Missing origin = registration fails.
+
+### RP ID mismatch on reuse
+
+If you migrate domains, existing passkeys won't work (they're bound to the old `rp.id`). Users must re-enroll.
+
+### Browser-specific quirks
+
+- **Safari**: requires user gesture (button click); won't trigger from page load.
+- **Firefox** (older): cross-platform authenticator support is patchy. Update browser.
+- **Chrome incognito**: no passkey storage; security keys still work.
+
+### Authenticator type restrictions
+
+`authenticatorSelection.userVerification: "required"` rejects authenticators without biometrics. If your YubiKey doesn't have a fingerprint, it won't enroll.
+
+Set to `"preferred"` to allow non-biometric.
+
+## Generic enrollment issues
+
+### Step-up required but no MFA enrolled
+
+Catch-22: settings flow requires AAL2, but user has no second factor. Kratos handles this, the first MFA enrollment shouldn't require step-up.
+
+Verify `kratos.yml`:
+
+```yaml
+selfservice:
+  flows:
+    settings:
+      required_aal: aal1   # so first enrollment doesn't need AAL2
+```
+
+Bump to `aal2` only after all users have enrolled.
+
+### Privacy extension blocking
+
+Browser privacy extensions sometimes block the API calls. Ask user to disable for ciam.your-domain.
+
+## Related
+
+- [Identity, TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
+- [Identity, MFA policy](/docs/identity/mfa-policy)
+- [Cookbook, Force MFA by role](/docs/cookbook/mfa/force-mfa-by-role)
+- [Cookbook, Add WebAuthn](/docs/cookbook/mfa/add-webauthn)

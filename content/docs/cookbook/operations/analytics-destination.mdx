@@ -1,0 +1,151 @@
+---
+title: Wire up an analytics destination
+description: Ship Olympus's structured logs to Datadog, Honeycomb, or your own pipeline
+---
+
+Olympus emits structured JSON events to stdout (audit events, PKCE analytics, MFA stats). To make them useful, ship them somewhere queryable.
+
+## Event shape
+
+Every emitted event has:
+
+```json
+{
+  "type": "audit" | "metric",
+  "event": "login_success" | "pkce_authorize" | ...,
+  "domain": "ciam" | "iam",
+  "identity_id": "<uuid>?",
+  "source_ip": "<ip>?",
+  "metadata": { ... },
+  "ts": "ISO-8601 timestamp"
+}
+```
+
+The `type` field lets you route audit events (compliance/security) separately from metric events (PKCE/MFA stats).
+
+## Destinations
+
+### Datadog
+
+```yaml
+# In compose.prod.yml
+services:
+  ciam-athena:
+    logging:
+      driver: gelf
+      options:
+        gelf-address: udp://datadog-agent:12201
+
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:latest
+    environment:
+      DD_API_KEY: ${DD_API_KEY}
+      DD_LOGS_ENABLED: "true"
+```
+
+In Datadog → Logs Explorer → search:
+```
+service:athena AND @type:audit AND @event:login_success
+```
+
+### Honeycomb
+
+Honeycomb's `honeycomb-cli` can tail container logs:
+
+```bash
+podman compose logs -f ciam-athena | honeyvent -w olympus-prod --dataset audit
+```
+
+For production, run Honeycomb's `refinery` as a service to sample and forward.
+
+### Self-hosted Loki + Grafana
+
+Promtail container reads `/var/log/containers/` and ships to Loki:
+
+```yaml
+# promtail-config.yml
+scrape_configs:
+  - job_name: containers
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: olympus
+          __path__: /var/log/containers/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            type: type
+            event: event
+            domain: domain
+      - labels:
+          type:
+          event:
+          domain:
+```
+
+In Grafana, query:
+```
+{job="olympus", type="audit", event="login_success"} | count_over_time(...)
+```
+
+### CloudWatch Logs
+
+If running on AWS, use the `awslogs` Docker log driver:
+
+```yaml
+services:
+  ciam-athena:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: us-east-1
+        awslogs-group: /olympus/prod
+        awslogs-stream: ciam-athena
+```
+
+Then query in Logs Insights:
+```
+fields @timestamp, type, event, domain
+| filter type = "audit" and event = "login_success"
+| stats count() by bin(5m)
+```
+
+## Aggregating per-domain
+
+Most useful queries split by CIAM vs IAM:
+
+```
+# Logins per hour, per domain
+fields @timestamp, type, event, domain
+| filter event = "login_success"
+| stats count() as logins by bin(1h), domain
+```
+
+## Building dashboards
+
+Common dashboards:
+
+1. **Auth funnel**: registration_started → registration_completed → first_login_completed → mfa_enrolled. Drop-off rates.
+2. **Threat dashboard**: lockouts_applied per minute, failed_login per IP, captcha_failure_rate.
+3. **MFA dashboard**: enrollment rate, AAL2 step-ups per day, TOTP vs WebAuthn split.
+4. **Health dashboard**: 5xx rate per service, latency p95 per endpoint, container restarts.
+
+## Retention
+
+Set retention per destination based on:
+- **Operational**: 7-30 days is sufficient.
+- **Audit compliance**: SOC 2 requires ≥1 year of security-relevant events.
+- **Cost**: longer = more.
+
+A common pattern: hot 30 days, then move to S3/Glacier for long-term.
+
+## Cost
+
+For 1k MAU with ~100 events/MAU/day = 100k events/day = ~50MB/day = ~1.5GB/month. Small. Datadog charges ~$15/mo on its smaller plan. Honeycomb has a free tier covering this. Self-hosted Loki+Grafana is free in terms of vendor cost.
+
+## Related
+
+- [Operate, Logs and observability](/docs/operate/monitoring/logs-and-observability)
+- [Operate, Monitoring, PKCE analytics](/docs/operate/monitoring/monitoring-pkce-analytics)
+- [Internals, Hera analytics](/docs/internals/hera/hera-analytics)
+- [Operate, Audit log retention](/docs/operate/monitoring/audit-log-retention)

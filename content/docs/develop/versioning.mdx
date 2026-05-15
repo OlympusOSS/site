@@ -15,7 +15,7 @@ Different Olympus distributions have different versioning models.
 - **Minor** (`1.0.0 → 1.1.0`): new exports, new optional config. Existing code keeps working.
 - **Major** (`1.0.0 → 2.0.0`): removed exports, renamed exports, behaviour changes. Consumers must adapt.
 
-Changesets enforce the discipline — every PR has a changeset declaring its bump type.
+Changesets enforce the discipline, every PR has a changeset declaring its bump type.
 
 ## Container images
 
@@ -23,7 +23,7 @@ Changesets enforce the discipline — every PR has a changeset declaring its bum
 
 **Versioned but digest-pinned.** Operators reference images by digest, not version tag, in production compose ([ADR 0014](/docs/adrs/0014-image-digest-pinning)).
 
-Tags exist for human readability (`athena:v2.10.0`). The version is informational — actual deploys reference `athena@sha256:abc123...`.
+Tags exist for human readability (`athena:v2.10.0`). The version is informational, actual deploys reference `athena@sha256:abc123...`.
 
 Bumping the digest in `compose.prod.yml` is a deliberate, audited action. Dependabot opens PRs for digest bumps; you review and merge.
 
@@ -71,6 +71,6 @@ For security fixes, the maintainer backports to the previous major version on a 
 
 ## Related
 
-- [Develop — Release process](/docs/develop/release-process)
-- [ADR 0014 — Image digest pinning](/docs/adrs/0014-image-digest-pinning)
-- [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
+- [Develop, Release process](/docs/develop/release-process)
+- [ADR 0014, Image digest pinning](/docs/adrs/0014-image-digest-pinning)
+- [ADR 0012, Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)

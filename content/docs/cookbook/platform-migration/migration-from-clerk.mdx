@@ -1,0 +1,227 @@
+---
+title: Migrate from Clerk to Olympus
+description: Move from hosted auth to self-hosted
+---
+
+Clerk is a modern hosted CIAM, popular with Next.js teams. Move to Olympus for cost or sovereignty reasons.
+
+## What translates
+
+| Clerk | Olympus |
+|---|---|
+| Users | Kratos identities |
+| Organizations | Custom (tenants via trait or separate DB) |
+| OAuth providers | Kratos OIDC providers |
+| Email/phone OTP | Kratos `code` method |
+| Passkeys | Kratos WebAuthn |
+| Webhooks | Kratos webhooks |
+| Sessions | Kratos sessions |
+| Roles / permissions | Identity traits + your authz |
+
+## Differences to know
+
+### Clerk's UI components
+
+Clerk ships `<SignIn />`, `<UserButton />`, etc., drop-in React. Olympus's Hera is a separate app with its own UI; you don't compose UI from your app.
+
+If you've embedded Clerk components, the rewrite is: redirect to Hera for auth flows. Show user info in your app post-login.
+
+### Organizations
+
+Clerk has built-in orgs (users belong to multiple). Olympus: build via tenant_id on identity + your own DB table for org membership.
+
+```sql
+CREATE TABLE org_membership (
+  identity_id UUID,
+  org_id UUID,
+  role TEXT,
+  PRIMARY KEY (identity_id, org_id)
+);
+```
+
+UI patterns: see [Multi-tenant soft isolation](/docs/cookbook/multi-tenant/multi-tenant-soft-isolation).
+
+### Backend API
+
+Clerk's backend SDK:
+```ts
+import { auth } from "@clerk/nextjs/server";
+const { userId } = auth();
+```
+
+Olympus:
+```ts
+import { olympus } from "@/lib/olympus";
+const session = await olympus.toSession(cookies());
+const userId = session?.identity.id;
+```
+
+Different but similar.
+
+### Custom OAuth flow
+
+Clerk handles all OAuth internally. Olympus exposes the OAuth2 standard, you build the integration explicitly.
+
+## User export
+
+Clerk allows export via dashboard:
+
+```
+Dashboard → Settings → Export users → JSON
+```
+
+Or via API:
+
+```bash
+curl https://api.clerk.com/v1/users -H "Authorization: Bearer $CLERK_KEY" > users.json
+```
+
+For password migration: Clerk does NOT export password hashes (security). Force password reset.
+
+## Migration script
+
+```ts
+import { clerkClient } from "@clerk/clerk-sdk-node";
+import fetch from "node-fetch";
+
+async function migrate() {
+  let offset = 0;
+  while (true) {
+    const users = await clerkClient.users.getUserList({ limit: 100, offset });
+    if (users.length === 0) break;
+    
+    for (const u of users) {
+      const primaryEmail = u.emailAddresses.find(e => e.id === u.primaryEmailAddressId)?.emailAddress;
+      if (!primaryEmail) continue;
+      
+      await fetch(`${KRATOS_ADMIN}/admin/identities`, {
+        method: "POST",
+        body: JSON.stringify({
+          schema_id: "default",
+          traits: {
+            email: primaryEmail,
+            first_name: u.firstName,
+            last_name: u.lastName,
+          },
+          credentials: {
+            password: { config: { password: crypto.randomUUID() } }
+          },
+          state: "active",
+          metadata_admin: {
+            legacy_clerk_id: u.id,
+          },
+        }),
+      });
+    }
+    offset += 100;
+  }
+}
+```
+
+Then bulk-send recovery emails.
+
+## App rewrites
+
+Wherever you have `useUser()` etc., replace with Olympus calls.
+
+### Next.js middleware
+
+Before:
+```ts
+import { authMiddleware } from "@clerk/nextjs";
+export default authMiddleware({});
+```
+
+After:
+```ts
+// middleware.ts
+import { NextResponse } from "next/server";
+import { olympus } from "@/lib/olympus";
+
+export async function middleware(req) {
+  const session = await olympus.toSession(req.headers.get("cookie"));
+  if (!session && req.nextUrl.pathname.startsWith("/dashboard")) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+}
+```
+
+### Sign-in page
+
+Before:
+```tsx
+<SignIn />
+```
+
+After:
+```tsx
+<a href={`${OLYMPUS_URL}/login?return_to=${return_to}`}>Sign in</a>
+```
+
+OR build a custom login UI that calls Kratos directly.
+
+### UserButton
+
+Before:
+```tsx
+<UserButton />
+```
+
+After:
+```tsx
+// app/components/UserMenu.tsx
+import { olympus } from "@/lib/olympus";
+
+export async function UserMenu() {
+  const session = await olympus.toSession(...);
+  return (
+    <DropdownMenu>
+      <DropdownTrigger>{session?.identity.traits.first_name}</DropdownTrigger>
+      <DropdownContent>
+        <Link href="/settings">Settings</Link>
+        <Link href="/logout">Sign out</Link>
+      </DropdownContent>
+    </DropdownMenu>
+  );
+}
+```
+
+You build it. More code; more control.
+
+## Cost comparison
+
+Clerk: free up to 10k MAU, then $25/mo + per-MAU fees + add-ons.
+
+At 50k MAU: ~$1,000+/mo on Clerk vs ~$80/mo on Olympus infra.
+
+If revenue justifies Clerk's price, stay. If you're scaling and the bill is real, migrate.
+
+## Timeline
+
+Clerk migrations are typically faster than Auth0/Cognito (simpler feature set, fewer integrations):
+- Week 1: Olympus deployed.
+- Week 2-3: User import, app rewrites.
+- Week 4: Cutover.
+
+For a typical SaaS: 4-6 weeks.
+
+## What you give up
+
+- Clerk's polished `<UserProfile />` UI, you build equivalent in Hera.
+- Built-in organizations, you build with traits.
+- Clerk's free tier under 10k MAU.
+
+What you gain:
+- All user data in your DB.
+- No per-MAU fee.
+- Full control.
+
+Trade-off is real. Make it intentionally.
+
+## Related
+
+- [Migration, Auth0](/docs/migration/from-auth0)
+- [Cookbook, Migrate from Auth0](/docs/cookbook/platform-migration/migrate-from-auth0)
+- [Cookbook, Bulk import identities](/docs/cookbook/data-compliance/bulk-import-identities)
+- [Cookbook, Customize Hera UI](/docs/cookbook/customize-hera-ui)
+- [Cookbook, Multi-tenant soft isolation](/docs/cookbook/multi-tenant/multi-tenant-soft-isolation)

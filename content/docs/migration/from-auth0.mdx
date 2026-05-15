@@ -17,7 +17,7 @@ This guide migrates an Auth0 tenant to a self-hosted Olympus deployment. It cove
 | API (audience) | Hydra OAuth2 scope / audience |
 | Rule / Action | Custom logic in your Hera fork (post-login hook), or Kratos hooks (if applicable) |
 | Universal Login | Hera login page (the equivalent UI) |
-| Custom domain | Caddy with your domain — see [Deploy — DNS and Domains](/docs/deploy/dns-and-domains) |
+| Custom domain | Caddy with your domain, see [Deploy, DNS and Domains](/docs/deploy/production/dns-and-domains) |
 | Multi-factor enrollment | Kratos settings flow (TOTP / WebAuthn) |
 | Email templates | Kratos courier templates (mountable into Kratos) |
 | Hooks (pre-registration, post-login) | Kratos hooks in `kratos.yml` |
@@ -76,7 +76,7 @@ Each Auth0 user becomes one Kratos identity. Kratos accepts identities via the a
 }
 ```
 
-Auth0 stores password hashes as bcrypt (by default). Kratos supports bcrypt — see [Kratos password hashers](https://www.ory.sh/docs/kratos/manage-identities/import-user-accounts-identities#hashed-password-import) for the exact format Kratos accepts.
+Auth0 stores password hashes as bcrypt (by default). Kratos supports bcrypt, see [Kratos password hashers](https://www.ory.sh/docs/kratos/manage-identities/import-user-accounts-identities#hashed-password-import) for the exact format Kratos accepts.
 
 ### Step 3: Bulk import to Kratos
 
@@ -134,7 +134,7 @@ For each Auth0 application:
      --token-endpoint-auth-method none
    ```
 
-   Olympus enforces PKCE for public clients — see [ADR 0019](/docs/adrs/0019-pkce-mandatory-public-clients).
+   Olympus enforces PKCE for public clients, see [ADR 0019](/docs/adrs/0019-pkce-mandatory-public-clients).
 
 3. **M2M**: register a confidential client with `client_credentials` grant.
 
@@ -172,14 +172,14 @@ Best when: zero downtime is required, you have multiple weeks for the migration,
 4. Cut over reads to Olympus only.
 5. Decommission Auth0.
 
-This requires custom code in your login path. The standard place to implement it is your application backend — both Auth0 and Olympus issue OIDC ID tokens with `sub` you can correlate across.
+This requires custom code in your login path. The standard place to implement it is your application backend, both Auth0 and Olympus issue OIDC ID tokens with `sub` you can correlate across.
 
 ## Things that *don't* directly map
 
-- **Auth0 Actions / Rules** — Auth0's hook system runs JavaScript inside Auth0's runtime. Olympus's equivalent is hooking into Kratos via webhooks (`kratos.yml` → `selfservice.flows.<flow>.after.hooks`). The DSL is different; logic must be rewritten.
-- **Auth0 Hosted Database** — if your users live in Auth0's database connection with a custom DB action script, you have to invert: instead of Auth0 calling your DB on login, you import the user into Kratos. Subsequent logins go through Kratos.
-- **Auth0 Anomaly Detection** — Olympus's equivalent is the SDK's brute-force tracking plus Caddy rate-limit plus Cloudflare Turnstile. The shape is different (purely operator-configured, no ML), but the coverage is similar.
-- **Auth0 Enterprise Connections (SAML, AD)** — Kratos supports OIDC IdPs natively. SAML requires a translation layer (e.g. SAML→OIDC bridge). Plan for this if you have enterprise customers using SAML SSO.
+- **Auth0 Actions / Rules**, Auth0's hook system runs JavaScript inside Auth0's runtime. Olympus's equivalent is hooking into Kratos via webhooks (`kratos.yml` → `selfservice.flows.<flow>.after.hooks`). The DSL is different; logic must be rewritten.
+- **Auth0 Hosted Database**, if your users live in Auth0's database connection with a custom DB action script, you have to invert: instead of Auth0 calling your DB on login, you import the user into Kratos. Subsequent logins go through Kratos.
+- **Auth0 Anomaly Detection**, Olympus's equivalent is the SDK's brute-force tracking plus Caddy rate-limit plus Cloudflare Turnstile. The shape is different (purely operator-configured, no ML), but the coverage is similar.
+- **Auth0 Enterprise Connections (SAML, AD)**, Kratos supports OIDC IdPs natively. SAML requires a translation layer (e.g. SAML→OIDC bridge). Plan for this if you have enterprise customers using SAML SSO.
 
 ## Validation checklist
 
@@ -191,11 +191,11 @@ After cutover, verify:
 - [ ] Email verification flows trigger correctly.
 - [ ] Recovery flow sends to the user's verified email.
 - [ ] MFA-enrolled users are still required to present their second factor.
-- [ ] Your apps can validate access tokens (see [Cookbook — Validate access token (Node)](/docs/cookbook/validate-token-node)).
+- [ ] Your apps can validate access tokens (see [Cookbook, Validate access token (Node)](/docs/cookbook/tokens-oauth2/validate-token-node)).
 - [ ] Auth0's domain (`yourtenant.auth0.com`) is parked / redirects to your new domain.
 
 ## Related
 
-- [Identity — Identity schemas](/docs/identity/identity-schemas) — how to model your Auth0 user_metadata.
-- [Get Started — Your first OAuth2 client](/docs/get-started/first-oauth-client) — end-to-end flow exercise.
-- [Migration — From Keycloak](/docs/migration/from-keycloak) — the parallel guide.
+- [Identity, Identity schemas](/docs/identity/identity-schemas), how to model your Auth0 user_metadata.
+- [Get Started, Your first OAuth2 client](/docs/get-started/first-oauth-client), end-to-end flow exercise.
+- [Migration, From Keycloak](/docs/migration/from-keycloak), the parallel guide.

@@ -5,8 +5,8 @@ description: The most important concept in Olympus
 
 Every Olympus deployment runs **two complete identity stacks side by side**:
 
-- **CIAM** — Customer Identity and Access Management. The half exposed to your end users. Customers register here, log in here, recover passwords here. Ports 3xxx.
-- **IAM** — Identity and Access Management. The half exposed to your employees. Operators, engineers, support staff authenticate here. Ports 4xxx.
+- **CIAM**, Customer Identity and Access Management. The half exposed to your end users. Customers register here, log in here, recover passwords here. Ports 3xxx.
+- **IAM**, Identity and Access Management. The half exposed to your employees. Operators, engineers, support staff authenticate here. Ports 4xxx.
 
 Each half is a fully independent Kratos + Hydra stack with its own database namespace.
 
@@ -22,7 +22,7 @@ A single-domain architecture would be simpler. Olympus chooses the more complex 
 | **Scaling** | A customer-traffic spike does not impact the database hosting employee auth. |
 | **Upgrade isolation** | The CIAM Kratos can be upgraded ahead of (or behind) the IAM Kratos. |
 
-See [ADR 0001 — Dual-Domain Architecture](/docs/adrs/0001-dual-domain-architecture) for the full decision record.
+See [ADR 0001, Dual-Domain Architecture](/docs/adrs/0001-dual-domain-architecture) for the full decision record.
 
 ## What's on each side
 
@@ -37,7 +37,7 @@ IAM (your employees)
 ├── Hera IAM      (login UI employees see)
 ├── Athena IAM    (admin dashboard for managing employees and operating the platform)
 ├── Kratos IAM    (employee identity service)
-└── Hydra IAM     (OAuth2 for internal apps — pgAdmin SSO, Grafana SSO, etc.)
+└── Hydra IAM     (OAuth2 for internal apps, pgAdmin SSO, Grafana SSO, etc.)
 ```
 
 Note the asymmetry: **Athena CIAM is operated by employees, but it manages customer data.** Employees log into Athena CIAM via the **IAM** domain, then act on the **CIAM** Kratos and Hydra admin APIs. The C/I prefix refers to the data the dashboard manages, not the audience using the dashboard.
@@ -69,10 +69,10 @@ The flows are identical in shape. The **data planes are completely separate.**
 
 ## A note on terminology
 
-You'll see "CIAM" and "IAM" used as domain prefixes throughout — service names like `ciam-kratos-dev`, env vars like `CIAM_KRATOS_PUBLIC_URL`, schema fields like `iam_admin_role`. The convention is consistent: anything with a `ciam` prefix lives in the customer half, anything with `iam` lives in the employee half.
+You'll see "CIAM" and "IAM" used as domain prefixes throughout, service names like `ciam-kratos-dev`, env vars like `CIAM_KRATOS_PUBLIC_URL`, schema fields like `iam_admin_role`. The convention is consistent: anything with a `ciam` prefix lives in the customer half, anything with `iam` lives in the employee half.
 
 ## Where next
 
-- [Identity vs OAuth2](/docs/get-started/concepts-identity-vs-oauth2) — why we run both Kratos and Hydra.
-- [Architecture](/docs/architecture) — the full port and service layout.
-- [Security — CIAM/IAM Isolation](/docs/security/ciam-iam-isolation) — the enforcement boundary.
+- [Identity vs OAuth2](/docs/get-started/concepts-identity-vs-oauth2), why we run both Kratos and Hydra.
+- [Architecture](/docs/architecture), the full port and service layout.
+- [Security, CIAM/IAM Isolation](/docs/security/infrastructure/ciam-iam-isolation), the enforcement boundary.

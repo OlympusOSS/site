@@ -2,9 +2,9 @@
   "title": "Ory Identities API",
   "pages": [
     "overview",
-    "...courier",
-    "...frontend",
-    "...identity",
-    "...metadata"
+    "identity",
+    "frontend",
+    "courier",
+    "metadata"
   ]
 }

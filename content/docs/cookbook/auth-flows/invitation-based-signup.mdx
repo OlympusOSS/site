@@ -1,0 +1,149 @@
+---
+title: Invitation-based signup
+description: Only invited users can register
+---
+
+For private SaaS or internal tools: registration is closed; only users with an invitation can sign up.
+
+## Pattern
+
+```
+1. Admin (or app logic) creates an invitation → token URL emailed.
+2. User clicks → lands on registration page with invitation token in URL.
+3. Registration form pre-fills email from invitation.
+4. On submit, validate invitation; create account; consume invitation.
+```
+
+## Data model
+
+```sql
+CREATE TABLE invitations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  invited_by UUID NOT NULL,
+  role TEXT NOT NULL DEFAULT 'user',
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  token_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+The `token_hash` is HMAC of the actual token (don't store plaintext).
+
+## Creating invitations
+
+```ts
+async function createInvitation(email: string, role: string, invitedBy: string) {
+  const token = crypto.randomBytes(32).toString("base64url");
+  const tokenHash = crypto.createHmac("sha256", process.env.INVITATION_SECRET!).update(token).digest("hex");
+
+  await db`
+    INSERT INTO invitations (email, invited_by, role, token_hash, expires_at)
+    VALUES (${email}, ${invitedBy}, ${role}, ${tokenHash}, NOW() + INTERVAL '7 days')
+  `;
+
+  const url = `https://app.example.com/signup?token=${token}`;
+  await sendEmail(email, "You're invited", url);
+}
+```
+
+## Consuming on registration
+
+In Hera, capture the `token` URL param. Pre-fill the email field as read-only.
+
+Add a pre-registration hook to validate the token:
+
+```yaml
+selfservice:
+  flows:
+    registration:
+      before:
+        hooks:
+          - hook: web_hook
+            config:
+              url: https://your-backend/internal/check-invitation
+              response:
+                ignore: false
+                parse: true
+```
+
+Backend:
+
+```ts
+export async function POST(request: Request) {
+  const { traits, request_url } = await request.json();
+  const token = new URL(request_url).searchParams.get("token");
+  if (!token) return Response.json({ reject: true, error: "no_invitation" });
+
+  const hash = crypto.createHmac("sha256", process.env.INVITATION_SECRET!).update(token).digest("hex");
+
+  const inv = await db`
+    SELECT * FROM invitations
+    WHERE token_hash = ${hash}
+      AND email = ${traits.email}
+      AND consumed_at IS NULL
+      AND expires_at > NOW()
+  `.first();
+
+  if (!inv) return Response.json({ reject: true, error: "invalid_invitation" });
+
+  // Set role from invitation (don't trust user input)
+  return Response.json({
+    ok: true,
+    patches: { "/traits/role": inv.role },
+  });
+}
+```
+
+After registration succeeds, mark the invitation consumed:
+
+```yaml
+# kratos.yml
+selfservice:
+  flows:
+    registration:
+      after:
+        password:
+          hooks:
+            - hook: web_hook
+              config:
+                url: https://your-backend/internal/consume-invitation
+```
+
+## Bulk invitations
+
+Admin UI to invite many users at once:
+
+```ts
+const emails = ["a@corp.com", "b@corp.com", ...];
+for (const email of emails) {
+  await createInvitation(email, "user", adminId);
+}
+```
+
+Add throttling, don't email-bomb your provider with 10k at once.
+
+## Revoking invitations
+
+```ts
+async function revokeInvitation(invitationId: string) {
+  await db`DELETE FROM invitations WHERE id = ${invitationId}`;
+}
+```
+
+Or set `expires_at = NOW()` to soft-revoke.
+
+## Auto-expire
+
+Daily cron:
+
+```sql
+DELETE FROM invitations WHERE expires_at < NOW() - INTERVAL '30 days';
+```
+
+## Related
+
+- [Cookbook, JIT user provisioning](/docs/cookbook/enterprise-sso/jit-user-provisioning), alternative pattern.
+- [Cookbook, Email-domain allowlist](/docs/cookbook/defensive-security/email-domain-allowlist), open registration with restrictions.
+- [Cookbook, Custom Kratos webhook](/docs/cookbook/integrations-billing/custom-kratos-webhook)

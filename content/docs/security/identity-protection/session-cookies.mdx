@@ -1,0 +1,90 @@
+---
+title: Session cookies
+description: How Olympus signs, scopes, and stores session cookies
+---
+
+Olympus has two types of session cookies:
+1. **Kratos session cookie**, issued by Kratos after successful login; identifies the user for browser-driven Kratos flows.
+2. **Athena session cookie**, issued by Athena after OAuth2 callback; identifies the admin for Athena routes.
+
+Each has its own signing, scope, and lifecycle.
+
+## Kratos session cookie
+
+Name: `ory_kratos_session` (configurable).
+
+Set after login completes:
+
+```
+Set-Cookie: ory_kratos_session=<id>; Path=/; Domain=ciam.example.com; HttpOnly; Secure; SameSite=Lax; Max-Age=86400
+```
+
+Properties:
+- `HttpOnly`, JavaScript can't read it. XSS-resistant.
+- `Secure`, HTTPS only.
+- `SameSite=Lax`, sent on top-level navigations from other sites but not on cross-site POST. Allows OAuth2 redirects, blocks CSRF.
+- `Domain=ciam.example.com`, scoped to the CIAM domain only. IAM never sees it.
+
+Signing: the cookie value is an HMAC-signed session ID. Kratos signs with `secrets.cookie` from `kratos.yml`. Tampering invalidates the signature.
+
+The session record itself (with identity, AAL, expiry) is in the Kratos `sessions` table, the cookie is just a lookup key.
+
+## Athena session cookie
+
+Name: `athena-session`.
+
+Set after OAuth2 callback completes:
+
+```
+Set-Cookie: athena-session=<payload>.<hmac>; Path=/; Domain=iam.example.com; HttpOnly; Secure; SameSite=Lax
+```
+
+Properties:
+- Same `HttpOnly` / `Secure` / `SameSite` as Kratos.
+- `Domain=iam.example.com`, scoped to IAM.
+- **HMAC-signed payload**, not a session-table lookup. The payload contains identity ID, role, expiry; HMAC computed with `SESSION_SIGNING_KEY` (env-injected, separate from `ENCRYPTION_KEY`).
+
+Why HMAC-signed vs DB-stored? Athena is stateless, every middleware request can validate the cookie locally without a DB roundtrip. Trades:
+- Faster auth check.
+- Revocation isn't instant (revoked sessions stay valid until expiry; for forced logout, rotate `SESSION_SIGNING_KEY`).
+
+## Cookie domain matters
+
+CIAM and IAM cookies must NOT have the same domain. If both use `Domain=example.com` (the parent), browsers send both cookies to both subdomains. The CIAM/IAM isolation breaks.
+
+Olympus's prod config sets the cookie domain to the specific subdomain. See [Security, CIAM/IAM isolation](/docs/security/infrastructure/ciam-iam-isolation).
+
+## Token storage anti-patterns
+
+Don't store the OAuth2 access token in a cookie that the browser can read. JavaScript should not be able to access tokens. Olympus's pattern:
+
+- **For Athena**: HMAC-signed cookie carries identity ID + role; the access token (if needed) lives on the server side, looked up by session ID.
+- **For your apps**: same pattern, your backend holds the OAuth2 tokens; your SPA gets a backend-issued session cookie.
+
+## Rotating session signing key
+
+If `SESSION_SIGNING_KEY` is rotated, all existing Athena sessions are immediately invalid (HMAC no longer verifies). Users must re-authenticate.
+
+For zero-downtime rotation, Athena supports staged keys (`SESSION_SIGNING_KEY` for verify, `SESSION_SIGNING_KEY_NEXT` for new signatures). See [Operate, Session signing key rotation](/docs/operate/rotation/session-signing-key-rotation).
+
+Kratos's cookie secret rotation is similar but Kratos-managed, see [Operate, Reload API key rotation](/docs/operate/rotation/reload-api-key-rotation) for the pattern.
+
+## Inspecting a cookie
+
+In DevTools → Application → Cookies, decode the Athena cookie payload:
+
+```
+athena-session = base64url(payload).base64url(hmac)
+
+payload = base64-decode(.split('.')[0])
+         = { sub: "<identity-id>", role: "admin", iat: <ts>, exp: <ts> }
+```
+
+Don't display this to users, it contains identity material.
+
+## Related
+
+- [Security, CIAM/IAM isolation](/docs/security/infrastructure/ciam-iam-isolation)
+- [Operate, Session signing key rotation](/docs/operate/rotation/session-signing-key-rotation)
+- [Identity, Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)
+- [Troubleshooting, Cookies not persisting](/docs/troubleshooting/auth-issues/cookies-not-persisting)

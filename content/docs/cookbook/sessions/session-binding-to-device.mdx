@@ -1,0 +1,147 @@
+---
+title: Bind session to device
+description: Prevent session token theft by binding to a device
+---
+
+A standard session cookie can be stolen (via XSS, malware, a phone left unlocked) and used elsewhere. "Token binding" or "device binding" makes the stolen cookie useless without the original device.
+
+## The threat
+
+```
+1. Attacker reads cookie from victim's browser (XSS, browser extension, etc.).
+2. Attacker pastes cookie into their own browser.
+3. Attacker is signed in as victim.
+```
+
+Without binding, this works. With binding, the second browser is rejected.
+
+## Approach: TLS-bound cookies (DBSC / TLS Token Binding)
+
+The IETF spec ["Device Bound Session Credentials" (DBSC)](https://github.com/WICG/dbsc) describes a browser-native mechanism. Server gives the browser a public key challenge, browser proves possession of a device-bound private key on each request.
+
+Chromium implements an early version. Other browsers slow to adopt.
+
+For Olympus today: DBSC is bleeding-edge. Implement when adoption justifies.
+
+## Approach: Application-level binding
+
+Until DBSC is universal, simulate with app logic:
+
+1. At login, set a per-device "secret" in localStorage:
+   ```ts
+   const deviceSecret = crypto.randomUUID();
+   localStorage.setItem("device_secret", deviceSecret);
+   ```
+2. Server stores a hash of this secret tied to the session:
+   ```sql
+   UPDATE sessions SET device_secret_hash = sha256($secret) WHERE id = $session;
+   ```
+3. On every request, app sends the secret as header:
+   ```ts
+   fetch("/api/...", { headers: { "x-device-secret": deviceSecret } });
+   ```
+4. Server validates the header matches the stored hash.
+
+If attacker steals cookie but not localStorage, requests fail.
+
+Note: This is weaker than DBSC (XSS can read localStorage too). But it raises the bar, many drive-by attacks don't extract localStorage.
+
+## Approach: WebAuthn for sensitive actions
+
+For step-up: any sensitive action (financial, settings change) requires a WebAuthn user-presence check.
+
+```ts
+async function step_up() {
+  await navigator.credentials.get({
+    publicKey: { challenge: await getChallengeFromServer() },
+  });
+}
+```
+
+The WebAuthn challenge is device-bound (private key never leaves device). Stolen cookie can't satisfy it.
+
+This is more practical TODAY than DBSC.
+
+## Approach: IP + User-Agent binding
+
+Soft binding:
+
+```sql
+CREATE TABLE session_devices (
+  session_id UUID,
+  initial_ip INET,
+  initial_user_agent TEXT,
+  PRIMARY KEY (session_id)
+);
+```
+
+On each request:
+
+```ts
+const device = await db`SELECT * FROM session_devices WHERE session_id = ${sessionId}`.first();
+if (req.ip !== device.initial_ip) {
+  // IP changed
+  if (!isWithinTrustedRange(req.ip, device.initial_ip)) {
+    // Mobile network change, VPN, etc., could be legit or theft.
+    return forceReauth();
+  }
+}
+if (req.headers["user-agent"] !== device.initial_user_agent) {
+  // User agent changed, almost certainly different device.
+  return forceReauth();
+}
+```
+
+Trade-offs:
+- IP changes happen (mobile networks, coffee shops). False positives.
+- UA changes on browser update. False positives.
+
+Use as a soft signal, not a hard block. Increase risk score; trigger MFA.
+
+## Approach: Behavioral
+
+Mouse movement patterns, typing rhythm, click coordinates, analyzed for changes. ML-heavy.
+
+Commercial: Castle, Sift, BioCatch.
+
+Overkill for most. Useful at scale + high stakes.
+
+## Where Olympus stands
+
+Out of the box: standard cookies (HttpOnly, Secure, SameSite=Lax). No binding.
+
+For binding, build on top via:
+- WebAuthn for sensitive actions (most practical).
+- IP/UA soft binding (low cost, moderate value).
+- DBSC when supported broadly.
+
+## UX trade-offs
+
+Strong binding = good security, but:
+- Cookies don't survive device changes.
+- Migration between devices (laptop → phone) breaks sessions.
+- More re-auths.
+
+Find the balance:
+- Routine read access: light binding.
+- Financial actions: heavy (WebAuthn step-up).
+- Multi-device users: support "trust this device" + re-establish on new.
+
+## Implementation steps
+
+For Olympus deployment:
+
+1. Add WebAuthn enrollment to onboarding.
+2. Gate sensitive endpoints behind WebAuthn step-up.
+3. For non-WebAuthn users, soft binding (IP/UA check, force re-auth on big changes).
+4. Monitor: are step-ups effective? Are users complaining?
+
+Don't deploy aggressive binding before measuring its value.
+
+## Related
+
+- [Cookbook, Add WebAuthn / passkeys](/docs/cookbook/mfa/add-webauthn)
+- [Cookbook, Enforce step-up auth](/docs/cookbook/mfa/enforce-step-up-auth)
+- [Cookbook, Device fingerprinting](/docs/cookbook/defensive-security/device-fingerprinting)
+- [Cookbook, Detect impossible travel](/docs/cookbook/defensive-security/detect-impossible-travel)
+- [Security, Session cookies](/docs/security/identity-protection/session-cookies)

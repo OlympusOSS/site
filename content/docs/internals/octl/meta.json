@@ -1,0 +1,7 @@
+{
+  "title": "octl",
+  "pages": [
+    "octl-podman-detection",
+    "octl-stack-bundle"
+  ]
+}

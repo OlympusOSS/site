@@ -1,0 +1,86 @@
+---
+title: M2M call from a backend worker
+description: Server-to-server OAuth2 with client credentials grant
+---
+
+A backend worker needs to call your API. No user is involved. Use OAuth2 `client_credentials` grant.
+
+## Step 1: Register an M2M client in Athena
+
+Athena IAM → M2M Clients → New Client:
+- Name: `nightly-data-sync`
+- Allowed scopes: `data:read`, `data:write`
+- Grant type: `client_credentials`
+
+Athena returns a one-time-displayed `client_secret`. Capture it now; it's never shown again. (To rotate later: see [Operate, M2M client secret rotation](/docs/operate/m2m-client-secret-rotation).)
+
+## Step 2: Worker requests a token
+
+Each time the worker needs to call your API:
+
+```ts
+async function getMachineToken() {
+  const response = await fetch(`${ISSUER}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      'authorization': 'Basic ' + Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64'),
+    },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      scope: 'data:read data:write',
+    }),
+  });
+  const { access_token, expires_in } = await response.json();
+  return { access_token, expires_at: Date.now() + expires_in * 1000 };
+}
+```
+
+## Step 3: Cache the token
+
+Don't get a new token for every request, cache it until expiry:
+
+```ts
+let cached: { access_token: string; expires_at: number } | null = null;
+
+async function getCachedMachineToken() {
+  if (!cached || cached.expires_at < Date.now() + 60_000 /* refresh 1min before expiry */) {
+    cached = await getMachineToken();
+  }
+  return cached.access_token;
+}
+```
+
+## Step 4: Use the token
+
+```ts
+const token = await getCachedMachineToken();
+const result = await fetch('https://api.your-domain/data', {
+  headers: { authorization: `Bearer ${token}` },
+});
+```
+
+## What the token contains
+
+The M2M access token has:
+- `sub` = client_id (not a user!)
+- `scope` = granted scopes
+- No `email`, no `name`, there's no user.
+- `client_id` = same as `sub`.
+
+Your API validation should accept tokens where `sub` is a client ID for M2M flows. Distinguish from user tokens via the presence/absence of `email` or by introspection's `token_type: "access_token"` and `client_credentials` indication.
+
+## Rate limiting
+
+M2M tokens can be issued aggressively. Set `metadata.rate_limit_per_minute` on the client and check at your API:
+
+```bash
+hydra update client <id> --endpoint http://localhost:3103 \
+  --metadata '{"rate_limit_per_minute": 600}'
+```
+
+## Related
+
+- [Integrate, Client credentials](/docs/integrate/oauth2/oauth2-client-credentials)
+- [Cookbook, Validate access token (Node)](/docs/cookbook/tokens-oauth2/validate-token-node)
+- [Athena, M2M clients reference](/docs/reference/api/athena/clients-m2m)

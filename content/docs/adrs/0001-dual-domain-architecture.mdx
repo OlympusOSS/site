@@ -1,5 +1,5 @@
 ---
-title: "0001 — Dual-domain architecture"
+title: "0001, Dual-domain architecture"
 description: Why Olympus runs CIAM and IAM as completely independent Kratos+Hydra stacks
 ---
 
@@ -13,42 +13,42 @@ Olympus serves two distinct audiences:
 - **Customers** of the products Olympus is used to power. They register, log in, recover passwords, manage their own accounts.
 - **Employees** of the organization running Olympus. They operate the platform, administer customers, access internal tools.
 
-Industry-standard guidance is to keep these two audiences on separate identity surfaces — Auth0 calls this "CIAM vs IAM," Okta calls it "Customer Identity vs Workforce Identity." The reasons relate to isolation, policy independence, and data residency.
+Industry-standard guidance is to keep these two audiences on separate identity surfaces, Auth0 calls this "CIAM vs IAM," Okta calls it "Customer Identity vs Workforce Identity." The reasons relate to isolation, policy independence, and data residency.
 
 The question is **how to realize that separation in Olympus's implementation.**
 
 ## Considered alternatives
 
-### Option A — Single Kratos + single Hydra, "domain" as a trait
+### Option A, Single Kratos + single Hydra, "domain" as a trait
 
 Run one identity stack. Each identity has a `domain: customer | employee` trait. Authorization policy gates access based on this trait.
 
 - *Pros*: simpler operational footprint; one upgrade path; one Postgres database.
-- *Cons*: A compromise on the customer-facing surface is a compromise of internal employees too. A schema change for customers affects employees. Independent rate-limit and lockout policies require complex per-trait logic. Independent scaling is impossible — both customers and employees share resources.
+- *Cons*: A compromise on the customer-facing surface is a compromise of internal employees too. A schema change for customers affects employees. Independent rate-limit and lockout policies require complex per-trait logic. Independent scaling is impossible, both customers and employees share resources.
 
-### Option B — Single Kratos + single Hydra, separate OAuth2 clients per audience
+### Option B, Single Kratos + single Hydra, separate OAuth2 clients per audience
 
 One identity stack but different OAuth2 client IDs for customer-facing apps vs employee-facing apps. Hydra's scope model encodes the boundary.
 
 - *Pros*: simple; one upgrade.
 - *Cons*: Same fundamental problem as Option A. The OAuth2 client boundary doesn't protect the identity database.
 
-### Option C — Two complete Kratos + Hydra stacks (CIAM and IAM), separate databases ✓
+### Option C, Two complete Kratos + Hydra stacks (CIAM and IAM), separate databases ✓
 
 Run two completely independent identity stacks. Different Kratos containers, different Hydra containers, different Postgres databases. Sharing only the host VPS and the Caddy reverse proxy.
 
 - *Pros*: Clean isolation. A breach of CIAM does not touch IAM. Different policies (password rules, MFA, session lifetimes) configured naturally. Independent scaling. Independent upgrades. Clean GDPR data boundaries.
-- *Cons*: ~2× operational footprint. Two Postgres databases (well, four — CIAM/IAM Kratos and CIAM/IAM Hydra). Two of every container. More to monitor.
+- *Cons*: ~2× operational footprint. Two Postgres databases (well, four, CIAM/IAM Kratos and CIAM/IAM Hydra). Two of every container. More to monitor.
 
 ## Decision
 
-**Option C — two complete Kratos + Hydra stacks.**
+**Option C, two complete Kratos + Hydra stacks.**
 
 ## Consequences
 
 ### Operational
 
-- Eight identity-related containers in prod (CIAM and IAM × Kratos public + Kratos admin + Hydra public + Hydra admin … actually four Ory services × two domains = 8). Plus 2 Heras, 2 Athenas. The total Compose service count is high — see [Reference — Compose Services](/docs/reference/config/compose/overview) for the inventory.
+- Eight identity-related containers in prod (CIAM and IAM × Kratos public + Kratos admin + Hydra public + Hydra admin … actually four Ory services × two domains = 8). Plus 2 Heras, 2 Athenas. The total Compose service count is high, see [Reference, Compose Services](/docs/reference/config/compose/overview) for the inventory.
 - Every runbook applies twice. Cert rotation rotates four DB certs. Secrets audit covers two sets of secrets.
 
 ### Performance
@@ -68,13 +68,13 @@ Run two completely independent identity stacks. Different Kratos containers, dif
 ### Cost
 
 - ~$10-20/month additional cloud cost on a single-VPS deployment (mostly Postgres storage).
-- Negligible on a managed Postgres (Neon) — they price per database storage, not per database instance.
+- Negligible on a managed Postgres (Neon), they price per database storage, not per database instance.
 
 ## Related
 
-- [Security — CIAM/IAM Isolation](/docs/security/ciam-iam-isolation) — the enforcement details.
-- [Operate — Network Topology](/docs/operate/network-topology) — which ports each domain occupies.
-- [Architecture](/docs/architecture) — visual top-level layout.
+- [Security, CIAM/IAM Isolation](/docs/security/infrastructure/ciam-iam-isolation), the enforcement details.
+- [Operate, Network Topology](/docs/operate/administration/network-topology), which ports each domain occupies.
+- [Architecture](/docs/architecture), visual top-level layout.
 
 ## Revisit triggers
 

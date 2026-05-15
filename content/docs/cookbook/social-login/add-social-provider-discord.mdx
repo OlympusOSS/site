@@ -1,0 +1,50 @@
+---
+title: Add Discord as a social login provider
+description: Configure Discord OAuth as an alternate login method
+---
+
+## Step 1: Register Discord application
+
+1. [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**.
+2. Name it.
+3. OAuth2 → Redirects → add `https://ciam.your-domain/self-service/methods/oidc/callback/discord`.
+4. Copy Client ID and Client Secret.
+
+## Step 2: Configure Kratos
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: discord
+            provider: discord
+            client_id: <discord-app-id>
+            client_secret: <discord-secret>
+            scope: [identify, email]
+            mapper_url: file:///etc/config/kratos/oidc.discord.jsonnet
+```
+
+`oidc.discord.jsonnet`:
+
+```text
+local claims = std.extVar('claims');
+{
+  identity: {
+    traits: {
+      email: claims.email,
+      name: { first: claims.username },
+    },
+  },
+}
+```
+
+## Use cases
+
+Discord login is common in gaming and community-driven products. For B2B or generic CIAM, prefer Google + GitHub.
+
+## Related
+
+- [Identity, Social login](/docs/identity/social-login)
+- [Cookbook, Add Google](/docs/cookbook/social-login/add-social-provider-google)

@@ -1,0 +1,62 @@
+---
+title: Provider, Oracle Cloud (OCI)
+description: Deploy Olympus on Oracle Cloud Infrastructure
+---
+
+Oracle Cloud's Always Free tier includes two ARM-based VMs with 24GB RAM combined, overkill for Olympus, and free indefinitely. The catch: ARM (`aarch64`), so verify Olympus image multi-arch support.
+
+## Always Free instance
+
+- Up to 4 OCPUs (ARM Ampere A1)
+- Up to 24 GB RAM
+- 200 GB block storage
+- 10 TB egress
+
+If your account is set up correctly, this costs $0.
+
+## Setup
+
+1. Create an Always Free Ampere A1 instance with Ubuntu 22.04.
+2. SSH in (Oracle's default user is `ubuntu`).
+3. Open ports 80 and 443:
+   ```bash
+   sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+   sudo iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+   sudo netfilter-persistent save
+   ```
+   Also open in the Oracle Cloud Security List (web UI).
+4. Install Podman.
+5. Use Daedalus's Direct SSH path.
+
+## ARM caveat
+
+Olympus's container images are built multi-arch. Verify by inspecting the manifest:
+
+```bash
+docker manifest inspect ghcr.io/olympusoss/athena:latest
+# Look for "architecture": "arm64" entries.
+```
+
+If multi-arch isn't published yet, build locally on ARM:
+
+```bash
+cd athena
+docker buildx build --platform linux/arm64 -t my-athena .
+```
+
+## When to use
+
+- You want zero-cost hosting indefinitely.
+- ARM is fine for your workload (it is, for Olympus).
+- You're comfortable with Oracle's UI (which is less friendly than DigitalOcean).
+
+## Caveats
+
+- Oracle's free tier has occasional capacity issues (instances may not be available in some regions at peak).
+- Account verification requires a credit card.
+- Performance is reasonable for ~1k MAU but ARM-specific bugs in dependencies may surface.
+
+## Where next
+
+- [Deploy, Provider, Direct SSH](/docs/deploy/providers/provider-direct-ssh)
+- [Cookbook, Single VPS deployment](/docs/cookbook/deployment/single-vps-deployment)

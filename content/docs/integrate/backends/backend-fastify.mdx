@@ -1,0 +1,104 @@
+---
+title: Fastify integration
+description: Authenticate Fastify routes against Olympus
+---
+
+Fastify + Olympus via the [`@fastify/oauth2`](https://github.com/fastify/fastify-oauth2) plugin or custom hooks.
+
+## Setup
+
+```bash
+bun add fastify @fastify/oauth2 @fastify/cookie @fastify/session
+```
+
+## OIDC login
+
+```ts
+import Fastify from "fastify";
+import oauth2 from "@fastify/oauth2";
+import cookie from "@fastify/cookie";
+import session from "@fastify/session";
+
+const fastify = Fastify();
+
+await fastify.register(cookie);
+await fastify.register(session, {
+  secret: process.env.SESSION_SECRET!,
+  cookie: { secure: true, sameSite: "lax" },
+});
+
+await fastify.register(oauth2, {
+  name: "olympus",
+  scope: ["openid", "profile", "email"],
+  credentials: {
+    client: {
+      id: process.env.OLYMPUS_CLIENT_ID!,
+      secret: process.env.OLYMPUS_CLIENT_SECRET!,
+    },
+    auth: {
+      authorizeHost: process.env.OLYMPUS_ISSUER!,
+      authorizePath: "/oauth2/auth",
+      tokenHost: process.env.OLYMPUS_ISSUER!,
+      tokenPath: "/oauth2/token",
+    },
+  },
+  startRedirectPath: "/auth/login",
+  callbackUri: process.env.OLYMPUS_REDIRECT_URI!,
+  pkce: "S256",
+});
+
+fastify.get("/auth/callback", async (req, reply) => {
+  const { token } = await fastify.olympus.getAccessTokenFromAuthorizationCodeFlow(req);
+  const userinfo = await fetch(`${process.env.OLYMPUS_ISSUER}/userinfo`, {
+    headers: { authorization: `Bearer ${token.access_token}` },
+  }).then((r) => r.json());
+
+  req.session.user = userinfo;
+  return reply.redirect("/");
+});
+```
+
+## Token validation middleware
+
+```ts
+fastify.addHook("onRequest", async (req, reply) => {
+  if (!req.url.startsWith("/api/")) return;
+
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    return reply.code(401).send({ error: "missing_token" });
+  }
+
+  const info = await introspect(auth.slice(7));
+  if (!info.active) {
+    return reply.code(401).send({ error: "inactive" });
+  }
+
+  req.user = info;
+});
+```
+
+## Schemas
+
+Fastify's JSON Schema validation pairs with Olympus's typed responses:
+
+```ts
+fastify.get("/api/me", {
+  schema: {
+    response: {
+      200: {
+        type: "object",
+        properties: {
+          sub: { type: "string" },
+          email: { type: "string" },
+        },
+      },
+    },
+  },
+}, async (req) => req.user);
+```
+
+## Related
+
+- [Integrate, Express.js integration](/docs/integrate/backends/backend-express)
+- [Cookbook, Validate access token (Node)](/docs/cookbook/tokens-oauth2/validate-token-node)

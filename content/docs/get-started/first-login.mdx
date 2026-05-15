@@ -3,7 +3,7 @@ title: Your first login
 description: Walk through a Kratos login flow end-to-end
 ---
 
-This page exercises a real login — both as the seeded admin (so you can see what works) and a fresh customer account (so you can see registration and email verification).
+This page exercises a real login, both as the seeded admin (so you can see what works) and a fresh customer account (so you can see registration and email verification).
 
 ## Prerequisite
 
@@ -28,7 +28,7 @@ What just happened, step by step:
 - Hydra IAM issued an authorization code and redirected to Athena IAM's `/api/auth/callback`.
 - Athena IAM exchanged the code for tokens, set the `athena-session` cookie, redirected to `/`.
 
-You are now logged in. Click around the Athena dashboard — Identities, Sessions, OAuth2 Clients, Schemas — to see what's seeded.
+You are now logged in. Click around the Athena dashboard, Identities, Sessions, OAuth2 Clients, Schemas, to see what's seeded.
 
 ## Register a new customer
 
@@ -41,7 +41,7 @@ You are now logged in. Click around the Athena dashboard — Identities, Session
 7. Find the verification email, click the verification link.
 8. You're now verified and logged in.
 
-You can see the new customer identity in Athena CIAM at [http://localhost:3001](http://localhost:3001) — log in as the admin first (you'll go through the Athena IAM auth flow), then navigate to Identities.
+You can see the new customer identity in Athena CIAM at [http://localhost:3001](http://localhost:3001), log in as the admin first (you'll go through the Athena IAM auth flow), then navigate to Identities.
 
 ## Try the recovery flow
 
@@ -52,10 +52,10 @@ You can see the new customer identity in Athena CIAM at [http://localhost:3001](
 
 ## What the playground does
 
-The [Site at localhost:2000](http://localhost:2000) includes an **OAuth2 playground** that exercises an Authorization Code + PKCE flow against a registered playground client. It shows the full token round-trip including the decoded ID token and scopes — useful for understanding what your apps will see.
+The [Site at localhost:2000](http://localhost:2000) includes an **OAuth2 playground** that exercises an Authorization Code + PKCE flow against a registered playground client. It shows the full token round-trip including the decoded ID token and scopes, useful for understanding what your apps will see.
 
 ## Where next
 
-- [Your first OAuth2 client](/docs/get-started/first-oauth-client) — register a real client and consume tokens from your own app.
-- [Identity — Flow Login](/docs/identity/flow-login) — the Kratos login flow as a state diagram.
-- [Integrate — OAuth2 authorization code](/docs/integrate/oauth2-authorization-code) — the protocol perspective.
+- [Your first OAuth2 client](/docs/get-started/first-oauth-client), register a real client and consume tokens from your own app.
+- [Identity, Flow Login](/docs/identity/flow-login), the Kratos login flow as a state diagram.
+- [Integrate, OAuth2 authorization code](/docs/integrate/oauth2/oauth2-authorization-code), the protocol perspective.

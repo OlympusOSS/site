@@ -1,0 +1,162 @@
+---
+title: Feature-detect passkey support
+description: Show "Sign in with passkey" only when it works
+---
+
+Not every browser/device supports passkeys. Showing a "Sign in with passkey" button to a user whose device doesn't support it leads to errors. Detect first.
+
+## Detection API
+
+```ts
+async function isPasskeySupported(): Promise<boolean> {
+  if (!window.PublicKeyCredential) return false;
+  if (!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return false;
+  if (!PublicKeyCredential.isConditionalMediationAvailable) return false;
+  
+  // Platform authenticator (Touch ID, Windows Hello)?
+  const platform = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  // Conditional UI (autofill)?
+  const conditional = await PublicKeyCredential.isConditionalMediationAvailable();
+  
+  return platform || conditional;
+}
+```
+
+## Use in UI
+
+```tsx
+"use client";
+import { useEffect, useState } from "react";
+
+export function PasskeyLoginButton() {
+  const [supported, setSupported] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    isPasskeySupported().then(setSupported);
+  }, []);
+  
+  if (supported === null) return null;  // still detecting
+  if (!supported) return null;  // hide button
+  
+  return <button onClick={startPasskeyFlow}>Sign in with passkey</button>;
+}
+```
+
+## Conditional UI (autofill)
+
+For the "passkey appears in username autofill" experience:
+
+```tsx
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  if (!PublicKeyCredential?.isConditionalMediationAvailable) return;
+  
+  PublicKeyCredential.isConditionalMediationAvailable().then((available) => {
+    if (!available) return;
+    
+    navigator.credentials.get({
+      publicKey: { challenge: getChallenge(), ... },
+      mediation: "conditional",
+    }).then((cred) => {
+      // User picked a passkey from autofill
+      submitToServer(cred);
+    });
+  });
+}, []);
+```
+
+Important: only call once per page load. Don't call inside a render loop.
+
+## Browser support (early 2026)
+
+| Browser | Passkey support | Conditional UI |
+|---|---|---|
+| Chrome 108+ | Yes | Yes |
+| Safari 16+ | Yes | Yes (15.4+) |
+| Edge 108+ | Yes | Yes |
+| Firefox 119+ | Yes | Partial |
+| iOS Safari 16+ | Yes (Keychain) | Yes |
+| Android Chrome | Yes (Google PM) | Yes |
+| Old Safari (< 16) | No | No |
+| Old Firefox | No | No |
+
+Show fallback UI for unsupported browsers (password, magic link, etc.).
+
+## Fallback strategy
+
+```tsx
+function LoginPage() {
+  const [supported, setSupported] = useState<boolean | null>(null);
+  useEffect(() => { isPasskeySupported().then(setSupported); }, []);
+  
+  return (
+    <>
+      {supported === true && <PasskeyButton />}
+      <PasswordForm />
+      <MagicLinkButton />
+    </>
+  );
+}
+```
+
+Passkey users see all three (prefer passkey). Non-passkey users see two.
+
+## "Coming back" detection
+
+If a user previously enrolled a passkey on this device, encourage them to use it. Use the `webauthn-known-credential` cookie:
+
+```ts
+// At passkey enrollment, set:
+document.cookie = `passkey_enrolled=true; max-age=${365 * 24 * 3600}`;
+
+// At login:
+const hasEnrolled = document.cookie.includes("passkey_enrolled=true");
+if (hasEnrolled) {
+  highlightPasskeyButton();
+}
+```
+
+This is a soft hint, doesn't break if the user clears cookies, just less obvious.
+
+## Server-side compatibility check
+
+Some users don't speak WebAuthn. Server-side check:
+
+```ts
+// In middleware
+const ua = req.headers.get("user-agent");
+const supportsPasskey = checkUaSupport(ua);
+res.headers.set("x-passkey-supported", supportsPasskey ? "yes" : "no");
+```
+
+Client reads the header:
+
+```tsx
+const supported = useServerHint("x-passkey-supported") === "yes";
+```
+
+UA parsing is brittle, prefer the client-side `isPasskeySupported()`. Use server-side as a hint only.
+
+## Edge: iOS Lockdown Mode
+
+Apple's Lockdown Mode disables WebAuthn entirely. Even on iOS 16+, passkey won't work.
+
+Detection: try a non-allocating WebAuthn call. If it throws `SecurityError`, fall back.
+
+## Mobile vs desktop UX
+
+On mobile (small screen):
+- Passkey is the *primary* button.
+- Password is secondary, under "More options."
+
+On desktop:
+- Show both equally, passkey adoption is still ~30%.
+
+Reassess as adoption grows.
+
+## Related
+
+- [Cookbook, Add WebAuthn / passkeys](/docs/cookbook/mfa/add-webauthn)
+- [Cookbook, Passkey-only flow](/docs/cookbook/auth-flows/passkey-only-flow)
+- [Cookbook, Passkey cross-device](/docs/cookbook/auth-flows/passkey-cross-device)
+- [Troubleshooting, Passkey not prompted](/docs/troubleshooting/auth-issues/passkey-not-prompted)

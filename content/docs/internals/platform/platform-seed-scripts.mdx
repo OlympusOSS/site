@@ -1,0 +1,102 @@
+---
+title: Platform, seed scripts
+description: Initial data seeding for dev and prod first-deploys
+---
+
+Olympus's seeds bootstrap the system with: admin identities, OAuth2 clients (for Athena/Site to function), and identity schemas.
+
+## Dev seed: `iam-seed-dev.sh`
+
+Runs once on first dev stack start. Creates:
+
+- An IAM admin: `admin@demo.user` / `admin123!` with `role: admin`.
+- The OAuth2 clients Athena IAM, Athena CIAM, and Site need to function (with hard-coded dev client_ids and secrets).
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Wait for Kratos to be ready
+until curl -sf http://iam-kratos:7001/admin/identities >/dev/null; do sleep 1; done
+
+# Create admin
+curl -X POST http://iam-kratos:7001/admin/identities \
+  -H 'content-type: application/json' \
+  -d '{
+    "schema_id": "default",
+    "state": "active",
+    "traits": { "email": "admin@demo.user", "role": "admin" },
+    "credentials": { "password": { "type": "password", "identifiers": ["admin@demo.user"], "config": { "password": "admin123!" } } },
+    "verifiable_addresses": [{ "value": "admin@demo.user", "verified": true, "via": "email", "status": "completed" }]
+  }'
+
+# Register OAuth2 clients
+curl -X POST http://iam-hydra:7003/admin/clients \
+  -H 'content-type: application/json' \
+  -d '{ "client_id": "athena-iam-dev", ... }'
+
+# More clients...
+
+echo "Seed complete!"
+```
+
+Idempotent, re-running is fine; existing identities/clients are updated rather than duplicated.
+
+## Prod seed: `seed-prod.sh`
+
+Prod seeding does **not** include a default admin (security, no default password to be guessed). The Daedalus Accounts step creates the first admin during deployment.
+
+What runs in prod:
+- Schemas are loaded by Kratos on startup from mounted files; no separate seed.
+- OAuth2 clients are registered by Daedalus's Applications step, not by an automated script.
+- Settings (Athena's settings vault) start empty; operators configure via Athena UI.
+
+## Schema reload
+
+Schemas are loaded from `kratos.yml`'s `identity.default_schema_id` pointer. Changes to schema files require a reload, see [Operate, Reload API key rotation](/docs/operate/rotation/reload-api-key-rotation) for the sidecar mechanism.
+
+The seed script doesn't trigger a reload (it sets up at first-start; the system is fresh).
+
+## Idempotency
+
+Seed scripts are designed to be re-runnable. If you destroy and re-create the dev stack, the seed runs again and creates the demo admin again.
+
+For prod, no seed re-runs automatically. To re-seed prod (e.g. starting fresh), use the [destroy → re-create](/docs/deploy/wizards/with-daedalus-wizard) Daedalus flow.
+
+## init-db.sql
+
+Runs on Postgres first start. Creates the five databases plus per-database users:
+
+```sql
+CREATE DATABASE ciam_kratos;
+CREATE DATABASE ciam_hydra;
+CREATE DATABASE iam_kratos;
+CREATE DATABASE iam_hydra;
+CREATE DATABASE olympus;
+
+CREATE USER ciam_kratos_user WITH PASSWORD '...';
+GRANT ALL PRIVILEGES ON DATABASE ciam_kratos TO ciam_kratos_user;
+-- ... per-database users
+```
+
+In production with managed Postgres (Neon), this script doesn't run, the Neon project setup does the equivalent via API.
+
+## What the seeds DON'T do
+
+- Don't create customer identities. Customers register via the standard CIAM registration flow.
+- Don't configure SMTP. That's via Athena settings or env vars.
+- Don't configure Turnstile. Same.
+- Don't enable / disable social providers. Done via Athena → Social Connections.
+
+## Where to put new seed logic
+
+If you have new bootstrap data:
+
+- For dev: extend `iam-seed-dev.sh` or add a new `<name>-seed-dev.sh` in the same directory.
+- For prod: usually wrong place to put it. Prod is operator-driven; the operator does it via Daedalus or Athena.
+
+## Related
+
+- [Internals, Platform compose layering](/docs/internals/platform/platform-compose-layering)
+- [Deploy, First production deploy](/docs/deploy/production/first-production-deploy)
+- [Get Started, Access URLs and credentials](/docs/get-started/access-urls-and-credentials)

@@ -1,0 +1,224 @@
+---
+title: Data minimization in identity schema
+description: Don't collect what you don't need
+---
+
+The simplest privacy / compliance approach: don't collect unnecessary data. Identity schema should be minimal.
+
+## Default Olympus schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://olympus/identity.schema.json",
+  "type": "object",
+  "properties": {
+    "traits": {
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" }
+      },
+      "required": ["email"]
+    }
+  }
+}
+```
+
+Just email. Minimal.
+
+## Adding fields, questions to ask
+
+Before adding `traits.phone`:
+
+1. **Do you NEED phone for the service to function?**
+   - Yes: required for SMS notifications, account recovery.
+   - No: don't collect.
+
+2. **What's the retention?**
+   - Permanent: high privacy cost.
+   - Until first verified: lower.
+   - Until next reset: lowest.
+
+3. **Where does it leak?**
+   - Audit logs? Hash or redact.
+   - Backups? Encrypt.
+
+4. **What if regulators ask for inventory?**
+   - You'd have to disclose this in privacy policy.
+   - Easier if you have fewer fields.
+
+5. **What if compromised?**
+   - Phone numbers in a breach: SIM-swap attacks possible.
+   - Don't store what you don't need to defend.
+
+## Common minimal sets
+
+### B2C consumer
+
+```json
+"traits": {
+  "email": "...",
+  "first_name": "..."   (optional)
+}
+```
+
+That's it. Names are nice-to-have.
+
+### B2B SaaS
+
+```json
+"traits": {
+  "email": "...",
+  "first_name": "...",
+  "last_name": "...",
+  "tenant_id": "..."
+}
+```
+
+Names + tenant. Maybe role.
+
+### Sensitive (healthcare, finance)
+
+Still minimal:
+
+```json
+"traits": {
+  "email": "...",
+  "first_name": "...",
+  "last_name": "..."
+}
+```
+
+Don't put SSN, DOB, address in identity. Those belong in domain-specific tables with stronger controls.
+
+## What goes in identity vs domain
+
+Identity: authentication-related.
+Domain: app-specific.
+
+```
+identities
+  - email
+  - first_name
+  - last_name
+  - tenant_id
+
+user_profile
+  - identity_id (FK)
+  - bio
+  - photo_url
+  - timezone
+  - preferences
+
+billing_info
+  - identity_id (FK)
+  - stripe_customer_id
+  - vat_id
+  - billing_address
+```
+
+Each domain has its own table. Different ACLs, different retention, different exposure.
+
+## DSR (data subject request)
+
+When a user requests their data, you must provide everything:
+
+```ts
+async function dsr(identityId: string) {
+  const identity = await kratos.getIdentity(identityId);
+  const profile = await db`SELECT * FROM user_profile WHERE identity_id = ${identityId}`;
+  const billing = await db`SELECT * FROM billing_info WHERE identity_id = ${identityId}`;
+  const orders = await db`SELECT * FROM orders WHERE customer_id = ${identityId}`;
+  // ... all domains
+  return { identity, profile, billing, orders, ... };
+}
+```
+
+If you have 50 tables linked to identity, this is 50 queries. Inventory upfront.
+
+## Schema evolution
+
+Adding a field after launch:
+
+1. Add to schema (nullable).
+2. Deploy.
+3. Migrate: backfill existing identities with null.
+4. Eventually: make required if always-known going forward.
+
+Don't add new required fields to existing schema, breaks old identities.
+
+```json
+"phone": { "type": "string" }  // not required
+```
+
+If you want it required for new signups but not existing:
+
+```ts
+// Pre-registration hook
+if (!traits.phone) {
+  return Response.json({ reject: true, error: "phone_required_for_new" });
+}
+```
+
+Hook applies to new signups; old identities unchanged.
+
+## Removing a field
+
+To remove a field:
+
+1. Stop reading from it.
+2. Stop writing to it.
+3. Schema-validate against new schema (drop from required).
+4. Backfill: set to null in existing rows.
+5. Drop column.
+
+Don't skip steps, old code reading missing field crashes.
+
+## Privacy by design
+
+GDPR Article 25: "Privacy by design and default."
+
+Apply:
+- Default to minimum collection.
+- Default to maximum protection.
+- Make data subjects' rights easy (DSR, deletion).
+
+Documenting this in your product process (e.g., a privacy review checklist before launching features) builds the right culture.
+
+## Sensitive data flagging
+
+For each trait, document sensitivity:
+
+```yaml
+# privacy-inventory.yml
+traits:
+  email:
+    sensitivity: low
+    purpose: authentication
+    retention: lifetime
+  first_name:
+    sensitivity: low
+    purpose: personalization
+    retention: lifetime
+  phone:
+    sensitivity: medium
+    purpose: SMS MFA, recovery
+    retention: lifetime
+    pii: true
+  health_record:
+    sensitivity: high
+    purpose: app feature X
+    retention: per regulation
+    pii: true
+    special_category: true  # GDPR Article 9
+```
+
+Reviewed annually. Updated as schema changes.
+
+## Related
+
+- [Identity, Identity schemas](/docs/identity/identity-schemas)
+- [Security, Compliance, GDPR](/docs/security/compliance/compliance-gdpr)
+- [Cookbook, GDPR DSR export](/docs/cookbook/data-compliance/gdpr-dsr-export)
+- [Cookbook, Data residency EU](/docs/cookbook/data-compliance/data-residency-eu)
+- [Cookbook, Log PII redaction](/docs/cookbook/operations/log-pii-redaction)

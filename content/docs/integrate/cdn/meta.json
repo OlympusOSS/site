@@ -1,0 +1,8 @@
+{
+  "title": "CDN",
+  "pages": [
+    "cdn-bunny",
+    "cdn-cloudfront",
+    "cdn-fastly"
+  ]
+}

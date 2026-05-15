@@ -1,0 +1,181 @@
+---
+title: Email aliases and plus-addressing
+description: How to handle `alice+test@example.com` consistently
+---
+
+A common user pattern: signing up multiple times with `alice+demo@example.com`, `alice+test@example.com`, etc. The user thinks of these as "the same person." Your system probably treats them as different.
+
+You have to pick: are aliases the same person or different?
+
+## What `+` addressing is
+
+RFC 5233: characters after `+` in the local part are ignored by the MTA for delivery. So:
+- `alice@example.com` → delivered to alice's mailbox.
+- `alice+demo@example.com` → delivered to alice's mailbox.
+- `alice+foo@example.com` → delivered to alice's mailbox.
+
+Google, FastMail, ProtonMail, most providers support this. Outlook/Hotmail historically didn't (using `-` instead). Some corporate systems don't support it.
+
+## The decision
+
+### Option A: Treat aliases as same identity
+
+Normalize at signup:
+
+```ts
+function normalizeEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  const cleanLocal = local.split("+")[0];
+  return `${cleanLocal}@${domain.toLowerCase()}`;
+}
+```
+
+`alice+demo@example.com` and `alice@example.com` both become `alice@example.com`. Same identity.
+
+Pros: prevents abuse (one person creating 100 accounts).
+Cons: legitimate uses broken (testing, alias delegation).
+
+### Option B: Treat aliases as separate identities
+
+Don't normalize. Each is unique.
+
+Pros: simpler, RFC-compliant.
+Cons: abusable.
+
+### Option C: Hybrid
+
+Don't normalize, but flag suspicious patterns:
+
+```sql
+-- Find users with shared root
+SELECT
+  REGEXP_REPLACE(traits->>'email', '\+[^@]*', '') AS root_email,
+  COUNT(*) AS account_count
+FROM identities
+GROUP BY root_email
+HAVING COUNT(*) > 3
+ORDER BY account_count DESC;
+```
+
+Investigate manually. Block if abusive.
+
+## Best practice
+
+Most B2C: Option B (treat as separate). Aliases are legitimate.
+B2B / fraud-sensitive: Option A or C.
+
+Document your choice in your terms of service so users know.
+
+## Gmail dots
+
+Google ignores dots in local part:
+- `alice@gmail.com`
+- `a.lice@gmail.com`
+- `al.ice@gmail.com`
+
+All same Gmail mailbox.
+
+To normalize:
+
+```ts
+function normalizeGmail(email: string) {
+  const [local, domain] = email.split("@");
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    return `${local.replace(/\./g, "")}@gmail.com`;
+  }
+  return email;
+}
+```
+
+But this breaks for organizations using Workspace with `.com` aliases. Don't apply blindly.
+
+## Disposable email domains
+
+Beyond aliasing, there are explicit disposable services: Mailinator, GuerrillaMail, etc. Often abused.
+
+Allow-list / block-list approach:
+
+```ts
+const blocked = new Set([
+  "mailinator.com",
+  "guerrillamail.com",
+  "10minutemail.com",
+  "tempmail.com",
+  // ... ~5000 known disposable domains
+]);
+
+function isDisposable(email: string) {
+  const domain = email.split("@")[1].toLowerCase();
+  return blocked.has(domain);
+}
+```
+
+For an up-to-date list: https://github.com/ivolo/disposable-email-domains
+
+Pre-registration hook:
+
+```ts
+export async function POST(req: Request) {
+  const { traits } = await req.json();
+  if (isDisposable(traits.email)) {
+    return Response.json({
+      reject: true,
+      error: "disposable_email",
+      message: "Please use a non-disposable email address.",
+    });
+  }
+  return Response.json({ ok: true });
+}
+```
+
+## Subdomain games
+
+`alice@subdomain.example.com` is technically a different domain from `alice@example.com`. But for a service letting users register, treat them as related?
+
+Generally: no. Subdomains can be totally separate orgs.
+
+## International (IDN) emails
+
+Punycode and emoji emails exist:
+- `alice@münchen.de`
+- `📧@🚀.io`
+
+Most apps don't handle these well. Postel's Law: be lenient in what you accept, strict in what you emit.
+
+Recommend normalizing IDN domains via punycode for storage:
+
+```ts
+import { toASCII } from "punycode";
+const normalized = toASCII("münchen.de"); // "xn--mnchen-3ya.de"
+```
+
+Store the punycode form; display the unicode form.
+
+## Case sensitivity
+
+Per RFC, local-parts are case-sensitive (`Alice@example.com` != `alice@example.com`). In practice, virtually every MTA is case-insensitive on the local-part.
+
+Olympus normalizes to lowercase on registration:
+
+```ts
+const email = traits.email.toLowerCase();
+```
+
+If you don't, `Alice@example.com` and `alice@example.com` create separate identities. Annoying for users.
+
+## Audit traces
+
+When normalizing, store BOTH the original and the normalized:
+
+```sql
+"email": "Alice+demo@Example.com",
+"normalized_email": "alice@example.com"
+```
+
+Search/uniqueness on normalized. Display the original.
+
+## Related
+
+- [Identity, Identity schemas](/docs/identity/identity-schemas)
+- [Cookbook, Email-domain allowlist](/docs/cookbook/defensive-security/email-domain-allowlist)
+- [Troubleshooting, Email bounce rate high](/docs/troubleshooting/infrastructure-issues/email-bounce-rate-high)

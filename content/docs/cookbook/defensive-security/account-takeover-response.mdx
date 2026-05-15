@@ -1,0 +1,134 @@
+---
+title: Account takeover (ATO) response
+description: User reports unauthorized access, what to do
+---
+
+A user reports that they didn't initiate a recent login. Maybe their password is in a breach; maybe their email was compromised; maybe phishing. You need to act fast.
+
+## Immediate (within 10 minutes)
+
+### 1. Confirm with the user
+
+Quick verification, don't escalate based on a single email. Common scenarios:
+- They forgot they logged in from another device.
+- A family member used their account.
+- They're testing.
+
+Ask: "Can you confirm what time you noticed this, and where you usually log in from?"
+
+### 2. Revoke all sessions for that identity
+
+```bash
+ssh prod 'podman exec ciam-kratos kratos sessions revoke --identity-id <uuid> --endpoint http://localhost:5001'
+```
+
+This kills the attacker's session.
+
+### 3. Disable the password
+
+Until the user resets:
+
+```bash
+curl -X PATCH http://localhost:3101/admin/identities/<id> -d '[
+  { "op": "remove", "path": "/credentials/password" }
+]'
+```
+
+The user can no longer log in with their current password. Force them through recovery.
+
+### 4. Trigger recovery email
+
+```bash
+curl -X POST http://localhost:3101/admin/recovery/code -d '{
+  "identity_id": "<uuid>",
+  "expires_in": "1h"
+}'
+```
+
+Recovery email arrives. User clicks → sets a new password.
+
+## Within 1 hour
+
+### Review audit log for the suspected window
+
+```sql
+SELECT event_type, source_ip, user_agent, created_at, metadata
+FROM security_audit
+WHERE identity_id = '<uuid>'
+  AND created_at > NOW() - INTERVAL '24 hours'
+ORDER BY created_at DESC;
+```
+
+Look for:
+- Login from unfamiliar IP / geolocation.
+- Password change (attacker locked the user out first).
+- Settings changes (added attacker's email as recovery? linked attacker's social IdP?).
+- OAuth2 grants to suspicious clients.
+
+### Check for credential reuse
+
+If the password was leaked, it's in HIBP. If HIBP check was on during registration but the password was added to HIBP later, the user wasn't warned. Run a fresh check:
+
+```bash
+echo -n "<password>" | sha1sum | cut -c1-5
+# Query HIBP API with the prefix
+```
+
+## Within 24 hours
+
+### Notify the user
+
+Via secondary channel (not the compromised email):
+- What happened (account accessed at `<time>` from `<location>`).
+- What you did (sessions revoked, password reset triggered).
+- What they should do (change passwords on other services if they reused).
+
+### Audit downstream
+
+If the attacker accessed your app via this account, they may have:
+- Created resources you should delete.
+- Exported data.
+- Initiated payments / transactions.
+
+Check your app-side activity logs.
+
+### Document the incident
+
+In your incident tracker:
+- Initial report time.
+- Confirmation of ATO.
+- Actions taken.
+- Root cause (phishing, leaked password, IDP breach, etc.).
+- Followup actions.
+
+## Within 1 week
+
+### Encourage MFA enrollment
+
+If the affected user didn't have MFA, push them strongly to enable it. Send a personal email.
+
+### Pattern detection
+
+Was this user the only one affected? Or part of a pattern?
+- Check audit log for similar IPs / user agents across other identities.
+- If pattern: escalate to broader response (mass session revocation, IP block at Caddy / Cloudflare).
+
+### Update playbook
+
+What did you learn? Update [Operate, Incident response](/docs/operate/backups-recovery/incident-response).
+
+## Prevention
+
+For future:
+- Strong MFA requirement for sensitive accounts.
+- New-device email notifications.
+- Impossible-travel detection.
+- Risk-based step-up.
+
+## Related
+
+- [Operate, Incident response](/docs/operate/backups-recovery/incident-response)
+- [Operate, Locked account unlock](/docs/operate/backups-recovery/locked-account-unlock)
+- [Cookbook, Notify on new device](/docs/cookbook/defensive-security/notify-new-device)
+- [Cookbook, Detect impossible travel](/docs/cookbook/defensive-security/detect-impossible-travel)
+- [Cookbook, Risk-based auth](/docs/cookbook/defensive-security/risk-based-auth)

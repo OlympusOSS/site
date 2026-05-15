@@ -1,0 +1,95 @@
+---
+title: MFA recovery flow
+description: Help users who lost their second factor regain access
+---
+
+User enrolled TOTP, then lost their phone. Or registered a YubiKey that's now a paperweight. They need a way back in.
+
+## Strategies
+
+### Strategy 1: backup codes (recommended)
+
+At MFA enrollment, generate 10 single-use backup codes. Display once. User saves them somewhere safe (password manager, printed).
+
+```yaml
+selfservice:
+  methods:
+    lookup_secret:
+      enabled: true
+```
+
+On lost-MFA, user enters one of the codes as their second factor. Code becomes used.
+
+After all 10 are used, the user must enroll more (settings flow).
+
+### Strategy 2: alternative second factor
+
+Encourage users to register **2+ MFA methods**:
+- TOTP on Authy + WebAuthn on a YubiKey.
+- TOTP on phone + passkey on iCloud Keychain.
+
+If one is lost, the other still works.
+
+### Strategy 3: admin-assisted reset
+
+Admin disables MFA on the user's account, allowing password-only login temporarily. User re-enrolls.
+
+Risk: this is the "back door." Strict criteria:
+- Verify identity via secondary channel (phone call, video).
+- Document the reset in audit log.
+- Notify the user via secondary channel.
+- Re-enable MFA enforcement within 24 hours.
+
+Implementation:
+
+```bash
+# Find the credentials
+curl http://localhost:4101/admin/identities/<id> | jq .credentials
+
+# Patch out the TOTP credential
+curl -X PATCH http://localhost:4101/admin/identities/<id> -d '[
+  { "op": "remove", "path": "/credentials/totp" }
+]'
+```
+
+Document in `security_audit`:
+
+```sql
+INSERT INTO security_audit (event_type, identity_id, metadata)
+VALUES ('mfa.admin_reset', '<id>', '{"reason": "user lost device", "approved_by": "<admin-id>"}');
+```
+
+### Strategy 4: identity verification challenge
+
+Some banks ask "what was your last transaction?" to verify identity. Olympus doesn't ship this out of the box; you'd build it in your app:
+
+1. User initiates MFA recovery.
+2. Your backend poses a series of identity questions (based on app history).
+3. On enough correct answers, your backend hits Kratos admin API to remove MFA.
+
+Build this only if you have rich-enough app history. Don't ask "what's your DOB?", that's findable.
+
+## When NOT to allow MFA recovery
+
+For high-security deployments (banking, HIPAA), recovery may itself weaken security. Some operators choose:
+- Forced re-registration as a new user (lose all data) if MFA is lost.
+- Mandatory enrollment of 2+ MFA methods at signup (preventing the lost-only-method case).
+
+## UI
+
+The "I lost my second factor" link should be:
+- On the second-factor challenge page.
+- Visible but not the first option.
+- Lead to backup code entry → admin contact (last resort).
+
+## Audit
+
+Every MFA reset is a high-signal audit event. Set an alert when these occur, they should be rare.
+
+## Related
+
+- [Identity, TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
+- [Identity, MFA policy](/docs/identity/mfa-policy)
+- [Cookbook, Force MFA by role](/docs/cookbook/mfa/force-mfa-by-role)
+- [Cookbook, Add WebAuthn](/docs/cookbook/mfa/add-webauthn)
+- [Operate, Incident response](/docs/operate/backups-recovery/incident-response)

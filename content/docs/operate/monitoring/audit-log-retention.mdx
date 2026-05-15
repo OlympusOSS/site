@@ -1,0 +1,109 @@
+---
+title: Audit log retention
+description: How long Olympus keeps audit events and how to forward them off-host
+---
+
+The SDK writes audit events to the `security_audit` table in the `olympus` database. This is the on-disk audit log.
+
+## What's logged
+
+Each row:
+- `id`, UUID
+- `domain`, `ciam` or `iam`
+- `identity_id`, Kratos identity ID (nullable for unauth events)
+- `event_type`, `login.success`, `login.failure`, `lockout.applied`, `lockout.released`, `password.changed`, `settings.changed`, etc.
+- `source_ip`, caller IP (from Caddy's `X-Real-IP`)
+- `user_agent`, browser UA
+- `metadata`, JSON, event-specific
+- `created_at`, timestamp
+
+## Default retention
+
+The SDK does **not** delete `security_audit` rows. Growth is linear with login traffic, roughly:
+
+- 100 logins/day × 365 days = 36,500 rows/year per domain.
+- ~1KB per row → ~36MB per year per domain.
+
+Negligible. But:
+
+- **Compliance:** SOC 2 / ISO 27001 typically require ≥1 year of audit logs.
+- **GDPR:** retaining PII (IPs) beyond legitimate need may itself be a compliance issue.
+
+## Recommended retention
+
+| Use | Retention |
+|---|---|
+| Operational (debugging incidents) | 90 days |
+| Audit / compliance (SOC 2, ISO) | 13 months |
+| Long-term / forensic | 7 years (move to cold storage) |
+
+## Implementing retention
+
+A periodic cleanup script:
+
+```sql
+-- Delete events older than 13 months
+DELETE FROM security_audit
+WHERE created_at < NOW() - INTERVAL '13 months';
+```
+
+Run via cron weekly. The deletion is fast; index on `created_at` keeps it cheap.
+
+## Forwarding off-host (recommended)
+
+Keep an immutable copy of audit events in a separate store:
+
+```bash
+# Daily incremental: yesterday's events
+psql olympus -c "
+  COPY (
+    SELECT *
+    FROM security_audit
+    WHERE created_at >= NOW() - INTERVAL '1 day'
+      AND created_at < NOW()
+  ) TO STDOUT WITH CSV HEADER
+" | gpg --encrypt --recipient ops@... \
+  | rclone rcat s3:olympus-audit/$(date +%Y%m%d).csv.gpg
+```
+
+Off-host archive lets you delete on-host without losing the data, satisfying both operational performance and compliance retention.
+
+## Querying audit logs
+
+Common queries:
+
+```sql
+-- All failed logins in the last hour
+SELECT identity_id, source_ip, COUNT(*)
+FROM security_audit
+WHERE event_type = 'login.failure'
+  AND created_at > NOW() - INTERVAL '1 hour'
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+-- Lockouts applied today, with the originating IP
+SELECT identity_id, source_ip, metadata->>'reason'
+FROM security_audit
+WHERE event_type = 'lockout.applied'
+  AND created_at::date = CURRENT_DATE;
+
+-- One user's full audit history
+SELECT event_type, source_ip, created_at, metadata
+FROM security_audit
+WHERE identity_id = '<uuid>'
+ORDER BY created_at DESC;
+```
+
+## GDPR / DSR
+
+When deleting an identity per GDPR DSR:
+- Delete the identity row in Kratos.
+- Decide for audit events: keep (with `identity_id` set, traceable to a deleted account) or anonymize (replace `identity_id` with `NULL`).
+
+Anonymization preserves audit completeness while honoring the deletion request. Document your choice in your DPA.
+
+## Related
+
+- [Security, Brute-force protection](/docs/security/web-attacks/brute-force), the audit event source.
+- [Operate, Logs and observability](/docs/operate/monitoring/logs-and-observability), broader logging.
+- [Cookbook, GDPR DSR export](/docs/cookbook/data-compliance/gdpr-dsr-export)

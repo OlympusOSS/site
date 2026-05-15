@@ -1,0 +1,117 @@
+---
+title: Authorization, Casbin
+description: Cross-language authz with Casbin
+---
+
+[Casbin](https://casbin.org) is a multi-language policy engine. Available in Go, Node, Python, Java, Rust, PHP, .NET, etc. Useful if your stack is polyglot, same policy file, all languages.
+
+## Model
+
+Casbin separates **model** (the policy structure) from **policy** (the rules).
+
+```ini
+# model.conf
+[request_definition]
+r = sub, obj, act
+
+[policy_definition]
+p = sub, obj, act
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = r.sub == p.sub && r.obj == p.obj && r.act == p.act
+```
+
+```csv
+# policy.csv
+admin, /api/identities, GET
+admin, /api/identities, POST
+operator, /api/identities, GET
+user, /api/profile, GET
+```
+
+## With Olympus
+
+```ts
+import { newEnforcer } from "casbin";
+
+const enforcer = await newEnforcer("model.conf", "policy.csv");
+
+async function authz(session, path: string, method: string) {
+  return enforcer.enforce(session.role, path, method);
+}
+
+// Wire into middleware
+app.use(async (req, res, next) => {
+  const session = await getOlympusSession(req);
+  const allowed = await authz(session, req.path, req.method);
+  if (!allowed) return res.status(403).send("forbidden");
+  next();
+});
+```
+
+## Role hierarchy
+
+Casbin supports `g(_, _)` for role inheritance:
+
+```ini
+[role_definition]
+g = _, _
+
+[matchers]
+m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
+```
+
+```csv
+g, admin, operator   # admin inherits operator's permissions
+g, operator, user
+```
+
+## Dynamic policy
+
+Load policies from your DB instead of a file:
+
+```ts
+import { newAdapter } from "casbin-postgres-adapter";
+
+const adapter = await newAdapter({
+  connectionString: process.env.DATABASE_URL,
+});
+const enforcer = await newEnforcer("model.conf", adapter);
+```
+
+Admin UI can mutate policies; enforcer reloads.
+
+## Multi-tenant
+
+For per-tenant rules, the model includes a tenant claim:
+
+```ini
+[request_definition]
+r = tenant, sub, obj, act
+
+[policy_definition]
+p = tenant, sub, obj, act
+```
+
+Olympus's identity traits can include `tenant_id`; pass into the enforcer.
+
+## When Casbin fits
+
+- Polyglot backend (you need the same policy in Node + Go + Python).
+- Existing operations team familiar with Casbin.
+- Want CSV-shaped policies that ops can edit.
+
+## When NOT Casbin
+
+- Single language: native libraries (e.g. OPA's Go SDK) may be faster.
+- Need typed policies: Cedar's schema is stronger.
+- Need decision logs / audit: Casbin's are weaker than OPA/Cedar.
+
+## Related
+
+- [Security, Authorization, OPA integration](/docs/security/authz/authz-opa)
+- [Security, Authorization, Cedar integration](/docs/security/authz/authz-cedar)
+- [Security, Authorization, ReBAC](/docs/security/authz/authz-rebac)

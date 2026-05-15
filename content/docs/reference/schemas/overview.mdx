@@ -5,7 +5,7 @@ description: Identity schemas and database schemas
 
 ## Identity schemas
 
-Olympus ships six JSON Schema (draft-07) identity-trait schemas — one set per CIAM/IAM domain, one set per dev/prod environment.
+Olympus ships six JSON Schema (draft-07) identity-trait schemas, one set per CIAM/IAM domain, one set per dev/prod environment.
 
 | Schema | File | Domain | Environment |
 | --- | --- | --- | --- |
@@ -31,8 +31,8 @@ Five PostgreSQL databases:
 
 For the `olympus` database, the table set is small:
 
-- `ciam_settings`, `iam_settings` — key-value settings vault
-- `locations` — session location history
-- `login_attempts` — recent login attempts (for brute-force tracking)
-- `lockouts` — active and historical lockouts
-- `security_audit` — audit log
+- `ciam_settings`, `iam_settings`, key-value settings vault
+- `locations`, session location history
+- `login_attempts`, recent login attempts (for brute-force tracking)
+- `lockouts`, active and historical lockouts
+- `security_audit`, audit log

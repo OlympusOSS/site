@@ -1,0 +1,113 @@
+---
+title: "OAuth2: invalid_client"
+description: Hydra rejected client authentication
+---
+
+```json
+{
+  "error": "invalid_client",
+  "error_description": "Client authentication failed (e.g., unknown client, no client authentication included, or unsupported authentication method)."
+}
+```
+
+Hydra couldn't authenticate your client. Several possible causes.
+
+## Cause 1: Wrong client_secret
+
+Public clients (Authorization Code + PKCE) shouldn't send a secret. Confidential clients must.
+
+Diagnose: did you regenerate the secret recently?
+
+```bash
+# Issue new secret
+hydra update client <id> --secret NEW_SECRET
+```
+
+Then update your app config.
+
+## Cause 2: Wrong token endpoint auth method
+
+Hydra clients have a `token_endpoint_auth_method`:
+- `client_secret_basic`, credentials in `Authorization: Basic` header (default for most).
+- `client_secret_post`, credentials in form body (`client_id`, `client_secret`).
+- `none`, no client auth (public clients, PKCE).
+- `private_key_jwt`, signed JWT instead of secret.
+- `client_secret_jwt`, HMAC-signed JWT.
+
+Mismatch → invalid_client.
+
+Check:
+```bash
+hydra get client <id> | jq .token_endpoint_auth_method
+```
+
+In your library config, match it.
+
+### Common gotcha: public client + Authorization header
+
+If `token_endpoint_auth_method: none` and your library still sends a Basic auth header (even empty), Hydra rejects.
+
+Library config:
+```ts
+// oidc-client-ts
+{
+  client_authentication: "client_secret_post", // or "none"
+  ...
+}
+```
+
+## Cause 3: Unknown client_id
+
+Client doesn't exist. Did you point to the wrong Hydra instance? Different environments often have different client IDs.
+
+```bash
+hydra list clients | grep <your-app>
+```
+
+## Cause 4: client_id mismatch with URL
+
+When using mTLS or `private_key_jwt`, `client_id` in body must match.
+
+## Cause 5: Expired secret
+
+For policies that expire client secrets, rotate. Hydra doesn't built-in expire secrets, but if you have a custom policy (Daedalus, settings vault), check.
+
+## How to debug
+
+### Reproduce with curl
+
+```bash
+curl -X POST http://localhost:4444/oauth2/token \
+  -u "MY_CLIENT_ID:MY_SECRET" \
+  -d "grant_type=client_credentials&scope=api:read"
+```
+
+If this works → your app's library config is wrong.
+If this fails → secret/method mismatch with what's in Hydra.
+
+### Hydra logs
+
+```bash
+podman logs ciam-hydra | grep "client_authentication_failed"
+```
+
+You'll see the specific auth method attempted and why it failed.
+
+## Public clients (SPAs, mobile apps)
+
+These cannot keep a secret. Use:
+- `token_endpoint_auth_method: none`
+- PKCE required (Hydra enforces, see [pkce-enforcement.mdx]).
+
+## Confidential clients (backend services)
+
+These can keep a secret. Use:
+- `token_endpoint_auth_method: client_secret_basic` (default).
+- Store secret in env / secrets manager, NOT in source.
+
+## Related
+
+- [Troubleshooting, OAuth2 PKCE required](/docs/troubleshooting/oauth2-issues/oauth2-pkce-required)
+- [Troubleshooting, OAuth2 invalid grant](/docs/troubleshooting/oauth2-issues/oauth2-invalid-grant)
+- [Integrate, OAuth2 authorization code](/docs/integrate/oauth2/oauth2-authorization-code)
+- [Reference, OAuth2 error codes](/docs/integrate/oauth2/oauth2-error-codes)

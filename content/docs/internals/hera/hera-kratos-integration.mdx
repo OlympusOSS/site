@@ -1,0 +1,108 @@
+---
+title: Hera, Kratos integration
+description: How Hera talks to Kratos for identity flows
+---
+
+Hera renders Kratos's self-service flows. The integration is mostly **client-side**: the user's browser interacts with Kratos via Hera's pages. Hera-server-side calls Kratos's admin API rarely.
+
+## Browser-driven flows
+
+For login, registration, recovery, verification, settings:
+
+```
+Browser
+  → GET /login                              # Hera renders form
+  → POST /api/kratos/<flow>/submit          # Proxied to Kratos
+  → GET /api/kratos/flows?id=...            # Get current flow state
+```
+
+The proxy routes under `/api/kratos/` forward to Kratos's public endpoint, preserving cookies (Kratos session and CSRF). The browser sees Hera's domain; Kratos sees the same request via the proxy.
+
+## Server-side Kratos calls
+
+Hera's server code calls Kratos for:
+
+- **Reading the current session** during page render, to know if the user is logged in.
+- **Initiating the recovery flow** when the user requests a password reset (the form post triggers this).
+- **Accepting Hydra challenges** (login/consent) by sending the Kratos identity ID to Hydra.
+
+```ts
+// src/lib/kratos.ts
+import { KratosClient } from "@/lib/kratos-client";
+
+export async function getCurrentSession(cookie: string) {
+  const response = await fetch(`${kratosPublicUrl}/sessions/whoami`, {
+    headers: { cookie }
+  });
+  if (!response.ok) return null;
+  return await response.json();
+}
+```
+
+## Flow lifecycle
+
+The Kratos flow ID is the linchpin:
+
+1. Browser hits `/login`. Hera redirects to `/self-service/login/browser` (Kratos initiates flow, redirects back with flow ID).
+2. Hera at `/login?flow=ABC` fetches the flow state from Kratos.
+3. Hera renders the form.
+4. User submits. The form POSTs to `flow.ui.action` (a Kratos endpoint).
+5. Kratos validates, returns updated flow state (success or error).
+6. Hera re-renders with the new state (still at the same flow ID).
+7. On success, Kratos redirects to `selfservice.flows.<flow>.after.password.hooks[].redirect_url` or whatever's configured.
+
+## Adding pre/post checks
+
+Olympus adds two pre-Kratos checks: brute-force and captcha. They run **server-side** before Hera forwards the submission to Kratos:
+
+```ts
+// Pseudocode for the login POST handler
+async function handleLoginSubmit(data, cookies) {
+  // 1. Captcha first
+  const captchaOk = await verifyCaptcha(data.cf_turnstile_token);
+  if (!captchaOk) return error("captcha_failed");
+
+  // 2. Brute-force check
+  const locked = await isLockedOut("ciam", data.identifier);
+  if (locked) return error("rate_limited");
+
+  // 3. Forward to Kratos
+  const response = await forwardToKratos(data, cookies);
+
+  // 4. Record outcome (whether Kratos succeeded or failed)
+  await recordLoginAttempt("ciam", data.identifier, response.ok);
+
+  return response;
+}
+```
+
+## Cookies
+
+Hera's pages share Kratos's session cookie scope (`ory_kratos_session`). The cookie domain must match, see [Security, Session cookies](/docs/security/identity-protection/session-cookies).
+
+Hera does **not** set its own session cookie. Athena does (its own `athena-session`); Hera doesn't need one because user identity is encoded in Kratos's cookie.
+
+## Errors
+
+Kratos returns errors as flow state with `ui.messages`. Hera renders them as user-visible alerts.
+
+For internal errors (Kratos unreachable, malformed flow), Hera shows a generic "/error" page with a request ID. The full error details log to stdout for the operator.
+
+## Hooks not done in Hera
+
+Some things Kratos can do via hooks that Hera doesn't:
+- Webhook on registration success.
+- Custom validation logic.
+
+These belong in `kratos.yml` configuration, not Hera code. Hera shouldn't grow business logic that Kratos already supports.
+
+## Schema reload
+
+When the identity schema changes, Kratos reloads via the sidecar (see [Operate, Reload API key rotation](/docs/operate/rotation/reload-api-key-rotation)). Hera doesn't need a reload, it re-fetches the schema with every flow.
+
+## Related
+
+- [Internals, Hera, Route map](/docs/internals/hera/hera-route-map)
+- [Internals, Hera, Hydra integration](/docs/internals/hera/hera-hydra-integration)
+- [Identity, Flow login](/docs/identity/flow-login)
+- [Security, Session cookies](/docs/security/identity-protection/session-cookies)

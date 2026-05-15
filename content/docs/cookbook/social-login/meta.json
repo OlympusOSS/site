@@ -1,0 +1,18 @@
+{
+  "title": "Social login",
+  "pages": [
+    "add-social-provider-apple",
+    "add-social-provider-discord",
+    "add-social-provider-facebook",
+    "add-social-provider-generic-oidc",
+    "add-social-provider-github",
+    "add-social-provider-gitlab",
+    "add-social-provider-google",
+    "add-social-provider-linkedin",
+    "add-social-provider-microsoft",
+    "add-social-provider-slack",
+    "sign-in-with-apple",
+    "sign-in-with-google-strict",
+    "social-auth-overview"
+  ]
+}

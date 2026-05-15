@@ -1,0 +1,125 @@
+---
+title: Deploy with Claude via MCP
+description: Drive a Daedalus deployment end-to-end with Claude
+---
+
+Daedalus embeds an MCP server. Claude can drive the full 13-step wizard programmatically. This recipe shows you how.
+
+## Setup
+
+1. Install Daedalus (`brew install --cask daedalus` or download from [Releases](https://github.com/OlympusOSS/daedalus/releases)).
+2. Open Daedalus. Note the MCP server is now listening on `127.0.0.1:14210`.
+3. Configure Claude Code:
+   ```bash
+   claude mcp add daedalus --transport http http://127.0.0.1:14210
+   ```
+
+## Workflow
+
+In Claude Code:
+
+```
+me: Deploy a new Olympus to DigitalOcean. Domain: olympus-test.example.com.
+   Use Neon for managed Postgres. Use Resend for email.
+   Admin email: me@example.com.
+
+claude: I'll walk through the 13 wizard steps. Let me start by checking
+  Daedalus's current state.
+
+  [Claude calls `read_context`]
+
+  I see Daedalus is on the welcome page. Moving to Repository step.
+
+  [Claude calls `navigate({path: "/repository"})`]
+  [Claude calls `screenshot`]
+
+  The Repository step asks for a GitHub PAT. I'll need you to paste it
+  in the field, I won't ask for the token in chat for security.
+```
+
+You paste the PAT into Daedalus's field. Tell Claude "done."
+
+```
+claude: [Claude calls `click({text: "Fork repository"})`]
+        [Claude calls `terminal_read` to watch the fork output]
+
+  Fork succeeded. The repository is at github.com/me/platform-fork.
+
+  Moving to Domain step.
+  [navigate, screenshot, form_input for apex domain, click Save]
+
+  Domain configured. Moving to Provider...
+```
+
+And so on. The interaction shape: Claude takes the mechanical steps; you supply credentials and approve any irreversible decisions.
+
+## What Claude handles autonomously
+
+- Navigation between steps.
+- Filling in default values.
+- Clicking "Continue" / "Save" buttons.
+- Watching terminal output for completion.
+- Reading the `daedalus.json` context to know what's been done.
+
+## What you should still review
+
+- The chosen VPS region (you usually know better which is closest to users).
+- The Postgres tier (Neon free vs paid).
+- The email provider configuration.
+- The admin password.
+- The destroy step (let's be safe).
+
+## Asking Claude to resume
+
+If you close Claude Code mid-deploy and resume later:
+
+```
+me: Continue the deployment.
+
+claude: [Claude calls `read_context`]
+  Looking at daedalus.json, I see Repository, Domain, Provider, Email are
+  complete. Database step is partially done (Neon project exists, awaiting
+  database creation).
+
+  Resuming from the Database step.
+```
+
+The MCP gives Claude full visibility into where things are.
+
+## Stopping mid-deploy
+
+If you want to pause:
+```
+me: Stop. I need to verify something.
+
+claude: Pausing. Daedalus is at the Compute step, awaiting droplet creation.
+  No partial state, the droplet hasn't been created yet. Safe to leave
+  Daedalus open or close it; the state persists in daedalus.json.
+```
+
+## Replaying for staging
+
+After successful prod deploy, replay for staging:
+
+```
+me: Set up a staging deployment identical to prod but with apex
+   staging.olympus-test.example.com. Skip the destroy step.
+
+claude: I'll create a fresh Daedalus context for staging. Same provider,
+  same email, but different domain and VPS size (smaller for staging).
+```
+
+Claude follows the same 13 steps, parameterizing the differences.
+
+## Security
+
+The MCP server is **localhost only** ([ADR 0022](/docs/adrs/0022-mcp-localhost-only)). Claude must run on the same machine as Daedalus. No remote exposure.
+
+Secrets entered into the Secrets wizard step are visible in Daedalus's UI. If Claude takes a screenshot at that moment, the screenshot includes them (sanitization redacts terminal output, not UI fields). Don't be on the Secrets page when calling `screenshot`.
+
+## Related
+
+- [Internals, Daedalus MCP server](/docs/internals/daedalus/daedalus-mcp-server)
+- [Reference, MCP overview](/docs/reference/api/mcp/overview)
+- [Integrate, MCP with Daedalus](/docs/integrate/platforms/mcp-with-daedalus)
+- [ADR 0022, MCP localhost only](/docs/adrs/0022-mcp-localhost-only)

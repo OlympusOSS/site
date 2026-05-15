@@ -22,7 +22,7 @@ A Kratos session is the artifact that says "this user is logged in." It's stored
 }
 ```
 
-## AAL — Authenticator Assurance Level
+## AAL, Authenticator Assurance Level
 
 NIST 800-63B defines authenticator assurance:
 
@@ -48,17 +48,17 @@ Each completed authentication method contributes to the AAL:
 ## Session lifetime
 
 Default in Olympus:
-- `session.lifespan`: 24 hours (sliding — every request extends).
+- `session.lifespan`: 24 hours (sliding, every request extends).
 - `session.cookie.persistent`: true (survives browser restart).
 - `session.cookie.same_site`: Lax.
 
-Configurable in [Reference — kratos.yml](/docs/reference/config/kratos-yml). For higher-security IAM deployments, shorten to 1-4 hours.
+Configurable in [Reference, kratos.yml](/docs/reference/config/kratos-yml). For higher-security IAM deployments, shorten to 1-4 hours.
 
 ## Refresh
 
-Kratos sessions don't have explicit refresh — they slide with use. Every request to a Kratos-protected endpoint resets the session expiry.
+Kratos sessions don't have explicit refresh, they slide with use. Every request to a Kratos-protected endpoint resets the session expiry.
 
-For OAuth2 access tokens (which are different — Hydra-issued), see [Integrate — Refresh tokens](/docs/integrate/oauth2-refresh-tokens).
+For OAuth2 access tokens (which are different, Hydra-issued), see [Integrate, Refresh tokens](/docs/integrate/oauth2/oauth2-refresh-tokens).
 
 ## Stepping up
 
@@ -102,7 +102,7 @@ Revoke all sessions for an identity:
 DELETE /admin/sessions?identity_id=<uuid>
 ```
 
-Useful in incident response (see [Operate — Incident Response](/docs/operate/incident-response) for the mass-revocation playbook).
+Useful in incident response (see [Operate, Incident Response](/docs/operate/backups-recovery/incident-response) for the mass-revocation playbook).
 
 ## Olympus additions: location tracking
 
@@ -112,13 +112,13 @@ See the SDK's [`locations` module](/docs/reference/api/sdk/locations).
 
 ## Olympus additions: brute-force vs session
 
-The SDK's brute-force tracking is **per identifier**, not per session. A session that's been issued continues to work even if the identifier is currently locked out — lockout only gates new login attempts.
+The SDK's brute-force tracking is **per identifier**, not per session. A session that's been issued continues to work even if the identifier is currently locked out, lockout only gates new login attempts.
 
 To kill an active session when its identity is locked out, revoke the session explicitly.
 
 ## Where next
 
-- [Identity — Flow login](/docs/identity/flow-login)
-- [Identity — MFA Policy](/docs/identity/mfa-policy)
-- [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
-- [Operate — Incident Response](/docs/operate/incident-response) — mass session revocation.
+- [Identity, Flow login](/docs/identity/flow-login)
+- [Identity, MFA Policy](/docs/identity/mfa-policy)
+- [Identity, TOTP and WebAuthn](/docs/identity/totp-and-webauthn)
+- [Operate, Incident Response](/docs/operate/backups-recovery/incident-response), mass session revocation.

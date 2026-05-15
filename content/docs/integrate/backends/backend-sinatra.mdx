@@ -1,0 +1,85 @@
+---
+title: Sinatra (Ruby) integration
+description: Authenticate Sinatra routes against Olympus
+---
+
+Sinatra is Ruby's minimal web DSL. Olympus integration via Rack middleware or direct introspection.
+
+## Gemfile
+
+```ruby
+source "https://rubygems.org"
+
+gem "sinatra"
+gem "httparty"
+gem "puma"
+```
+
+## Direct introspection helper
+
+```ruby
+require "sinatra"
+require "httparty"
+require "json"
+
+helpers do
+  def authenticate!
+    auth = request.env["HTTP_AUTHORIZATION"]
+    halt 401, { error: "missing_token" }.to_json unless auth&.start_with?("Bearer ")
+    token = auth.sub("Bearer ", "")
+
+    response = HTTParty.post(
+      "#{ENV['OLYMPUS_ISSUER']}/admin/oauth2/introspect",
+      basic_auth: { username: ENV["HYDRA_ADMIN_USER"], password: ENV["HYDRA_ADMIN_PASS"] },
+      body: { token: token },
+    )
+    info = JSON.parse(response.body)
+    halt 401, { error: "inactive" }.to_json unless info["active"]
+
+    @user_sub = info["sub"]
+    @scopes = (info["scope"] || "").split(" ")
+  end
+
+  def require_scope!(scope)
+    halt 403, { error: "insufficient_scope" }.to_json unless @scopes.include?(scope)
+  end
+end
+
+get "/api/widgets" do
+  authenticate!
+  require_scope!("read:widgets")
+  { user: @user_sub, widgets: [] }.to_json
+end
+```
+
+## Sessions via OIDC (`omniauth`)
+
+For full OIDC login (not just token validation):
+
+```ruby
+require "omniauth"
+require "omniauth-oauth2"
+
+use OmniAuth::Builder do
+  provider :oauth2, ENV["OLYMPUS_CLIENT_ID"], ENV["OLYMPUS_CLIENT_SECRET"],
+    client_options: {
+      site: ENV["OLYMPUS_ISSUER"],
+      authorize_url: "/oauth2/auth",
+      token_url: "/oauth2/token",
+    },
+    scope: "openid profile email",
+    pkce: true,
+    name: "olympus"
+end
+
+get "/auth/olympus/callback" do
+  auth = request.env["omniauth.auth"]
+  session[:user] = { sub: auth.uid, email: auth.info.email }
+  redirect "/"
+end
+```
+
+## Related
+
+- [Integrate, Rails integration](/docs/integrate/backends/backend-rails)
+- [Cookbook, Validate access token (Node)](/docs/cookbook/tokens-oauth2/validate-token-node), equivalent JS recipe.

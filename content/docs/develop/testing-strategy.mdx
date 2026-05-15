@@ -13,8 +13,8 @@ Athena uses Vitest as its test runner for all unit and API route tests. This doc
 
 | Tool | Role |
 |------|------|
-| **Vitest** | Unit tests, API route tests, store tests — primary test runner |
-| **Playwright** | Reserved for future end-to-end browser flow tests — separate CI step |
+| **Vitest** | Unit tests, API route tests, store tests, primary test runner |
+| **Playwright** | Reserved for future end-to-end browser flow tests, separate CI step |
 
 Do not use Jest, Bun test, or Playwright for unit/API tests. Vitest is the single test runner for all non-E2E tests in this repo.
 
@@ -39,7 +39,7 @@ bun run test src/lib/__tests__/session.test.ts
 bun run test --reporter=verbose
 ```
 
-All tests run through the `test` script in `package.json`. Never invoke `vitest` directly in CI — always use `bun run test`.
+All tests run through the `test` script in `package.json`. Never invoke `vitest` directly in CI, always use `bun run test`.
 
 ---
 
@@ -52,11 +52,11 @@ All tests run through the `test` script in `package.json`. Never invoke `vitest`
 | Entry point | `bun run test` runs all `*.test.ts` files |
 
 Examples:
-- `src/lib/__tests__/session.test.ts` — session signing and verification
-- `src/lib/__tests__/breach-check.test.ts` — breach check utility
-- `src/app/api/auth/__tests__/callback.test.ts` — OAuth2 callback route
-- `src/app/api/settings/__tests__/auth-enforcement.test.ts` — settings API auth
-- `src/stores/dashboardLayout.test.ts` — dashboard layout store
+- `src/lib/__tests__/session.test.ts`, session signing and verification
+- `src/lib/__tests__/breach-check.test.ts`, breach check utility
+- `src/app/api/auth/__tests__/callback.test.ts`, OAuth2 callback route
+- `src/app/api/settings/__tests__/auth-enforcement.test.ts`, settings API auth
+- `src/stores/dashboardLayout.test.ts`, dashboard layout store
 
 ---
 
@@ -70,7 +70,7 @@ Examples:
 | Dashboard layout store | Done | `src/stores/dashboardLayout.test.ts` |
 | Middleware error shape (401/403) | Done | `src/middleware.test.ts` |
 | Cookie options helper | Done | `src/lib/__tests__/cookie-options.test.ts` |
-| Identity management routes | Future | — |
+| Identity management routes | Future | - |
 | MFA settings routes | Future | Follows platform#13 |
 
 ---
@@ -118,7 +118,7 @@ Tests mock the `GET /api/dashboard/layout` and `POST /api/dashboard/layout` fetc
 
 ## CI Gate
 
-All tests run on every push to `main` and on every pull request. The CI workflow step is `bun run test`. A 100% pass rate is required — no known-failing tests are merged.
+All tests run on every push to `main` and on every pull request. The CI workflow step is `bun run test`. A 100% pass rate is required, no known-failing tests are merged.
 
 The test step is defined in `.github/workflows/ci.yml`. Do not exclude test files from CI.
 
@@ -151,7 +151,7 @@ vi.spyOn(global, "fetch").mockResolvedValueOnce(
 
 ### Mocking environment for cookie tests
 
-Use `vi.stubEnv` for `NODE_ENV` mocking — it is safe, scoped per test, and does not leak across tests in the same run:
+Use `vi.stubEnv` for `NODE_ENV` mocking, it is safe, scoped per test, and does not leak across tests in the same run:
 
 ```typescript
 import { vi, beforeEach, afterEach } from "vitest"
@@ -162,7 +162,7 @@ afterEach(() => { vi.unstubAllEnvs() })
 
 Do NOT use direct assignment (`process.env.NODE_ENV = "production"`) without a paired restore. Direct assignment without `afterEach` cleanup leaks the env value to subsequent tests in the same run and can produce false positives.
 
-When asserting the `Secure` attribute, assert its presence or absence exactly — do not use `toBeTruthy()` on the `Set-Cookie` header string:
+When asserting the `Secure` attribute, assert its presence or absence exactly, do not use `toBeTruthy()` on the `Set-Cookie` header string:
 
 ```typescript
 // Assert Secure is present in production
@@ -176,24 +176,24 @@ When asserting cookie deletion behavior, use `maxAge === 0` (strict equality), n
 
 ---
 
-## Cookie Audit — CI Gate
+## Cookie Audit, CI Gate
 
-A CI step named `Cookie audit — no unguarded athena-session writes` runs `bun run audit:cookies` on every push and pull request. This step fails if any `cookies.set("athena-session", ...)` call with an inline options object exists outside `src/lib/cookie-options.ts`.
+A CI step named `Cookie audit, no unguarded athena-session writes` runs `bun run audit:cookies` on every push and pull request. This step fails if any `cookies.set("athena-session", ...)` call with an inline options object exists outside `src/lib/cookie-options.ts`.
 
 **If you add a new route that writes the `athena-session` cookie:**
 
-1. Import from `src/lib/cookie-options.ts` — use `buildSessionCookieOptions(maxAge)` for set and `buildSessionClearOptions()` for delete
-2. Do not pass an inline options object to `cookies.set` — the audit script will fail the build
+1. Import from `src/lib/cookie-options.ts`, use `buildSessionCookieOptions(maxAge)` for set and `buildSessionClearOptions()` for delete
+2. Do not pass an inline options object to `cookies.set`, the audit script will fail the build
 3. Assert `Secure` in production mode in the route's test (see [Mocking environment for cookie tests](#mocking-environment-for-cookie-tests))
 4. Run `bun run audit:cookies` locally before opening a PR
 
-**Known limitation**: The audit grep pattern (`cookies\.set.*athena-session.*{`) targets single-line inline option objects. A multiline `cookies.set` call formatted across multiple lines will not be caught by the pattern. If you write a multiline call, CI will not catch it — follow the import rule regardless.
+**Known limitation**: The audit grep pattern (`cookies\.set.*athena-session.*{`) targets single-line inline option objects. A multiline `cookies.set` call formatted across multiple lines will not be caught by the pattern. If you write a multiline call, CI will not catch it, follow the import rule regardless.
 
 ---
 
 ## Security Test Requirements
 
-OAuth2 callback tests must include negative state validation cases — not just the happy path. This is a requirement from the Security Expert review (athena#35):
+OAuth2 callback tests must include negative state validation cases, not just the happy path. This is a requirement from the Security Expert review (athena#35):
 
 - Missing state param → redirect with error
 - Replayed/tampered state → redirect with error
@@ -206,13 +206,13 @@ Settings API tests must assert 401 is returned for unauthenticated requests. Ass
 
 ## Related Issues
 
-- [athena#35](https://github.com/OlympusOSS/athena/issues/35) — Test coverage epic (auth flow + settings API)
-- [athena#39](https://github.com/OlympusOSS/athena/issues/39) — OAuth2 auth flow tests (Done)
-- [athena#40](https://github.com/OlympusOSS/athena/issues/40) — Settings API tests (Done)
-- [athena#42](https://github.com/OlympusOSS/athena/issues/42) — Dashboard layout store tests (Done)
-- [athena#57](https://github.com/OlympusOSS/athena/issues/57) — Session cookie `Secure` flag fix; `buildSessionCookieOptions` helper
-- [athena#66](https://github.com/OlympusOSS/athena/issues/66) — Cookie audit CI step; `vi.stubEnv` NODE_ENV mocking requirement
+- [athena#35](https://github.com/OlympusOSS/athena/issues/35), Test coverage epic (auth flow + settings API)
+- [athena#39](https://github.com/OlympusOSS/athena/issues/39), OAuth2 auth flow tests (Done)
+- [athena#40](https://github.com/OlympusOSS/athena/issues/40), Settings API tests (Done)
+- [athena#42](https://github.com/OlympusOSS/athena/issues/42), Dashboard layout store tests (Done)
+- [athena#57](https://github.com/OlympusOSS/athena/issues/57), Session cookie `Secure` flag fix; `buildSessionCookieOptions` helper
+- [athena#66](https://github.com/OlympusOSS/athena/issues/66), Cookie audit CI step; `vi.stubEnv` NODE_ENV mocking requirement
 
 ---
 
-*Last updated: 2026-04-06 (Technical Writer — athena#57 vi.stubEnv pattern, athena#66 cookie audit CI gate)*
+*Last updated: 2026-04-06 (Technical Writer, athena#57 vi.stubEnv pattern, athena#66 cookie audit CI gate)*

@@ -1,0 +1,120 @@
+---
+title: API rate limit per OAuth2 client/token
+description: Throttle API consumers individually
+---
+
+Per-IP rate limits don't help when one client legitimately makes many requests from one IP (a backend worker). Rate limit per `client_id` or per access token instead.
+
+## Pattern
+
+```
+Request arrives → introspect token → bucket by client_id → check + increment counter
+```
+
+## Implementation with Redis
+
+```ts
+import Redis from "ioredis";
+const redis = new Redis(process.env.REDIS_URL!);
+
+async function rateLimitByClient(clientId: string, limit: number, windowSec: number): Promise<boolean> {
+  const key = `rl:client:${clientId}:${Math.floor(Date.now() / 1000 / windowSec)}`;
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, windowSec);
+  return count <= limit;
+}
+
+// Middleware
+app.use("/api", async (req, res, next) => {
+  const token = req.headers.authorization?.slice(7);
+  const info = await introspect(token!);
+
+  const allowed = await rateLimitByClient(info.client_id, 1000, 60); // 1000/min
+  if (!allowed) return res.status(429).json({ error: "rate_limited" });
+
+  req.user = info;
+  next();
+});
+```
+
+## Per-tier rate limits
+
+Different OAuth2 clients deserve different limits. Store the limit in the client's metadata:
+
+```bash
+hydra update client <id> --metadata '{"rate_limit_per_min": 5000}'
+```
+
+Then in your handler:
+
+```ts
+const limit = info.client_metadata?.rate_limit_per_min ?? 1000; // default
+const allowed = await rateLimitByClient(info.client_id, limit, 60);
+```
+
+## Per-endpoint differentiation
+
+A search endpoint may need higher limits than a write endpoint:
+
+```ts
+const limit = endpointLimits[req.path] ?? 100;
+const key = `rl:client:${clientId}:${req.path}:${windowBucket}`;
+```
+
+## Sliding window vs fixed window
+
+The above uses fixed-window counting (resets at clock boundaries). Burst-tolerant.
+
+For sliding window (smoother), use Redis sorted sets:
+
+```ts
+async function slidingWindowRateLimit(key: string, limit: number, windowSec: number) {
+  const now = Date.now();
+  const min = now - windowSec * 1000;
+  await redis.zremrangebyscore(key, 0, min);
+  const count = await redis.zcard(key);
+  if (count >= limit) return false;
+  await redis.zadd(key, now, `${now}-${Math.random()}`);
+  await redis.expire(key, windowSec);
+  return true;
+}
+```
+
+More accurate; ~2× the Redis ops.
+
+## Returning rate-limit headers
+
+Help your callers self-throttle:
+
+```ts
+res.setHeader("X-RateLimit-Limit", limit.toString());
+res.setHeader("X-RateLimit-Remaining", (limit - count).toString());
+res.setHeader("X-RateLimit-Reset", (windowExpiresAt).toString());
+```
+
+If they hit `Retry-After`, give them the time to wait:
+
+```ts
+res.setHeader("Retry-After", waitSec.toString());
+```
+
+## Per-user (not per-client) limits
+
+For user-facing apps, rate-limit per-`sub` instead of per-`client_id`:
+
+```ts
+const key = `rl:user:${info.sub}:${windowBucket}`;
+```
+
+A single user shouldn't be able to abuse your API via one client.
+
+## Where Caddy fits
+
+Caddy's `rate_limit` is per-IP. Use it as a coarse-grained outer layer; per-client rate limiting in your app for fine-grained.
+
+## Related
+
+- [Security, Rate limiting](/docs/security/web-attacks/rate-limiting)
+- [Operate, Rate limiting tuning](/docs/operate/performance/rate-limiting-tuning)
+- [Integrate, OAuth2 client credentials](/docs/integrate/oauth2/oauth2-client-credentials)
+- [Cookbook, Validate access token (Node)](/docs/cookbook/tokens-oauth2/validate-token-node)

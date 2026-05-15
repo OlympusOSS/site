@@ -1,0 +1,216 @@
+---
+title: ID token vs Access token vs Refresh token
+description: What each is for, what's in them
+---
+
+OIDC has three token types. Each has a specific purpose. Mixing them up causes bugs.
+
+## ID Token
+
+**Purpose**: identify the user to the client.
+
+**Format**: JWT (always).
+
+**Audience**: the OAuth2 client (your app).
+
+**Contents**:
+```json
+{
+  "iss": "https://ciam.your-domain",
+  "sub": "01HZ-USER-UUID",
+  "aud": "my-app-client-id",
+  "exp": 1715200000,
+  "iat": 1715199400,
+  "nonce": "abc123",
+  "email": "alice@example.com",
+  "email_verified": true,
+  "name": "Alice Smith"
+}
+```
+
+**Lifespan**: short (5-60 min).
+
+**Use it for**:
+- Displaying user info in UI.
+- Checking who's signed in.
+
+**DON'T use it for**:
+- Calling APIs (use access_token).
+- Long-term storage (it's short-lived).
+- Authorization decisions (claims can be stale).
+
+## Access Token
+
+**Purpose**: authorize API calls.
+
+**Format**: opaque (default) or JWT (configurable).
+
+**Audience**: resource servers (your APIs).
+
+**Contents (when JWT)**:
+```json
+{
+  "iss": "https://ciam.your-domain",
+  "sub": "01HZ-USER-UUID",
+  "aud": ["https://your-api.com"],
+  "exp": 1715200000,
+  "iat": 1715199400,
+  "scope": "openid offline_access api:read",
+  "client_id": "my-app-client-id"
+}
+```
+
+**Lifespan**: short (15 min by default in Hydra).
+
+**Use it for**:
+- API calls (`Authorization: Bearer ...`).
+- Resource server authz checks.
+
+**DON'T use it for**:
+- Displaying to user.
+- Identifying user in UI (use id_token).
+- Persistent storage past expiry.
+
+## Refresh Token
+
+**Purpose**: get new access (and id) tokens without re-auth.
+
+**Format**: opaque.
+
+**Lifespan**: long (30 days in Hydra default; 6 months elsewhere).
+
+**Contents**: opaque blob. You can't decode locally.
+
+**Use it for**:
+- Calling `/oauth2/token` with `grant_type=refresh_token`.
+
+**DON'T use it for**:
+- API authorization.
+- Identifying the user.
+- ANYTHING other than refreshing.
+
+## Lifecycle
+
+```
+1. User logs in via Authorization Code + PKCE.
+2. Client receives: id_token (5m), access_token (15m), refresh_token (30d).
+
+3. After 5 min: id_token expired. Client can re-fetch via refresh.
+4. After 15 min: access_token expired. Use refresh to get new.
+
+5. Refresh issues: NEW id_token, NEW access_token, NEW refresh_token (rotated).
+6. OLD refresh_token now invalid.
+
+7. After 30 days no use: refresh_token expired. User must re-login.
+```
+
+## Typical SPA flow
+
+```ts
+// Login: receive all three
+const { id_token, access_token, refresh_token } = await exchangeCode(code);
+
+// Use id_token to populate UI
+const { sub, email, name } = jwt.decode(id_token);
+displayUser({ email, name });
+
+// Use access_token for API
+fetch("/api/orders", { headers: { Authorization: `Bearer ${access_token}` } });
+
+// When access_token expires, refresh
+const new_tokens = await refresh(refresh_token);
+access_token = new_tokens.access_token;
+refresh_token = new_tokens.refresh_token;  // rotated
+```
+
+## When you might NOT have all three
+
+### No id_token
+
+If `openid` scope wasn't requested, no id_token. You only get access_token (just OAuth2, not OIDC).
+
+For most apps: request `openid` scope so you get id_token.
+
+### No refresh_token
+
+Requires `offline_access` scope. Without: no refresh. User must re-login after access expiry.
+
+For SPAs that don't want long-lived sessions: skip refresh.
+
+## Storage
+
+**Best practice for SPAs**:
+- id_token: memory only (used at login, then discarded).
+- access_token: memory only (refresh as needed).
+- refresh_token: HttpOnly cookie (via BFF) OR encrypted localStorage.
+
+**For backend (BFF)**:
+- id_token: short-term cache.
+- access_token: short-term cache.
+- refresh_token: server-side session storage.
+
+**Never**:
+- localStorage for refresh_token in a vulnerable SPA.
+
+## Common confusions
+
+### "Why is my API rejecting the id_token?"
+
+You're using id_token where access_token is needed. Switch.
+
+### "Why does my UI show the wrong user?"
+
+id_token might be cached / not refreshed. Refresh on every page load.
+
+### "Refresh token doesn't work"
+
+Did you request `offline_access` scope? Is your client configured to allow refresh_token grant?
+
+### "ID token's email is wrong"
+
+User might have changed email. ID token is snapshot at issue time. Force re-auth or refresh.
+
+## Inspecting tokens
+
+```ts
+import { decodeJwt } from "jose";
+const claims = decodeJwt(idToken);
+console.log(claims);
+```
+
+NEVER trust claims from a token YOU CREATED. ALWAYS verify signature server-side:
+
+```ts
+const { payload } = await jwtVerify(idToken, jwks, { issuer, audience });
+```
+
+`decodeJwt` is for reading, not validation.
+
+## Audience
+
+`aud` claim restricts where token can be used.
+
+ID token: `aud = your client_id`.
+Access token: `aud = your API URL`.
+
+Your API checks:
+```ts
+if (token.aud !== "https://your-api.com") throw new Error("wrong_audience");
+```
+
+Without this check, attacker can use a token meant for another API.
+
+## OAuth2 vs OIDC
+
+OAuth2 = authorization (access tokens).
+OIDC = OAuth2 + authentication (id tokens).
+
+Olympus does both. Most apps need OIDC.
+
+## Related
+
+- [Reference, Diagrams, Token introspection](/docs/reference/diagrams/seq-token-introspection)
+- [Cookbook, JWT vs opaque tokens](/docs/cookbook/tokens-oauth2/jwt-vs-opaque-tokens)
+- [Cookbook, Refresh token rotation](/docs/cookbook/tokens-oauth2/refresh-token-rotation)
+- [Cookbook, JWT claim shaping](/docs/cookbook/tokens-oauth2/jwt-claim-shaping)
+- [Reference, OIDC claims overview](/docs/reference/oidc/claims-overview)

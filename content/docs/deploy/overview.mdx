@@ -3,25 +3,25 @@ title: Overview
 description: Orientation for the Deploy section
 ---
 
-This section covers production deployments — the path from "Olympus runs on my laptop" to "Olympus serves real customers on real DNS."
+This section covers production deployments, the path from "Olympus runs on my laptop" to "Olympus serves real customers on real DNS."
 
 ## Two paths
 
-- **[Deploy with Daedalus](/docs/deploy/with-daedalus-wizard)** — the guided thirteen-step wizard. Best for most operators. Handles VPS provisioning, DNS, TLS, GitHub Secrets, and the first deploy.
-- **[Deploy without Daedalus](/docs/deploy/without-daedalus-manual)** — manual production deploy for operators who already have infrastructure-as-code or a non-supported provider.
+- **[Deploy with Daedalus](/docs/deploy/wizards/with-daedalus-wizard)**, the guided thirteen-step wizard. Best for most operators. Handles VPS provisioning, DNS, TLS, GitHub Secrets, and the first deploy.
+- **[Deploy without Daedalus](/docs/deploy/wizards/without-daedalus-manual)**, manual production deploy for operators who already have infrastructure-as-code or a non-supported provider.
 
 ## Decision points
 
 | Decision | Pages |
 | --- | --- |
-| Which VPS provider? | [DigitalOcean](/docs/deploy/provider-digitalocean), [Hostinger](/docs/deploy/provider-hostinger), [Direct SSH](/docs/deploy/provider-direct-ssh) |
-| Where does Postgres run? | [Managed (Neon)](/docs/deploy/database-managed-neon), [Self-hosted](/docs/deploy/database-self-hosted) |
-| Which email provider? | [Resend](/docs/deploy/email-resend), [Postmark](/docs/deploy/email-postmark), [Brevo](/docs/deploy/email-brevo), [SMTP2GO](/docs/deploy/email-smtp2go), [Custom SMTP](/docs/deploy/email-custom-smtp) |
-| TLS configuration? | [DNS and Domains](/docs/deploy/dns-and-domains), [Database SSL verify-full](/docs/deploy/database-ssl-verify-full) |
+| Which VPS provider? | [DigitalOcean](/docs/deploy/providers/provider-digitalocean), [Hostinger](/docs/deploy/providers/provider-hostinger), [Direct SSH](/docs/deploy/providers/provider-direct-ssh) |
+| Where does Postgres run? | [Managed (Neon)](/docs/deploy/database/database-managed-neon), [Self-hosted](/docs/deploy/database/database-self-hosted) |
+| Which email provider? | [Resend](/docs/deploy/email/email-resend), [Postmark](/docs/deploy/email/email-postmark), [Brevo](/docs/deploy/email/email-brevo), [SMTP2GO](/docs/deploy/email/email-smtp2go), [Custom SMTP](/docs/deploy/email/email-custom-smtp) |
+| TLS configuration? | [DNS and Domains](/docs/deploy/production/dns-and-domains), [Database SSL verify-full](/docs/deploy/database/database-ssl-verify-full) |
 
 ## Production-only concerns
 
-- [Kratos Production Config](/docs/deploy/kratos-production-config) — hardening differences from the dev config.
-- [Dev vs Prod](/docs/deploy/dev-vs-prod) — every field that differs between `compose.dev.yml` and `compose.prod.yml`.
+- [Kratos Production Config](/docs/deploy/production/kratos-production-config), hardening differences from the dev config.
+- [Dev vs Prod](/docs/deploy/production/dev-vs-prod), every field that differs between `compose.dev.yml` and `compose.prod.yml`.
 
 Once deployed, the [Operate](/docs/operate/overview) section covers the ongoing work.

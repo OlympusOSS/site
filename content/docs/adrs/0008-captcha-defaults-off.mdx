@@ -1,5 +1,5 @@
 ---
-title: "0008 — Captcha defaults OFF in dev"
+title: "0008, Captcha defaults OFF in dev"
 description: Why captcha is disabled in development but enabled in production
 ---
 
@@ -15,7 +15,7 @@ Captcha (Cloudflare Turnstile) prevents bot abuse of registration and login. In 
 - Adds time and clicks per test login.
 - Doesn't catch any real attack since dev is local.
 
-In production, captcha is essential — credential-stuffing botnets target every login endpoint.
+In production, captcha is essential, credential-stuffing botnets target every login endpoint.
 
 ## Decision
 
@@ -26,11 +26,11 @@ The toggle is environment-based: `TURNSTILE_DISABLED=true` is set in `compose.de
 ## Consequences
 
 - Dev is friction-free for normal use.
-- Prod requires a Cloudflare Turnstile account and `TURNSTILE_*` env vars (see [Security — Captcha Turnstile](/docs/security/captcha-turnstile)).
+- Prod requires a Cloudflare Turnstile account and `TURNSTILE_*` env vars (see [Security, Captcha Turnstile](/docs/security/web-attacks/captcha-turnstile)).
 - An operator can opt into captcha in dev by setting `TURNSTILE_DISABLED=false` and configuring real keys.
-- An operator can opt out of captcha in prod by leaving `TURNSTILE_SITE_KEY` unset — but this is loudly logged as a security warning at startup.
+- An operator can opt out of captcha in prod by leaving `TURNSTILE_SITE_KEY` unset, but this is loudly logged as a security warning at startup.
 
 ## Related
 
-- [Security — Captcha Turnstile](/docs/security/captcha-turnstile)
-- [Operate — Captcha tuning](/docs/operate/captcha-tuning)
+- [Security, Captcha Turnstile](/docs/security/web-attacks/captcha-turnstile)
+- [Operate, Captcha tuning](/docs/operate/performance/captcha-tuning)

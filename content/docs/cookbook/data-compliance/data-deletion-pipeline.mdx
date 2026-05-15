@@ -1,0 +1,240 @@
+---
+title: Building a user-data deletion pipeline
+description: Cascade deletion across multiple systems
+---
+
+When a user deletes their account, you have to delete their data from:
+- Olympus (identity, sessions).
+- Your app DB (resources, profile, etc.).
+- Stripe (subscriptions, customer record).
+- Logs / audit (anonymize per retention).
+- External integrations (Algolia search, Sendgrid lists, etc.).
+
+A pipeline orchestrates this.
+
+## Two stages
+
+1. **Soft delete**: state=inactive, grace period (see [grace-period-deletion](/docs/cookbook/data-compliance/grace-period-deletion)).
+2. **Hard delete**: actually erase. After grace period expires.
+
+## Hard delete pipeline
+
+```ts
+async function hardDelete(identityId: string) {
+  const transaction = await db.beginTransaction();
+  try {
+    // 1. Read data we need before deleting
+    const identity = await kratos.adminGetIdentity(identityId);
+    const stripeCustomerId = identity.metadata_admin?.stripe_customer_id;
+    
+    // 2. Delete from app DB (cascade is your friend)
+    await db.delete("user_profiles").where({ identity_id: identityId });
+    await db.delete("memberships").where({ identity_id: identityId });
+    await db.delete("api_keys").where({ identity_id: identityId });
+    
+    // 3. Anonymize audit (don't delete, retention)
+    await db.update("security_audit")
+      .where({ identity_id: identityId })
+      .set({ identity_id: null, source_ip: null, user_agent: null, metadata: {} });
+    
+    // 4. Delete from Olympus
+    await kratos.adminDeleteIdentity(identityId);
+    
+    // 5. Cancel Stripe subscription
+    if (stripeCustomerId) {
+      const subs = await stripe.subscriptions.list({ customer: stripeCustomerId });
+      for (const sub of subs.data) {
+        await stripe.subscriptions.cancel(sub.id);
+      }
+      // Keep customer for tax records (Stripe recommends)
+    }
+    
+    // 6. External integrations
+    await deleteFromAlgolia(identityId);
+    await deleteFromSendgrid(identity.traits.email);
+    await deleteFromAnalytics(identityId);
+    
+    // 7. Audit the deletion
+    await db.insert("deletion_log").values({
+      identity_id_hash: sha256(identityId),
+      deleted_at: new Date(),
+      reason: "user_requested",
+    });
+    
+    await transaction.commit();
+  } catch (err) {
+    await transaction.rollback();
+    throw err;
+  }
+}
+```
+
+## Idempotency
+
+Re-run is safe (some systems might be partially deleted):
+
+```ts
+// Skip if already gone
+try {
+  await kratos.adminDeleteIdentity(identityId);
+} catch (err) {
+  if (err.code === "not_found") {
+    // Already deleted. Continue with other steps.
+  } else {
+    throw err;
+  }
+}
+```
+
+## Confirmation
+
+Log what was actually deleted:
+
+```ts
+return {
+  identity_deleted: true,
+  app_data_deleted: true,
+  stripe_canceled: stripeCustomerId ? true : "no_customer",
+  algolia_deleted: true,
+  ...
+};
+```
+
+Email user:
+```
+Subject: Account deleted
+
+Your data has been removed from our systems:
+- ✓ Account and profile
+- ✓ Subscription cancelled
+- ✓ Search index cleared
+- (Audit logs retained for [N] years per our policy)
+
+If you didn't request this, contact support immediately.
+```
+
+## Async pipeline
+
+For large deletions (lots of related data), make async:
+
+```ts
+async function requestDelete(identityId) {
+  await db.insert("deletion_queue").values({
+    identity_id: identityId,
+    requested_at: new Date(),
+    status: "pending",
+  });
+}
+
+// Worker:
+async function processDeletes() {
+  const pending = await db`
+    SELECT * FROM deletion_queue
+    WHERE status = 'pending'
+    LIMIT 10
+    FOR UPDATE SKIP LOCKED
+  `;
+  for (const job of pending) {
+    try {
+      await hardDelete(job.identity_id);
+      await db`UPDATE deletion_queue SET status = 'completed' WHERE id = ${job.id}`;
+    } catch (err) {
+      await db`UPDATE deletion_queue SET status = 'failed', error = ${err.message} WHERE id = ${job.id}`;
+    }
+  }
+}
+
+setInterval(processDeletes, 60_000);
+```
+
+## What NOT to delete
+
+Some data must remain (legal):
+- Tax records (Stripe customer).
+- Audit log (anonymized).
+- Aggregate stats (already anonymous).
+
+Some data should remain (operational):
+- Backups for retention period.
+- Logs for debugging (anonymized).
+
+Be explicit about what stays vs goes. Document in your privacy policy.
+
+## Backup retention
+
+After hard-delete, backups still contain the deleted data, for up to backup retention period.
+
+Document: "We delete data within 30 days, but backups may retain it for [N] additional days."
+
+True for everyone using backups. Be honest.
+
+## DSR conflict
+
+User says "delete EVERYTHING, including backups."
+
+Backups are usually exempt, you can't easily delete specific records from backups. Wait for backup retention to expire.
+
+If user insists: legal review.
+
+## Hard-failure recovery
+
+If pipeline fails mid-way:
+
+```ts
+{
+  identity_deleted: true,
+  app_data_deleted: true,
+  stripe_canceled: false,    // ← Stripe call failed
+  algolia_deleted: true,
+}
+```
+
+The orphaned Stripe customer remains. Audit log says "deletion attempted but Stripe failed."
+
+Manual cleanup or retry.
+
+## Verification
+
+After deletion:
+
+```ts
+// Verify
+const found = await kratos.adminGetIdentity(identityId);  // should be NOT_FOUND
+const stripe = await stripe.subscriptions.list({ customer: stripeId });  // should be empty
+const algolia = await algolia.search({ filter: `id:${identityId}` });  // should be empty
+```
+
+Log if any are not as expected.
+
+## Audit the deletion
+
+Even after deleting the user, log the deletion event (anonymized):
+
+```sql
+INSERT INTO deletion_audit (identity_id_hash, deleted_at, reason)
+VALUES (sha256($id), NOW(), 'user_requested');
+```
+
+If asked "did this user exist? Did we delete them?", you can confirm without re-creating their data.
+
+## Customer support after deletion
+
+User asks "what was my account?" after deletion. Generally: don't know. Their data is gone.
+
+You can say:
+- Date of deletion.
+- That request was processed.
+
+Cannot:
+- Re-create.
+- Tell them their old email (you might have anonymized).
+
+Set expectations in your privacy policy.
+
+## Related
+
+- [Cookbook, Grace period deletion](/docs/cookbook/data-compliance/grace-period-deletion)
+- [Cookbook, Self-service account deletion](/docs/cookbook/data-compliance/self-service-account-deletion)
+- [Cookbook, GDPR DSR export](/docs/cookbook/data-compliance/gdpr-dsr-export)
+- [Cookbook, Automated deprovisioning](/docs/cookbook/data-compliance/automated-deprovisioning)
+- [Cookbook, Audit anonymization](/docs/cookbook/defensive-security/audit-anonymization)

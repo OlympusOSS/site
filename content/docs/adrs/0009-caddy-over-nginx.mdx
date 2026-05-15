@@ -1,5 +1,5 @@
 ---
-title: "0009 — Caddy over Nginx"
+title: "0009, Caddy over Nginx"
 description: Why Olympus uses Caddy as its reverse proxy
 ---
 
@@ -27,13 +27,13 @@ Olympus needs a reverse proxy with: TLS termination (automated Let's Encrypt), p
 
 ## Consequences
 
-- TLS "just works" — operators don't manage cert files or renewal cron.
-- The Caddyfile is short and readable. The full prod config is ~170 lines (see [Reference — Caddyfile](/docs/reference/config/caddyfile)).
-- Custom build needs a reproducible workflow: [`caddy-build.yml`](https://github.com/OlympusOSS/platform/blob/main/.github/workflows/caddy-build.yml) builds the image and publishes to GHCR. See [Security — Caddy Supply Chain](/docs/security/caddy-supply-chain).
+- TLS "just works", operators don't manage cert files or renewal cron.
+- The Caddyfile is short and readable. The full prod config is ~170 lines (see [Reference, Caddyfile](/docs/reference/config/caddyfile)).
+- Custom build needs a reproducible workflow: [`caddy-build.yml`](https://github.com/OlympusOSS/platform/blob/main/.github/workflows/caddy-build.yml) builds the image and publishes to GHCR. See [Security, Caddy Supply Chain](/docs/security/infrastructure/caddy-supply-chain).
 - The DNS-01 ACME flow (needed if Caddy is behind a proxy that intercepts HTTP) is supported via Cloudflare/Route53/etc plugins.
 
 ## Related
 
-- [Security — Caddy Supply Chain](/docs/security/caddy-supply-chain)
-- [Security — Rate Limiting](/docs/security/rate-limiting)
-- [Reference — Caddyfile](/docs/reference/config/caddyfile)
+- [Security, Caddy Supply Chain](/docs/security/infrastructure/caddy-supply-chain)
+- [Security, Rate Limiting](/docs/security/web-attacks/rate-limiting)
+- [Reference, Caddyfile](/docs/reference/config/caddyfile)

@@ -1,0 +1,61 @@
+---
+title: Add GitLab as a social login provider
+description: Configure GitLab OAuth as an alternate login method
+---
+
+## Step 1: Register GitLab OAuth App
+
+GitLab.com → Edit profile → Applications → **Add new application**.
+- Name: "Your App via Olympus"
+- Redirect URI: `https://ciam.your-domain/self-service/methods/oidc/callback/gitlab`
+- Scopes: `read_user`, `openid`, `profile`, `email`
+- Confidential: yes
+- Save. Note Application ID and Secret.
+
+## Step 2: Configure Kratos
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: gitlab
+            provider: gitlab
+            client_id: <gitlab-application-id>
+            client_secret: <gitlab-secret>
+            scope: [openid, profile, email]
+            mapper_url: file:///etc/config/kratos/oidc.gitlab.jsonnet
+```
+
+`oidc.gitlab.jsonnet`:
+
+```text
+local claims = std.extVar('claims');
+{
+  identity: {
+    traits: {
+      email: claims.email,
+      name: { first: claims.given_name, last: claims.family_name },
+    },
+  },
+}
+```
+
+## Self-hosted GitLab
+
+If using a self-hosted GitLab instance, override the discovery URL:
+
+```yaml
+- id: gitlab
+  provider: gitlab
+  issuer_url: https://gitlab.your-corp.com
+  client_id: ...
+```
+
+The `issuer_url` lets Kratos discover the right endpoints.
+
+## Related
+
+- [Cookbook, Add GitHub](/docs/cookbook/social-login/add-social-provider-github)
+- [Identity, Social login](/docs/identity/social-login)

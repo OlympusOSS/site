@@ -1,0 +1,235 @@
+---
+title: Dynamic CORS allowlists per tenant
+description: Allow each tenant to configure their own allowed origins
+---
+
+In a B2B SaaS, each customer's app calls your API from their domain. CORS allowed origins isn't static, it's per-tenant.
+
+## Pattern
+
+```sql
+CREATE TABLE tenant_cors_origins (
+  tenant_id UUID NOT NULL,
+  origin TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, origin)
+);
+```
+
+Tenant admin adds their origins. CORS middleware checks dynamically.
+
+## Middleware
+
+```ts
+import cors from "cors";
+
+app.use(cors({
+  origin: async (origin, callback) => {
+    if (!origin) return callback(null, false);  // no Origin header
+    
+    // Look up tenant from origin
+    const allowed = await db`SELECT 1 FROM tenant_cors_origins WHERE origin = ${origin}`.first();
+    if (allowed) return callback(null, true);
+    
+    return callback(new Error("origin_not_allowed"), false);
+  },
+  credentials: true,
+}));
+```
+
+Origin → tenant lookup → allow/deny.
+
+## Caching
+
+DB lookup per request is wasteful. Cache:
+
+```ts
+const originCache = new Map<string, boolean>();
+const CACHE_TTL = 60_000;
+
+async function isAllowed(origin: string) {
+  if (originCache.has(origin)) return originCache.get(origin);
+  const allowed = await db`...`.first();
+  originCache.set(origin, !!allowed);
+  setTimeout(() => originCache.delete(origin), CACHE_TTL);
+  return !!allowed;
+}
+```
+
+In-memory cache. For multi-instance: Redis.
+
+## Verification before adding
+
+When tenant adds an origin, verify they own it (DNS):
+
+```ts
+async function addOrigin(tenantId, origin) {
+  // Step 1: tenant adds origin (status: pending)
+  await db.insert(corsOrigins).values({
+    tenant_id: tenantId,
+    origin,
+    status: "pending",
+    verification_token: crypto.randomUUID(),
+  });
+  
+  // Tenant adds DNS TXT or HTML meta tag with the token
+  // Then triggers verification:
+}
+
+async function verifyOrigin(tenantId, origin) {
+  const record = await db`SELECT verification_token FROM cors_origins WHERE ...`.first();
+  
+  // Method A: DNS TXT
+  const records = await dns.resolveTxt(`_olympus.${new URL(origin).hostname}`);
+  if (records.flat().includes(record.verification_token)) {
+    await db`UPDATE cors_origins SET status='verified' WHERE ...`;
+    return true;
+  }
+  
+  // Method B: fetch a known URL
+  const res = await fetch(`${origin}/.well-known/olympus-verify`);
+  const body = await res.text();
+  if (body.trim() === record.verification_token) {
+    await db`UPDATE cors_origins SET status='verified' WHERE ...`;
+    return true;
+  }
+  
+  return false;
+}
+```
+
+Only verified origins are usable.
+
+## UI
+
+In tenant admin panel:
+
+```tsx
+<form action={addOrigin}>
+  <input name="origin" placeholder="https://app.example.com" />
+  <button>Add origin</button>
+</form>
+
+<table>
+  {origins.map(o => (
+    <tr>
+      <td>{o.origin}</td>
+      <td>
+        {o.status === "verified" ? "✓" : (
+          <Button onClick={() => verify(o.id)}>Verify</Button>
+        )}
+      </td>
+      <td><Button onClick={() => remove(o.id)}>Remove</Button></td>
+    </tr>
+  ))}
+</table>
+```
+
+Tenant manages their list.
+
+## Wildcard subdomains
+
+For `*.acme.com`:
+
+```sql
+INSERT INTO cors_origins (origin) VALUES ('*.acme.com');
+```
+
+Lookup:
+
+```ts
+async function isAllowed(origin: string) {
+  const url = new URL(origin);
+  const exact = await db`SELECT 1 FROM cors_origins WHERE origin = ${origin}`.first();
+  if (exact) return true;
+  
+  // Wildcard match
+  const wildcard = await db`
+    SELECT 1 FROM cors_origins 
+    WHERE origin = ${`*.${url.hostname.split(".").slice(1).join(".")}`}
+  `.first();
+  return !!wildcard;
+}
+```
+
+Use wildcards sparingly, broader trust.
+
+## Preflight performance
+
+OPTIONS requests are short, but frequent. Cache aggressively:
+
+```caddy
+@preflight method OPTIONS
+header @preflight Access-Control-Max-Age "86400"  # 24h
+```
+
+Browsers cache 24h. Fewer round-trips.
+
+## Audit changes
+
+```sql
+INSERT INTO security_audit (event_type, actor_id, metadata)
+VALUES (
+  'cors_origin_added',
+  $admin_id,
+  '{"tenant": "$tenant", "origin": "$origin"}'
+);
+```
+
+Track who added what.
+
+## Denied origin: silent or noisy
+
+For rejected origins:
+
+```ts
+// Silent (no CORS header)
+if (!isAllowed(origin)) return next();  // browser will reject
+
+// Vs. explicit deny
+if (!isAllowed(origin)) {
+  res.status(403).send("origin_not_allowed");
+  return;
+}
+```
+
+Silent is technically correct (CORS isn't security per se). Explicit gives clearer error to debuggers.
+
+## Don't allow wildcard `*` with credentials
+
+Browser-level rule: `Access-Control-Allow-Origin: *` AND `Access-Control-Allow-Credentials: true` is forbidden.
+
+Always specify origin when credentials needed.
+
+## Limits
+
+Tenant can add hundreds of origins. Some limit:
+
+```ts
+const MAX_ORIGINS_PER_TENANT = 50;
+const count = await db`SELECT COUNT(*) FROM cors_origins WHERE tenant_id = ${tenantId}`.first();
+if (count.count >= MAX_ORIGINS_PER_TENANT) {
+  throw new Error("origin_limit");
+}
+```
+
+Prevent storage abuse.
+
+## Removing
+
+```ts
+async function removeOrigin(tenantId, origin) {
+  await db`DELETE FROM cors_origins WHERE tenant_id = ${tenantId} AND origin = ${origin}`;
+  await audit({ event: "cors_origin_removed", ... });
+  // Cache: invalidate
+  originCache.delete(origin);
+}
+```
+
+Effective immediately.
+
+## Related
+
+- [Security, CORS defense](/docs/security/web-attacks/cors-defense)
+- [Cookbook, Multi-tenant soft isolation](/docs/cookbook/multi-tenant/multi-tenant-soft-isolation)
+- [Cookbook, Per-tenant config](/docs/cookbook/multi-tenant/per-tenant-config)
+- [Cookbook, Email domain claiming](/docs/cookbook/multi-tenant/email-domain-claiming)

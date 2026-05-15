@@ -1,0 +1,122 @@
+---
+title: Bulk import identities
+description: Programmatically create many Kratos identities at once
+---
+
+Use cases: migrating from another platform, seeding test data, importing customer lists.
+
+## Single import (warm-up)
+
+```bash
+curl -X POST http://localhost:3101/admin/identities \
+  -H 'content-type: application/json' \
+  -d '{
+    "schema_id": "default",
+    "state": "active",
+    "traits": { "email": "alice@example.com", "name": {"first": "Alice", "last": "Allen"} },
+    "credentials": { "password": { "type": "password", "identifiers": ["alice@example.com"], "config": { "password": "TempPass123!" } } },
+    "verifiable_addresses": [{ "value": "alice@example.com", "verified": true, "via": "email", "status": "completed" }]
+  }'
+```
+
+## Bulk via Kratos CLI
+
+```bash
+# Prepare JSON-lines file
+cat > identities.jsonl <<'EOF'
+{"schema_id":"default","state":"active","traits":{"email":"alice@..."},"credentials":{"password":{"type":"password","identifiers":["alice@..."],"config":{"password":"..."}}}}
+{"schema_id":"default","state":"active","traits":{"email":"bob@..."},"credentials":{"password":{"type":"password","identifiers":["bob@..."],"config":{"password":"..."}}}}
+EOF
+
+# Import via Kratos CLI
+podman exec ciam-kratos kratos identities import \
+  --endpoint http://localhost:5001 \
+  identities.jsonl
+```
+
+## Bulk via parallel API calls
+
+```bash
+xargs -P 10 -L 1 curl -X POST http://localhost:3101/admin/identities \
+  -H 'content-type: application/json' -d < identities.jsonl
+```
+
+Adjust `-P` (parallelism) based on your Kratos's capacity. 10 is conservative; can go higher for warm-up.
+
+## Importing pre-hashed passwords
+
+If migrating from another platform, you have hashes, not plaintext. Kratos supports bcrypt, pbkdf2, argon2:
+
+```json
+{
+  "credentials": {
+    "password": {
+      "type": "password",
+      "identifiers": ["alice@..."],
+      "config": { "hashed_password": "$2a$10$...." }
+    }
+  }
+}
+```
+
+The hash must match a format Kratos understands. See the [Migration guides](/docs/migration/overview) for per-source conversion.
+
+## Importing OIDC-linked identities
+
+```json
+{
+  "credentials": {
+    "oidc": {
+      "type": "oidc",
+      "identifiers": ["google:1234567890"],
+      "config": {
+        "providers": [
+          { "subject": "1234567890", "provider": "google" }
+        ]
+      }
+    }
+  }
+}
+```
+
+The `identifiers` follow `<provider>:<subject>` form. This pre-links the identity to a social provider; user can log in via OIDC without re-linking.
+
+## Rate considerations
+
+Kratos's admin API doesn't rate-limit by default (firewall-protected). Going too fast can:
+- Saturate the Postgres connection pool.
+- Trigger admin API request timeouts.
+
+Reasonable rate: 100-500 inserts/second on a typical VPS.
+
+## Verifying
+
+```bash
+curl http://localhost:3101/admin/identities | jq 'length'
+# Should match expected count
+
+curl 'http://localhost:3101/admin/identities?credentials_identifier=alice@...' | jq
+# Should find the imported identity
+```
+
+## Error handling
+
+- **`409 Conflict`**, duplicate identifier. Skip or update existing.
+- **`400 Bad Request`**, schema validation failure. Inspect the response body for the field that failed.
+- **`401 Unauthorized`**, your admin API request didn't include the admin auth (or you're hitting the public port).
+
+Production tip: use a small Bun/Python script that wraps the import with retry logic for `409`s, batching, and progress logging.
+
+## Cleanup after a bad import
+
+```bash
+# Delete identities matching a pattern (be careful!)
+curl http://localhost:3101/admin/identities | jq -r '.[] | select(.traits.email | startswith("test-import-")) | .id' \
+  | xargs -P 10 -I {} curl -X DELETE http://localhost:3101/admin/identities/{}
+```
+
+## Related
+
+- [Migration, From Auth0](/docs/migration/from-auth0), full migration walkthrough.
+- [Migration, From Keycloak](/docs/migration/from-keycloak)
+- [Reference, Athena API](/docs/reference/api/athena/overview)

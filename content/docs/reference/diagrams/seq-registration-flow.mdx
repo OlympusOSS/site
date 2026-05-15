@@ -56,7 +56,7 @@ sequenceDiagram
 | 10 | Password hashed | Argon2id (m=64MB, p=2, t=2) |
 | 11 | Identity row written | UUID, encrypted traits |
 | 12 | Post-registration hook | If configured: pre-fill role, allowlist check, etc. |
-| 13 | Verification email queued | Via courier — separate process delivers |
+| 13 | Verification email queued | Via courier, separate process delivers |
 | 14 | Session created | Cookie set on response |
 | 15 | Redirect to app | Logged in immediately (Kratos default) |
 | 16-19 | User clicks email later | Async, may be hours |
@@ -67,7 +67,7 @@ sequenceDiagram
 
 ### Logged in before verifying
 
-By default, Olympus logs the user in immediately. The user can use the app right away. Email verification is "soft" — required for some flows (recovery) but not for general use.
+By default, Olympus logs the user in immediately. The user can use the app right away. Email verification is "soft", required for some flows (recovery) but not for general use.
 
 Alternative: enforce verified-before-login. Configure:
 
@@ -129,7 +129,7 @@ Courier marks the email failed; retries up to 5 times with backoff. User may not
 
 ## See also
 
-- [Identity — Registration flow](/docs/identity/registration-flow)
-- [Identity — Verification flow](/docs/identity/verification-flow)
-- [Cookbook — Email-domain allowlist](/docs/cookbook/email-domain-allowlist)
-- [Cookbook — Invitation-based signup](/docs/cookbook/invitation-based-signup)
+- [Identity, Registration flow](/docs/identity/registration-flow)
+- [Identity, Verification flow](/docs/identity/verification-flow)
+- [Cookbook, Email-domain allowlist](/docs/cookbook/defensive-security/email-domain-allowlist)
+- [Cookbook, Invitation-based signup](/docs/cookbook/auth-flows/invitation-based-signup)

@@ -1,0 +1,115 @@
+---
+title: Email deliverability
+description: Keep verification and recovery emails reaching inboxes
+---
+
+The most common Olympus support ticket: "I didn't get the verification email." Most often, this is a deliverability issue, the email was sent but didn't arrive.
+
+## DNS setup checklist
+
+Email providers (Resend, Postmark, Brevo, etc.) require three DNS records per sender domain:
+
+### SPF
+
+```
+TXT  your-domain.com  "v=spf1 include:<provider-spf-record> -all"
+```
+
+E.g. for Resend: `include:_spf.resend.com`. Each provider documents its specific record.
+
+`-all` rejects mail from any sender not on the include list. Critical for not getting marked as spam.
+
+### DKIM
+
+The provider gives you a CNAME or TXT record like:
+
+```
+TXT  resend._domainkey.your-domain.com  "v=DKIM1; k=rsa; p=MIGfM..."
+```
+
+Recipient mail servers use the public key to verify outgoing emails were actually signed by your sender.
+
+### DMARC
+
+```
+TXT  _dmarc.your-domain.com  "v=DMARC1; p=none; rua=mailto:dmarc@your-domain.com"
+```
+
+Start with `p=none` (monitor, don't enforce). After 30 days of clean reports, move to `p=quarantine`, then `p=reject`.
+
+The `rua` aggregate reports tell you who's sending mail claiming to be from your domain, including, helpfully, real attackers spoofing your address.
+
+## Monitoring deliverability
+
+### Provider dashboard
+
+Each provider has a deliverability dashboard. Watch:
+
+- **Bounce rate**: under 5%. > 5% suggests bad-data signups (invalid emails). Tighten email validation.
+- **Complaint rate**: under 0.1%. > 0.1% means recipients are marking your transactional email as spam. Look at content.
+- **Open rate**: not relevant for transactional (recipients open the email to click the verification link, not to read).
+
+### Per-recipient debugging
+
+Most providers let you look up a specific recipient and see:
+- Whether the email was delivered.
+- Bounce reason if not.
+- Click events if any.
+
+When a user reports a missing email, look up their address in the provider dashboard first.
+
+## Reputation warm-up
+
+A new sending domain / IP starts with low reputation. Mail providers (Gmail, Outlook) silently throttle low-reputation senders.
+
+Warm up by:
+1. Starting with low volume, 50-100 emails/day for the first week.
+2. Sending to engaged recipients first (people who'll open and not mark as spam).
+3. Ramping up over 2-3 weeks.
+
+Most transactional providers (Resend, Postmark) handle warmup for you by using shared IP pools with already-warm reputation.
+
+## Content that triggers spam filters
+
+For verification/recovery emails, keep:
+- **Plain text alongside HTML.** Many spam filters score HTML-only mail poorly.
+- **No URL shorteners.** Use the full domain in links.
+- **No "free", "winner", "limited time"** in the subject.
+- **Per-recipient personalisation.** "Hi Alice, please verify..." beats "Dear customer."
+- **Unsubscribe link** in marketing emails (not transactional).
+
+Olympus's default email templates (in `platform/prod/{ciam,iam}-kratos/identity-*.html`) are deliberately plain. If you fork them, keep them clean.
+
+## When deliverability degrades
+
+Symptoms:
+- Users report rising "didn't get email" cases.
+- Provider dashboard shows climbing bounce rate.
+
+Steps:
+1. Check your DNS, did SPF/DKIM/DMARC records change? Run `dig TXT _domainkey.your-domain.com`.
+2. Check provider status page.
+3. Check sender reputation via tools like [postmaster.google.com](https://postmaster.google.com) (for Gmail-specific data).
+4. If reputation has tanked, you may need to rotate the sending domain or migrate to a different provider.
+
+## Multiple providers
+
+For high-volume deployments, configure a primary and a fallback:
+
+```yaml
+courier:
+  smtp:
+    connection_uri: smtps://primary
+  # Hypothetical Kratos fallback config, not currently supported
+```
+
+Kratos itself doesn't support failover SMTP. Workarounds:
+- A small relay (Postfix) that itself manages multiple upstream providers.
+- Monitoring + manual switchover via redeploy.
+
+## Related
+
+- [Deploy, Email, Resend](/docs/deploy/email/email-resend)
+- [Deploy, DNS and Domains](/docs/deploy/production/dns-and-domains)
+- [Troubleshooting, Email not sending](/docs/troubleshooting/infrastructure-issues/email-not-sending)
+- [Operate, Incident response](/docs/operate/backups-recovery/incident-response)

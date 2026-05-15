@@ -1,0 +1,190 @@
+---
+title: Account linking strategies
+description: When a user signs in with Google but already has a password account
+---
+
+Users have multiple ways to sign in: password, Google, GitHub, etc. What happens when someone signs up with password under `alice@example.com`, then later clicks "Sign in with Google" using the same email?
+
+The naive answer: link them automatically. The secure answer: don't, let me explain.
+
+## The threat
+
+If you auto-link by email:
+
+1. Attacker registers `victim@example.com` somewhere (maybe a typo'd domain they own).
+2. Attacker creates a Google account `victim@example.com` (because they own the domain).
+3. Attacker signs into your app with Google.
+4. Your app: "Email already exists. Linking Google to existing identity."
+5. Now attacker has full access to victim's password account.
+
+This is the [classic OIDC account-takeover attack](https://www.descope.com/blog/post/account-linking).
+
+## Linking policies
+
+### Policy A: Don't auto-link
+
+Users must explicitly link in settings.
+
+```
+Settings → Connected accounts → "Connect Google"
+  → prompts password
+  → confirms identity
+  → links Google to current identity
+```
+
+Result: a Google-only login by a previously password-only user creates a *separate identity*. The user is told "We see you signed up with password. Sign in with password, then connect Google in settings."
+
+Pros: max security.
+Cons: confusing UX. User might be surprised to have two accounts.
+
+### Policy B: Auto-link only with verified email
+
+Trust the OIDC provider's email verification:
+
+```
+If existing identity has verified email
+AND new OIDC identity claims same email
+AND OIDC provider's email_verified = true
+THEN link.
+```
+
+This works *if* you trust the OIDC provider's email verification. Google, Apple, GitHub: trustworthy. Some smaller providers: not.
+
+Configure the trust per-provider:
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: google
+            trust_email_verified: true
+          - id: some-other:
+            trust_email_verified: false
+```
+
+### Policy C: Link only on first registration
+
+If the OIDC identity is brand new (no prior account), auto-create. If there's an existing identity with this email, prompt user to confirm:
+
+```
+"You already have an account with [email]. Want to add Google sign-in?"
+[Sign in with password to confirm] → links.
+```
+
+Olympus's default: variant of Policy C. New users register fresh; existing users must verify password before linking.
+
+## Implementation in Kratos
+
+Kratos's behavior on email collision is configurable via hooks. The post-OIDC hook checks:
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: google
+            mapper_url: file:///etc/config/google.jsonnet
+            organization_id: ""
+      enabled: true
+  flows:
+    registration:
+      after:
+        oidc:
+          hooks:
+            - hook: web_hook
+              config:
+                url: https://your-backend/check-link
+```
+
+Your backend logic:
+
+```ts
+export async function POST(req: Request) {
+  const { traits, oidc_provider } = await req.json();
+  const existing = await kratos.find({ "traits.email": traits.email });
+  if (!existing) return Response.json({ ok: true }); // new user, register
+  
+  // Conflict: prompt for password confirmation
+  return Response.json({
+    reject: true,
+    redirect_to: `/link-account?provider=${oidc_provider}&identity_id=${existing.id}`,
+    error: "account_exists",
+  });
+}
+```
+
+The `/link-account` page in your app:
+1. User enters their password.
+2. Kratos validates.
+3. Backend then calls Kratos to add OIDC credential to existing identity.
+
+## Unlinking
+
+Users should be able to remove a linked provider:
+
+```
+Settings → Connected accounts → [x] Disconnect Google
+```
+
+But: don't allow disconnecting the only auth method. If user signed up with Google and that's their only credential, disconnecting locks them out.
+
+Athena's settings flow handles this, checks `len(credentials) > 1` before allowing removal.
+
+## OIDC `sub` immutability
+
+The OIDC `sub` is the immutable user identifier from the provider. Use it as the link key, not email:
+
+```sql
+CREATE TABLE identity_credentials (
+  identity_id UUID,
+  type TEXT,                   -- "oidc"
+  config JSONB,                -- { provider: "google", subject: "1234567890" }
+  PRIMARY KEY (identity_id, type, ...)
+);
+```
+
+A user might change their Google email, the `sub` stays the same. Always match on (provider, sub), never on email alone.
+
+## Multiple OIDC providers
+
+A user might have:
+- Google with `sub = X`, email = `alice@gmail.com`.
+- GitHub with `sub = Y`, email = `alice@example.com`.
+- Apple with `sub = Z`, email = `private-relay@apple`.
+
+All linked to one Olympus identity. The identity's primary email is what the user picked.
+
+## Email change after linking
+
+User signs up with Google (email = google's email). Later changes their Olympus email to `alice@personal.com`. Google's email still `alice@gmail.com`.
+
+Next Google sign-in: do you trust Google's email or Olympus's?
+
+Olympus default: link is by `sub`, not email. Same sub → same identity. Olympus's email stays at `alice@personal.com`. Login still works.
+
+## Edge: same email, two providers
+
+User signs up with Google. Then signs in with Apple, where Apple has same email (the user uses Apple's relay → Apple → google email).
+
+Two separate `sub`s, same email. Should they auto-link?
+
+Conservative: no. User must explicitly link.
+
+## Test cases
+
+For every linking flow you implement, test:
+- New OIDC user, no existing account → registers fresh.
+- Existing password user, OIDC with same email → prompts password (not auto-link).
+- Existing OIDC user, signs in with same provider → recognized, signs in.
+- Existing OIDC user, signs in with same email but different provider → prompt.
+- Disconnect: tries to remove only credential → blocked.
+
+## Related
+
+- [Cookbook, Identity merging](/docs/cookbook/auth-flows/identity-merging)
+- [Identity, Social login](/docs/identity/social-login)
+- [Cookbook, Sign in with Google (strict)](/docs/cookbook/social-login/sign-in-with-google-strict)
+- [Reference, Diagrams, Social login linking](/docs/reference/diagrams/seq-social-login-link)

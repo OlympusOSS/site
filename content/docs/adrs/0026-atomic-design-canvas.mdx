@@ -1,5 +1,5 @@
 ---
-title: "0026 — Atomic design in Canvas"
+title: "0026, Atomic design in Canvas"
 description: Why Canvas organizes components as atoms, molecules, organisms, charts
 ---
 
@@ -42,18 +42,18 @@ import { DataTable } from "@olympusoss/canvas/organisms";
 ## Consequences
 
 - **Discoverability.** Engineers ask "is this an atom or a molecule?" and find the right place.
-- **Composition pressure.** Building a new component forces the question "what tier is this?" — usually clarifying the right abstraction.
+- **Composition pressure.** Building a new component forces the question "what tier is this?", usually clarifying the right abstraction.
 - **Charts get their own tier.** Charts have different concerns (data binding, axis configuration) than typical UI, so a dedicated bucket avoids forcing them into "organisms."
 
 ## Where it gets blurry
 
 - **Tooltip** could be molecule or atom. We placed it in molecules because it wraps an atom.
-- **Dropdown / Select** has internal state and presents options — molecule, even though feels organism-y.
+- **Dropdown / Select** has internal state and presents options, molecule, even though feels organism-y.
 
 When in doubt, the more granular tier wins.
 
 ## Related
 
-- [Canvas docs](https://olympusoss.github.io/canvas/) — full component playground.
-- [Repo map — Canvas](/docs/repo-map)
-- [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
+- [Canvas docs](https://olympusoss.github.io/canvas/), full component playground.
+- [Repo map, Canvas](/docs/repo-map)
+- [ADR 0012, Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)

@@ -19,7 +19,7 @@ git clone https://github.com/OlympusOSS/platform.git
 cd platform
 cp .env.sample .env
 
-# Edit .env — at minimum, set:
+# Edit .env, at minimum, set:
 # DOMAIN=localhost
 # (everything else can default)
 
@@ -95,7 +95,7 @@ podman stop ciam-hera
 # Run locally
 cd hera
 bun install
-bun run dev  # next dev — auto-reloads on changes
+bun run dev  # next dev, auto-reloads on changes
 ```
 
 Browser at `http://localhost:3000` reflects code changes within a second.
@@ -218,6 +218,6 @@ bun run test:e2e   # playwright e2e (requires running stack)
 
 ## Related
 
-- [Develop — Architecture](/docs/develop/architecture)
-- [Cookbook — Customize Hera UI](/docs/cookbook/customize-hera-ui)
-- [Cookbook — Custom email templates](/docs/cookbook/custom-email-templates)
+- [Develop, Architecture](/docs/develop/architecture)
+- [Cookbook, Customize Hera UI](/docs/cookbook/customize-hera-ui)
+- [Cookbook, Custom email templates](/docs/cookbook/ui-content/custom-email-templates)

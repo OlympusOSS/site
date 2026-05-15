@@ -1,0 +1,10 @@
+{
+  "title": "Email",
+  "pages": [
+    "email-brevo",
+    "email-custom-smtp",
+    "email-postmark",
+    "email-resend",
+    "email-smtp2go"
+  ]
+}

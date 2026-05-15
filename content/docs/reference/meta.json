@@ -2,21 +2,23 @@
   "title": "Reference",
   "pages": [
     "overview",
-    "---APIs---",
-    "...api",
+    "api",
     "api-athena-authentication",
     "api-athena-errors",
     "api-athena-pagination",
     "api-athena-settings",
     "api-sdk-settings",
-    "---Configuration---",
-    "...config",
-    "---Schemas---",
-    "...schemas",
-    "---Catalogs---",
-    "ports",
+    "config",
+    "schemas",
     "env-vars",
-    "errors",
-    "settings-catalog"
+    "secrets",
+    "ports-detail",
+    "errors-detail",
+    "scopes",
+    "grants",
+    "mfa",
+    "oidc-claims",
+    "caddy-directives",
+    "diagrams"
   ]
 }

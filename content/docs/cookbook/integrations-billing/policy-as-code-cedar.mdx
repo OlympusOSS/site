@@ -1,0 +1,210 @@
+---
+title: Policy-as-code with Cedar
+description: Declarative authz policies with Cedar
+---
+
+For complex authz logic (combining roles, attributes, resource relationships), policy-as-code engines help. Cedar (open-sourced by AWS) is a strong fit for Olympus.
+
+## Why Cedar over hard-coded checks
+
+```ts
+// Hard-coded, repeated everywhere
+if (user.role === "admin" || (user.role === "support" && resource.status === "open" && resource.assigned_to === user.id)) {
+  // allow
+}
+```
+
+vs
+
+```cedar
+permit (
+  principal,
+  action == Action::"close",
+  resource is Ticket
+) when {
+  principal.role == "admin" ||
+  (principal.role == "support" && resource.status == "open" && resource.assignee == principal)
+};
+```
+
+Cedar: declarative, testable, separate from app code. Auditable.
+
+## Setup
+
+Cedar runs in your app as a library:
+
+```bash
+npm install @cedar-policy/cedar
+```
+
+```ts
+import { Cedar } from "@cedar-policy/cedar";
+
+const cedar = new Cedar({
+  policies: [/* loaded from file */],
+});
+
+const decision = cedar.isAuthorized({
+  principal: { type: "User", id: identity.id },
+  action: { type: "Action", id: "close" },
+  resource: { type: "Ticket", id: ticketId },
+  context: {
+    time: new Date().toISOString(),
+    ip: req.ip,
+  },
+  entities: [
+    { uid: { type: "User", id: identity.id }, attrs: { role: identity.traits.role }, parents: [] },
+    { uid: { type: "Ticket", id: ticketId }, attrs: { status: ticket.status, assignee: ticket.assignee_id }, parents: [] },
+  ],
+});
+
+if (decision.decision === "allow") { /* proceed */ }
+else { return res.status(403); }
+```
+
+## Policy file
+
+```cedar
+// policies/tickets.cedar
+
+// Admins can do anything
+permit (
+  principal,
+  action,
+  resource is Ticket
+) when { principal has role && principal.role == "admin" };
+
+// Support can close open tickets they're assigned to
+permit (
+  principal,
+  action == Action::"close",
+  resource is Ticket
+) when {
+  principal has role && principal.role == "support" &&
+  resource has status && resource.status == "open" &&
+  resource has assignee && resource.assignee == principal
+};
+
+// Users can view their own tickets
+permit (
+  principal,
+  action == Action::"view",
+  resource is Ticket
+) when { resource has owner && resource.owner == principal };
+```
+
+Save in version control. Reviewable changes.
+
+## Loading policies
+
+```ts
+import fs from "fs";
+const policies = fs.readFileSync("policies/tickets.cedar", "utf-8");
+const cedar = new Cedar({ policies });
+```
+
+For hot-reload, watch the file or load from a service.
+
+## Per-tenant policies
+
+Different tenants may have different rules:
+
+```
+policies/
+├── default.cedar
+├── tenant-acme.cedar
+└── tenant-bigcorp.cedar
+```
+
+```ts
+const tenantPolicies = await loadPolicies(tenant.id);
+const cedar = new Cedar({ policies: [...defaultPolicies, ...tenantPolicies] });
+```
+
+Each tenant can override / add policies.
+
+## Testing policies
+
+```ts
+// test/policies.test.ts
+import { Cedar } from "@cedar-policy/cedar";
+
+const cedar = new Cedar({ policies });
+
+test("admin can close any ticket", () => {
+  const result = cedar.isAuthorized({
+    principal: { type: "User", id: "admin-1" },
+    action: { type: "Action", id: "close" },
+    resource: { type: "Ticket", id: "t-1" },
+    entities: [
+      { uid: { type: "User", id: "admin-1" }, attrs: { role: "admin" }, parents: [] },
+      { uid: { type: "Ticket", id: "t-1" }, attrs: { status: "closed", assignee: "other" }, parents: [] },
+    ],
+  });
+  expect(result.decision).toBe("allow");
+});
+
+test("support can't close other support's tickets", () => {
+  // similar but assignee != principal
+  expect(result.decision).toBe("deny");
+});
+```
+
+Test policies like code.
+
+## Performance
+
+Cedar evaluation is fast (~1 ms per decision). For high-throughput APIs, this is fine.
+
+For ULTRA-high: cache decisions per (principal, action, resource) tuple briefly.
+
+## Integration with Olympus
+
+Cedar fits in your app layer, not in Olympus directly. Your app calls Kratos for identity, then Cedar for authz.
+
+Athena has Cedar integration optionally, same pattern.
+
+## Logging decisions
+
+For audit:
+
+```ts
+const decision = cedar.isAuthorized(...);
+await audit.log({
+  event: "authz_check",
+  principal: identity.id,
+  action: actionId,
+  resource: resourceId,
+  decision: decision.decision,
+  diagnostics: decision.errors,
+});
+```
+
+Audit: who tried to do what, was it allowed.
+
+## Alternative engines
+
+- **OPA (Open Policy Agent)**: similar concept, Rego language. More verbose than Cedar.
+- **Casbin**: simpler, fewer features, broader language support.
+- **Permify**: ReBAC-focused.
+
+Cedar's strength: balance of expressiveness and simplicity. Olympus's docs cover all three.
+
+## Migration from hard-coded
+
+Don't migrate everything overnight. Start:
+1. Identify one high-stakes domain (admin actions, billing).
+2. Write Cedar policies for it.
+3. Replace hard-coded checks with `cedar.isAuthorized()`.
+4. Test extensively.
+5. Iterate.
+
+Some logic might be hard to express in Cedar, keep hard-coded for those.
+
+## Related
+
+- [Security, Authz, Cedar](/docs/security/authz/authz-cedar)
+- [Security, Authz, RBAC](/docs/security/authz/authz-rbac)
+- [Security, Authz, ABAC](/docs/security/authz/authz-abac)
+- [Security, Authz, OPA](/docs/security/authz/authz-opa)
+- [Cookbook, Role hierarchy design](/docs/cookbook/integrations-billing/role-hierarchy-design)

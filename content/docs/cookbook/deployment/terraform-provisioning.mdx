@@ -1,0 +1,175 @@
+---
+title: Provision Olympus with Terraform
+description: Infrastructure-as-code for an Olympus deployment
+---
+
+A reference Terraform layout for provisioning a single-host Olympus deployment on a cloud VPS (Hetzner, DigitalOcean, AWS Lightsail, Vultr, etc.).
+
+## Layout
+
+```
+infra/
+├── main.tf
+├── variables.tf
+├── outputs.tf
+├── modules/
+│   ├── host/         # the VPS itself
+│   ├── dns/          # CNAMEs / A records
+│   └── secrets/      # secret manager entries
+└── envs/
+    ├── prod.tfvars
+    └── staging.tfvars
+```
+
+## Host module (Hetzner example)
+
+```hcl
+# modules/host/main.tf
+resource "hcloud_server" "olympus" {
+  name        = "olympus-${var.env}"
+  image       = "ubuntu-24.04"
+  server_type = "cax21"  # 8 GB RAM, 4 vCPU, ARM
+  location    = "fsn1"
+  ssh_keys    = [var.ssh_key_id]
+  user_data   = templatefile("${path.module}/cloud-init.yml", {
+    domain = var.domain
+  })
+}
+
+resource "hcloud_firewall" "olympus" {
+  name = "olympus-${var.env}"
+  rule {
+    direction = "in"
+    protocol  = "tcp"
+    port      = "22"
+    source_ips = var.admin_ips
+  }
+  rule {
+    direction = "in"
+    protocol  = "tcp"
+    port      = "80"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
+  rule {
+    direction = "in"
+    protocol  = "tcp"
+    port      = "443"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
+}
+
+resource "hcloud_firewall_attachment" "olympus" {
+  firewall_id = hcloud_firewall.olympus.id
+  server_ids  = [hcloud_server.olympus.id]
+}
+```
+
+## cloud-init
+
+```yaml
+# modules/host/cloud-init.yml
+#cloud-config
+users:
+  - name: deploy
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 ...
+
+package_update: true
+packages:
+  - podman
+  - podman-compose
+  - git
+  - ufw
+
+runcmd:
+  - ufw default deny incoming
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+  - su - deploy -c "git clone https://github.com/OlympusOSS/platform.git ~/olympus"
+  - su - deploy -c "cd ~/olympus && cp .env.sample .env"
+```
+
+## DNS module
+
+```hcl
+# modules/dns/main.tf
+resource "cloudflare_record" "ciam" {
+  zone_id = var.zone_id
+  name    = "ciam"
+  type    = "A"
+  value   = var.host_ip
+  proxied = true
+}
+
+resource "cloudflare_record" "iam" {
+  zone_id = var.zone_id
+  name    = "iam"
+  type    = "A"
+  value   = var.host_ip
+  proxied = true
+}
+```
+
+## Secrets
+
+Don't bake secrets into Terraform state. Pull from your secrets manager at deploy time:
+
+```hcl
+# main.tf
+data "aws_secretsmanager_secret_version" "olympus_env" {
+  secret_id = "olympus/${var.env}/env"
+}
+
+output "deploy_command" {
+  value = "scp ${path.module}/render.sh deploy@${module.host.ip}:/tmp/ && ssh deploy@${module.host.ip} bash /tmp/render.sh '${data.aws_secretsmanager_secret_version.olympus_env.secret_string}'"
+  sensitive = true
+}
+```
+
+## Putting it together
+
+```hcl
+# main.tf
+module "host" {
+  source       = "./modules/host"
+  env          = var.env
+  domain       = var.domain
+  ssh_key_id   = var.ssh_key_id
+  admin_ips    = var.admin_ips
+}
+
+module "dns" {
+  source  = "./modules/dns"
+  zone_id = var.cloudflare_zone_id
+  host_ip = module.host.ipv4
+}
+
+output "host_ip" { value = module.host.ipv4 }
+output "ciam_url" { value = "https://ciam.${var.domain}" }
+```
+
+## Apply
+
+```bash
+terraform init
+terraform plan -var-file=envs/prod.tfvars
+terraform apply -var-file=envs/prod.tfvars
+```
+
+## Not in Terraform
+
+What you should **not** put in Terraform:
+
+- The Olympus container images (they're managed by `podman-compose`).
+- Database backups (operational, not infra).
+- Identity data (definitely not).
+
+## Related
+
+- [Cookbook, Single-VPS deployment](/docs/cookbook/deployment/single-vps-deployment)
+- [Cookbook, GitOps deploy](/docs/cookbook/deployment/gitops-deploy)
+- [Cookbook, Ansible provisioning](/docs/cookbook/deployment/ansible-provisioning)

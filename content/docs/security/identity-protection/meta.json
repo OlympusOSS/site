@@ -1,0 +1,12 @@
+{
+  "title": "Identity protection",
+  "pages": [
+    "breached-password",
+    "email-verification",
+    "oidc-email-verified-trust",
+    "password-policy",
+    "pkce-enforcement",
+    "session-cookies",
+    "session-fixation"
+  ]
+}

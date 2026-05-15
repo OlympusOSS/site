@@ -1,0 +1,183 @@
+---
+title: Sign in with Apple, full setup
+description: The full setup for the trickiest OIDC provider
+---
+
+Sign in with Apple is OIDC-shaped but has quirks: private email relay, JWT-signed client_secret, name only on first login, etc. This is a complete setup walkthrough.
+
+## Prerequisites
+
+- Apple Developer account (USD 99/year).
+- A registered domain.
+- Olympus deployed.
+
+## Apple Developer console
+
+### Step 1: App ID
+
+1. Identifiers → Add → App IDs.
+2. Description: "Your App".
+3. Bundle ID: `com.your-domain.app` (reverse-DNS style).
+4. Capabilities → enable "Sign in with Apple."
+5. Save.
+
+### Step 2: Services ID
+
+This is what Apple calls a "web app" client.
+
+1. Identifiers → Add → Services IDs.
+2. Description: "Your App Web".
+3. Identifier: `com.your-domain.app.web` (distinct from App ID).
+4. Enable Sign in with Apple → configure:
+   - Primary App ID: select your App ID.
+   - Domains: `your-domain.com`
+   - Return URLs: `https://ciam.your-domain.com/self-service/methods/oidc/callback/apple`
+5. Save.
+
+### Step 3: Key
+
+1. Keys → Add → Sign in with Apple.
+2. Configure: pick your App ID.
+3. Download the `.p8` file. SAVE IT, you can't download again.
+4. Note Key ID: `XXXXXXXXXX`.
+5. Note Team ID (top-right of console).
+
+## Generating client_secret
+
+Apple doesn't accept a static client_secret. You generate a signed JWT and send that as client_secret. JWT lifetime: max 6 months.
+
+```ts
+import { sign } from "jsonwebtoken";
+import fs from "fs";
+
+const privateKey = fs.readFileSync("AuthKey_XXXXXX.p8");
+
+const clientSecret = sign({}, privateKey, {
+  algorithm: "ES256",
+  keyid: "XXXXXXXXXX",     // Key ID
+  issuer: "YOUR_TEAM_ID",   // Apple Team ID
+  audience: "https://appleid.apple.com",
+  subject: "com.your-domain.app.web",  // Services ID
+  expiresIn: "180d",
+});
+
+console.log(clientSecret);
+```
+
+Save the output. This is your `client_secret` for the next 180 days.
+
+## Kratos OIDC config
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      enabled: true
+      config:
+        providers:
+          - id: apple
+            provider: apple
+            client_id: com.your-domain.app.web  # Services ID
+            client_secret: <THE_JWT_FROM_ABOVE>
+            scope:
+              - email
+              - name
+            apple_team_id: YOUR_TEAM_ID
+            apple_private_key_id: XXXXXXXXXX
+            apple_private_key: |
+              -----BEGIN PRIVATE KEY-----
+              <contents of .p8 file>
+              -----END PRIVATE KEY-----
+            mapper_url: file:///etc/config/oidc-apple.jsonnet
+```
+
+Some Kratos versions support `apple_private_key` directly, newer versions auto-mint the JWT from the private key.
+
+## Jsonnet mapper
+
+```jsonnet
+local claims = std.extVar('claims');
+{
+  identity: {
+    traits: {
+      email: claims.email,
+      // Apple sends name only on first authorization, store if present:
+      first_name: if std.objectHas(claims, 'name') then claims.name.firstName else '',
+      last_name: if std.objectHas(claims, 'name') then claims.name.lastName else '',
+    },
+  },
+}
+```
+
+## Apple's quirks
+
+### Name only on first authorization
+
+Subsequent logins, the `name` claim is absent. The user can revoke and re-authorize to send it again.
+
+Best practice: store the name if you get it, never overwrite with empty values:
+
+```jsonnet
+first_name: if std.objectHas(claims, 'name') 
+            then claims.name.firstName 
+            else null,  // Don't overwrite stored value
+```
+
+### Private email relay
+
+Many users choose "Hide my email." Apple gives you a randomized `@privaterelay.appleid.com` address that forwards to their real email.
+
+This works for transactional email, Apple forwards. But:
+- It's stable per (user, services ID), same user always gets the same relay.
+- If user revokes access, the relay stops forwarding. You can't reach them.
+- If you serialize the email to a key, treat relay emails as opaque IDs, not real addresses.
+
+### `email_verified` claim
+
+Apple sets `email_verified: true` for real emails and unspecified for relays. Don't rely on it; treat all Apple emails as verified.
+
+### Account name display
+
+The user's "name" returned (when returned) is their Apple-account display name, which might not match their legal name. UX-wise, label it as "Display name" not "Legal name."
+
+## Mobile (iOS) setup
+
+For iOS apps, the flow is different, uses native Sign in with Apple, returns identity token directly. Send the identity token to your backend, which verifies and creates the Olympus session.
+
+Hera + Kratos handle web Sign in with Apple. For mobile, see [SDK guide](/docs/integrate/spa/mobile-integration).
+
+## Testing
+
+1. Visit Hera /login.
+2. Click "Sign in with Apple."
+3. You're redirected to Apple → enter Apple ID + password.
+4. (First time) consent screen, choose email visibility.
+5. Redirect back to Kratos callback.
+6. Identity created with email + (first time) name.
+
+If you get "invalid_client":
+- Verify `client_id` matches the Services ID, not App ID.
+- Verify the JWT is correctly signed (test with `jwt.io`).
+- JWT expired? Re-mint.
+
+If you get redirect URI mismatch:
+- Apple's return URL must EXACTLY match what's registered.
+- Trailing slash, scheme, etc.
+
+## Rotating client_secret JWT
+
+Every 180 days:
+1. Mint new JWT.
+2. Update Kratos config.
+3. Restart Kratos.
+
+Or have it minted dynamically (Kratos versions that support it).
+
+Set a calendar reminder. If the JWT expires, all Sign in with Apple logins break until rotated.
+
+## Related
+
+- [Identity, Social login](/docs/identity/social-login)
+- [Cookbook, Add social provider, Apple](/docs/cookbook/social-login/add-social-provider-apple)
+- [Cookbook, Account linking strategies](/docs/cookbook/auth-flows/account-linking-strategies)
+- [Reference, Diagrams, OIDC social login](/docs/reference/diagrams/seq-oidc-social-login)

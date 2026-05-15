@@ -2,10 +2,10 @@
   "title": "Ory Hydra API",
   "pages": [
     "overview",
-    "...jwk",
-    "...metadata",
-    "...oauth2",
-    "...oidc",
-    "...wellknown"
+    "oauth2",
+    "oidc",
+    "wellknown",
+    "metadata",
+    "jwk"
   ]
 }

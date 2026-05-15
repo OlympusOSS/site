@@ -7,14 +7,14 @@ description: What you need before running Olympus
 
 You need:
 
-- **Node.js 20+** with `npm` — for the `octl` CLI and the app repos.
-- **Bun** — runtime for Athena, Hera, and Site. Install via [bun.sh](https://bun.sh/).
+- **Node.js 20+** with `npm`, for the `octl` CLI and the app repos.
+- **Bun**, runtime for Athena, Hera, and Site. Install via [bun.sh](https://bun.sh/).
 - **Git**.
 
 `octl deploy` will detect and install (via Homebrew on macOS) anything else it needs:
 
-- **Podman** + `podman-compose` — the container runtime.
-- **kubectl** — needed by some seed scripts even though Olympus does not run on Kubernetes.
+- **Podman** + `podman-compose`, the container runtime.
+- **kubectl**, needed by some seed scripts even though Olympus does not run on Kubernetes.
 
 On Linux, install Podman through your package manager before running `octl deploy`. The CLI will tell you if anything is missing.
 
@@ -24,14 +24,14 @@ You need:
 
 - A **VPS provider** account: DigitalOcean, Hostinger, or anywhere with SSH access.
 - A **domain name** you control, with DNS edit access. Olympus needs three subdomains (e.g. `ciam`, `iam`, `id`).
-- A **PostgreSQL instance** — either managed (Neon recommended) or self-hosted on the VPS.
+- A **PostgreSQL instance**, either managed (Neon recommended) or self-hosted on the VPS.
 - An **email provider** account: Resend, Postmark, Brevo, SMTP2GO, AWS SES, or any other SMTP relay.
 - A **GitHub account** with permission to push to your fork of the platform repo (Daedalus deploys via GitHub Actions).
 - Daedalus itself, installed from [github.com/OlympusOSS/daedalus/releases](https://github.com/OlympusOSS/daedalus/releases) (macOS only at present).
 
 ## For inspecting your containers
 
-You only need the running deployment plus `podman` or `docker` to exec into the containers. See [Develop — Inspecting Your Containers](/docs/develop/inspecting-your-containers).
+You only need the running deployment plus `podman` or `docker` to exec into the containers. See [Develop, Inspecting Your Containers](/docs/develop/inspecting-your-containers).
 
 ## What you do *not* need
 

@@ -1,0 +1,11 @@
+{
+  "title": "Compliance",
+  "pages": [
+    "compliance-ccpa",
+    "compliance-gdpr",
+    "compliance-hipaa",
+    "compliance-iso27001",
+    "compliance-pci-dss",
+    "compliance-soc2"
+  ]
+}

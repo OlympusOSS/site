@@ -1,0 +1,155 @@
+---
+title: Next.js integration
+description: Authenticate a Next.js app against Olympus
+---
+
+A Next.js app integrating with Olympus uses the **Backend-for-frontend** pattern: server-side API routes manage tokens; the React app calls those routes.
+
+## Setup
+
+```bash
+bun add oauth4webapi
+```
+
+## Server-side auth helper
+
+`lib/auth.ts`:
+
+```ts
+import * as oauth from "oauth4webapi";
+
+const ISSUER = new URL(process.env.OLYMPUS_ISSUER!);
+const CLIENT_ID = process.env.OLYMPUS_CLIENT_ID!;
+const CLIENT_SECRET = process.env.OLYMPUS_CLIENT_SECRET!;
+const REDIRECT_URI = process.env.OLYMPUS_REDIRECT_URI!;
+
+let _as: oauth.AuthorizationServer | null = null;
+export async function getAuthServer() {
+  if (_as) return _as;
+  const res = await oauth.discoveryRequest(ISSUER);
+  _as = await oauth.processDiscoveryResponse(ISSUER, res);
+  return _as;
+}
+
+export function getClient() {
+  return { client_id: CLIENT_ID, client_secret: CLIENT_SECRET };
+}
+```
+
+## Login route
+
+`app/api/auth/login/route.ts`:
+
+```ts
+import { NextRequest, NextResponse } from "next/server";
+import * as oauth from "oauth4webapi";
+import { getAuthServer } from "@/lib/auth";
+
+export async function GET(req: NextRequest) {
+  const as = await getAuthServer();
+  const codeVerifier = oauth.generateRandomCodeVerifier();
+  const codeChallenge = await oauth.calculatePKCECodeChallenge(codeVerifier);
+  const state = oauth.generateRandomState();
+
+  const url = new URL(as.authorization_endpoint!);
+  url.search = new URLSearchParams({
+    client_id: process.env.OLYMPUS_CLIENT_ID!,
+    response_type: "code",
+    scope: "openid profile email offline_access",
+    redirect_uri: process.env.OLYMPUS_REDIRECT_URI!,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
+    state,
+  }).toString();
+
+  const res = NextResponse.redirect(url);
+  res.cookies.set("pkce_verifier", codeVerifier, { httpOnly: true, secure: true, sameSite: "lax" });
+  res.cookies.set("pkce_state", state, { httpOnly: true, secure: true, sameSite: "lax" });
+  return res;
+}
+```
+
+## Callback route
+
+`app/api/auth/callback/route.ts`:
+
+```ts
+import { NextRequest, NextResponse } from "next/server";
+import * as oauth from "oauth4webapi";
+import { getAuthServer, getClient } from "@/lib/auth";
+
+export async function GET(req: NextRequest) {
+  const as = await getAuthServer();
+  const code = req.nextUrl.searchParams.get("code");
+  const state = req.nextUrl.searchParams.get("state");
+  const expectedState = req.cookies.get("pkce_state")?.value;
+  const verifier = req.cookies.get("pkce_verifier")?.value;
+
+  if (state !== expectedState || !code || !verifier) {
+    return new NextResponse("state mismatch", { status: 400 });
+  }
+
+  const response = await oauth.authorizationCodeGrantRequest(
+    as,
+    getClient(),
+    new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: process.env.OLYMPUS_REDIRECT_URI!,
+      code_verifier: verifier,
+    }),
+    process.env.OLYMPUS_REDIRECT_URI!,
+    verifier,
+  );
+
+  const result = await oauth.processAuthorizationCodeOAuth2Response(as, getClient(), response);
+  // result.access_token, result.id_token, result.refresh_token
+
+  const res = NextResponse.redirect("/");
+  res.cookies.set("session", JSON.stringify({
+    access_token: result.access_token,
+    refresh_token: result.refresh_token,
+  }), { httpOnly: true, secure: true, sameSite: "lax" });
+  return res;
+}
+```
+
+## Server component example
+
+`app/page.tsx`:
+
+```tsx
+import { cookies } from "next/headers";
+
+export default async function HomePage() {
+  const session = cookies().get("session")?.value;
+  if (!session) {
+    return <a href="/api/auth/login">Log in</a>;
+  }
+  const { access_token } = JSON.parse(session);
+  // Use access_token to call your APIs
+  return <div>Logged in</div>;
+}
+```
+
+## Refresh token handling
+
+Wrap your API calls with a refresh check:
+
+```ts
+async function withFreshToken<T>(fn: (token: string) => Promise<T>): Promise<T> {
+  const session = await getSession();
+  if (session.expires_at < Date.now() + 60_000) {
+    await refreshSession(session.refresh_token);
+  }
+  return await fn(session.access_token);
+}
+```
+
+Update the session cookie after refresh, see [Integrate, Refresh tokens](/docs/integrate/oauth2/oauth2-refresh-tokens).
+
+## Related
+
+- [Integrate, OAuth2 PKCE](/docs/integrate/oauth2/oauth2-pkce)
+- [Integrate, SPA integration](/docs/integrate/spa/spa-integration)
+- [Integrate, Refresh tokens](/docs/integrate/oauth2/oauth2-refresh-tokens)

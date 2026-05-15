@@ -13,10 +13,10 @@ This guide moves a Supabase Auth deployment (built on GoTrue) to a self-hosted O
 | User (`auth.users` table) | Kratos identity |
 | `raw_user_meta_data` | Identity traits |
 | `raw_app_meta_data` | Identity traits (typically a `role`) |
-| Provider (`auth.identities` table — google, github, etc.) | OIDC provider in `kratos.yml` |
+| Provider (`auth.identities` table, google, github, etc.) | OIDC provider in `kratos.yml` |
 | RLS policies referencing `auth.uid()` | Application-side `sub` claim from Olympus ID token |
 | Magic link sign-in | Recovery flow (re-purposed) |
-| Phone auth | Not in Olympus default — needs SMS integration |
+| Phone auth | Not in Olympus default, needs SMS integration |
 | Anonymous sign-in | Not in Olympus |
 | OAuth via Supabase | Direct OIDC against Olympus Hydra |
 
@@ -32,7 +32,7 @@ psql $SUPABASE_DB_URL -c "COPY (
 ) TO STDOUT WITH CSV HEADER" > users.csv
 ```
 
-### Step 2: Transform — bcrypt hashes
+### Step 2: Transform, bcrypt hashes
 
 Supabase Auth (GoTrue) uses **bcrypt** by default. Kratos supports bcrypt directly. This is straightforward compared to Firebase's custom scrypt.
 
@@ -77,7 +77,7 @@ done < kratos-identities.jsonl
 
 ## OAuth2 client mapping
 
-Supabase Auth doesn't expose OAuth2 clients in the conventional sense — it's primarily a "frontend SDK" model where your Supabase project URL + anon key serve as the OAuth context.
+Supabase Auth doesn't expose OAuth2 clients in the conventional sense, it's primarily a "frontend SDK" model where your Supabase project URL + anon key serve as the OAuth context.
 
 For Olympus, you'll register OAuth2 clients in Hydra and update your apps:
 
@@ -118,14 +118,14 @@ CREATE POLICY user_owns_row ON your_table
 
 ## Edge functions
 
-Supabase Edge Functions referencing `auth.users` directly no longer work — there's no Supabase Auth. Move auth logic to your app server.
+Supabase Edge Functions referencing `auth.users` directly no longer work, there's no Supabase Auth. Move auth logic to your app server.
 
 ## Things that don't map
 
 - **Anonymous sign-in.**
 - **Phone auth without SMS integration.**
-- **Magic link (passwordless) sign-in** as a first-class flow — Olympus has it via recovery flow re-purposing.
-- **`auth.email_change` / `auth.phone_change`** native flows — Kratos's settings flow handles email change via verification.
+- **Magic link (passwordless) sign-in** as a first-class flow, Olympus has it via recovery flow re-purposing.
+- **`auth.email_change` / `auth.phone_change`** native flows, Kratos's settings flow handles email change via verification.
 
 ## Validation
 
@@ -136,5 +136,5 @@ Supabase Edge Functions referencing `auth.users` directly no longer work — the
 
 ## Related
 
-- [Migration — From Auth0](/docs/migration/from-auth0)
-- [Migration — From Firebase Auth](/docs/migration/from-firebase-auth)
+- [Migration, From Auth0](/docs/migration/from-auth0)
+- [Migration, From Firebase Auth](/docs/migration/from-firebase-auth)

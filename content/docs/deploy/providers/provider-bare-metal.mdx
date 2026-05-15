@@ -1,0 +1,70 @@
+---
+title: Provider, Bare metal
+description: Deploy Olympus on your own hardware
+---
+
+For maximum control or homelab deployments: deploy Olympus on physical hardware you own.
+
+## Recommended hardware
+
+| Use case | Hardware |
+|---|---|
+| Homelab / personal | Raspberry Pi 5 (4GB+), Intel NUC, used SFF desktop |
+| Small org production | Refurbished 1U server (Dell R230, HP DL20) |
+| Larger org | Modern 1U with NVMe, ECC RAM |
+
+Olympus itself needs &lt;2GB RAM. The rest is for Postgres + room to grow.
+
+## Setup
+
+1. Install Ubuntu Server 22.04 (or your preferred Linux).
+2. Configure static IP / DHCP reservation.
+3. Set up SSH with key auth, disable password auth.
+4. Install Podman: `apt install podman podman-compose`.
+5. Configure firewall: `ufw allow 22/tcp from <admin-ip>`, `ufw allow 80/443/tcp`, deny rest.
+6. Point public DNS at your home WAN IP, or use [Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel/) for tunneling.
+
+## Cloudflare Tunnel (no port forwarding)
+
+If you don't want to expose ports on your home router:
+
+```bash
+# On the bare-metal host
+cloudflared tunnel create olympus
+cloudflared tunnel route dns olympus ciam.your-domain.com
+cloudflared tunnel route dns olympus iam.your-domain.com
+cloudflared tunnel run olympus
+```
+
+Cloudflare routes traffic through their network to your host via an outbound-only tunnel. No port forwarding needed.
+
+Caddy still runs locally and handles TLS internally; Cloudflare terminates the public TLS.
+
+## ARM (Raspberry Pi)
+
+Olympus images are multi-arch. A Pi 5 with 8GB RAM and a fast NVMe HAT runs Olympus for ~50 MAU comfortably.
+
+Verify Pi-specific tooling (Podman works on Raspberry Pi OS / Ubuntu Server for ARM).
+
+## Power and uptime
+
+- Uninterruptible power supply (UPS), even a small consumer model.
+- Document your reboot/recovery procedure.
+- Monitor power events (UPS notifications) → your alerting.
+
+## Backups off-site
+
+Critical for bare-metal. The host can fail; off-site backups can't:
+
+```bash
+# Daily off-site backup
+podman exec olympus-postgres pg_dumpall | gzip | rclone rcat b2:olympus-backups/$(date +%Y%m%d).sql.gz
+```
+
+See [Operate, Backups (Postgres)](/docs/operate/backups-recovery/backups-postgres).
+
+## Where next
+
+- [Deploy, Provider, Direct SSH](/docs/deploy/providers/provider-direct-ssh)
+- [Operate, Backups (Postgres)](/docs/operate/backups-recovery/backups-postgres)
+- [Cookbook, Single VPS deployment](/docs/cookbook/deployment/single-vps-deployment), many of the same principles apply.

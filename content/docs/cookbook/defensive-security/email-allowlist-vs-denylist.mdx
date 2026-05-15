@@ -1,0 +1,199 @@
+---
+title: Email allowlist vs denylist
+description: Restricting signups by domain
+---
+
+For closed user groups (internal tools, beta, B2B), restrict signup to specific email domains. Two approaches.
+
+## Allowlist (preferred)
+
+Only specific domains allowed:
+
+```yaml
+olympus.registration.allowed_domains: 
+  - "your-corp.com"
+  - "subsidiary.com"
+```
+
+```ts
+export async function POST(req: Request) {
+  const { traits } = await req.json();
+  const allowed = await getAllowedDomains();
+  const domain = traits.email.split("@")[1];
+  if (!allowed.includes(domain)) {
+    return Response.json({
+      reject: true,
+      error: "domain_not_allowed",
+      message: `Registration restricted to: ${allowed.join(", ")}`,
+    });
+  }
+  return Response.json({ ok: true });
+}
+```
+
+Pros: secure by default. Anyone not on the list can't signup.
+Cons: must explicitly add domains.
+
+## Denylist
+
+Block specific bad domains:
+
+```yaml
+olympus.registration.blocked_domains:
+  - "mailinator.com"
+  - "guerrillamail.com"
+  - "10minutemail.com"
+  # ... ~5000 disposable
+```
+
+Pros: most users allowed.
+Cons: maintenance burden (new disposable services appear).
+
+Best for: open consumer signup where you just want to block obvious abuse.
+
+## Hybrid
+
+For B2B with marketing site:
+- Marketing free trial: open (denylist disposables).
+- Production access: allowlist customer domains.
+
+Two separate Kratos providers / paths, different hooks.
+
+## Implementation
+
+### Allowlist hook
+
+```yaml
+# kratos.yml
+selfservice:
+  flows:
+    registration:
+      before:
+        hooks:
+          - hook: web_hook
+            config:
+              url: http://your-backend/internal/check-allowlist
+              response: { ignore: false, parse: true }
+```
+
+### Denylist via JSON Schema pattern
+
+```json
+"email": {
+  "type": "string",
+  "format": "email",
+  "not": {
+    "pattern": ".*@(mailinator|guerrillamail|10minutemail|tempmail)\\.(com|net|org)$"
+  }
+}
+```
+
+Schema-level reject. Faster (no webhook).
+
+Limitation: list is hardcoded in schema. Updates require config change + restart.
+
+### Dynamic via webhook
+
+```ts
+const blockedDomains = await getBlockedDomainsFromVault();
+const domain = traits.email.split("@")[1];
+if (blockedDomains.has(domain)) {
+  return Response.json({ reject: true, ... });
+}
+```
+
+Updateable in real-time via Athena settings.
+
+## Disposable email lists
+
+Public lists:
+- [disposable-email-domains](https://github.com/disposable/disposable-email-domains)
+- [disposable-email-domain-list](https://github.com/wesbos/burner-email-providers)
+
+Pull periodically:
+
+```bash
+# /etc/cron.weekly/update-disposables
+curl https://raw.githubusercontent.com/disposable/disposable-email-domains/master/domains.txt \
+  > /etc/olympus/disposable-domains.txt
+podman-compose restart ciam-kratos
+```
+
+## Catch-all detection
+
+Some companies use catch-all email (`*@bigcorp.com` all delivered). Could be abused.
+
+Detection (heuristic, not reliable):
+- VRFY SMTP command (largely disabled).
+- Send to random@domain, check if accepted.
+
+Hard. For typical Olympus deployments: not worth implementing.
+
+## Plus-addressing in allowlist
+
+`alice@bigcorp.com` and `alice+test@bigcorp.com` both valid for `bigcorp.com`. Allowlist matches the domain, both pass.
+
+If you want to count them as ONE user, normalize at registration:
+
+```ts
+const normalized = traits.email.replace(/\+[^@]+(@)/, "$1");
+```
+
+Stores `alice@bigcorp.com` regardless of input.
+
+## TLD allowlist
+
+For region-specific:
+
+```yaml
+olympus.registration.allowed_tlds: [".com", ".org", ".net", ".edu", ".de", ".fr"]
+```
+
+Blocks `.example` or `.test` (typos).
+
+## Sub-domain considerations
+
+`bigcorp.com` allowed. Does `eng.bigcorp.com` count?
+
+Decide:
+- Strict: only exact match (`@bigcorp.com`, not `@eng.bigcorp.com`).
+- Inclusive: any subdomain (`*.bigcorp.com`).
+
+```ts
+function isAllowed(email: string, allowed: string[]) {
+  const domain = email.split("@")[1];
+  return allowed.some(d => domain === d || domain.endsWith(`.${d}`));
+}
+```
+
+Most B2B: inclusive (any subdomain of customer's domain).
+
+## Communication to user
+
+When blocked, be clear:
+
+```
+"We're sorry, registration is currently restricted to specific companies.
+If you believe your domain should be allowed, contact us at support@your-domain.com."
+```
+
+Not just "rejected." Help them understand and request access.
+
+## Logging
+
+```sql
+INSERT INTO blocked_signups (email, reason, ip, attempted_at)
+VALUES ($email, 'domain_not_allowed', $ip, NOW());
+```
+
+Review periodically:
+- Whose domain is being blocked most? Maybe should be allowlisted.
+- Same IP blocked many times? Suspicious, investigate.
+
+## Related
+
+- [Cookbook, Email-domain allowlist](/docs/cookbook/defensive-security/email-domain-allowlist)
+- [Cookbook, Email-aliases and plus-addressing](/docs/cookbook/auth-flows/email-aliases-and-plus-addressing)
+- [Cookbook, Invitation-based signup](/docs/cookbook/auth-flows/invitation-based-signup)
+- [Cookbook, Bot detection strategies](/docs/cookbook/defensive-security/bot-detection-strategies)
+- [Cookbook, Email domain claiming](/docs/cookbook/multi-tenant/email-domain-claiming)

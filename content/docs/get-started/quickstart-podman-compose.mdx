@@ -16,7 +16,7 @@ for repo in platform athena hera site canvas sdk octl daedalus; do
 done
 ```
 
-The sibling layout matters — `compose.dev.yml` references `../athena`, `../hera`, etc. as bind mounts for live reload.
+The sibling layout matters, `compose.dev.yml` references `../athena`, `../hera`, etc. as bind mounts for live reload.
 
 ## Start services
 
@@ -33,7 +33,7 @@ This starts every container. Initial start (with image builds) takes ~3 minutes;
 podman compose -f platform/dev/compose.dev.yml logs -f athena-seed-dev
 ```
 
-When you see `Seed complete!`, the platform is fully initialized — an `admin@demo.user` IAM identity has been created and a CIAM OAuth2 client has been registered for the playground.
+When you see `Seed complete!`, the platform is fully initialized, an `admin@demo.user` IAM identity has been created and a CIAM OAuth2 client has been registered for the playground.
 
 ## Access points
 
@@ -60,9 +60,9 @@ All app repos (athena, hera, site) are mounted as volumes for **live reload** du
 - Email: `admin@demo.user`
 - Password: `admin123!`
 
-**pgAdmin:** OAuth2 SSO through IAM — click "Login with Olympus" on the pgAdmin login page.
+**pgAdmin:** OAuth2 SSO through IAM, click "Login with Olympus" on the pgAdmin login page.
 
-**MailSlurper:** No auth — open [localhost:5434](http://localhost:5434) to see captured verification and recovery emails.
+**MailSlurper:** No auth, open [localhost:5434](http://localhost:5434) to see captured verification and recovery emails.
 
 ## Tearing down
 
@@ -71,10 +71,10 @@ cd platform/dev
 podman compose down -v
 ```
 
-The `-v` removes named volumes too — the database is reset. Drop the `-v` to keep data across restarts.
+The `-v` removes named volumes too, the database is reset. Drop the `-v` to keep data across restarts.
 
 ## Where next
 
-- [First login](/docs/get-started/first-login) — exercise the login flow end-to-end.
-- [Architecture](/docs/architecture) — what each of those eighteen containers does.
-- [Operate — Network Topology](/docs/operate/network-topology) — which ports must be firewalled in prod.
+- [First login](/docs/get-started/first-login), exercise the login flow end-to-end.
+- [Architecture](/docs/architecture), what each of those eighteen containers does.
+- [Operate, Network Topology](/docs/operate/administration/network-topology), which ports must be firewalled in prod.

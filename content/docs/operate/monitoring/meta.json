@@ -1,0 +1,11 @@
+{
+  "title": "Monitoring",
+  "pages": [
+    "audit-log-retention",
+    "health-endpoints",
+    "logs-and-observability",
+    "monitoring-mfa-stats",
+    "monitoring-pkce-analytics",
+    "secrets-audit"
+  ]
+}

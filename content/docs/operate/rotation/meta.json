@@ -1,0 +1,9 @@
+{
+  "title": "Key rotation",
+  "pages": [
+    "cert-rotation",
+    "encryption-key-rotation",
+    "reload-api-key-rotation",
+    "session-signing-key-rotation"
+  ]
+}

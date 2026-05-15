@@ -1,0 +1,112 @@
+---
+title: Platform, Caddy custom build
+description: How the Caddy image with the rate_limit module is built
+---
+
+Olympus's Caddy needs the [`caddy-ratelimit`](https://github.com/mholt/caddy-ratelimit) module. The official Caddy image doesn't include it. Olympus ships a custom build via `caddy-build.yml`.
+
+## Why custom
+
+Caddy's plugin model: plugins are compiled into the binary, not loaded at runtime. To use `rate_limit`, you must build a Caddy binary that includes it.
+
+Olympus's `[Security, Rate Limiting](/docs/security/web-attacks/rate-limiting)` uses `rate_limit` extensively. Required.
+
+## The build workflow
+
+`.github/workflows/caddy-build.yml`:
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build Caddy with modules
+        run: |
+          docker run --rm -v "$(pwd)":/output \
+            caddy:builder \
+            xcaddy build \
+            --with github.com/mholt/caddy-ratelimit \
+            --output /output/caddy
+
+      - name: Smoke test
+        run: |
+          ./caddy version
+          ./caddy list-modules | grep ratelimit
+
+      - name: Build image
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t ghcr.io/olympusoss/caddy:$VERSION \
+            --push .
+
+      - name: Pin digest
+        run: |
+          DIGEST=$(docker buildx imagetools inspect ghcr.io/olympusoss/caddy:$VERSION --raw | jq -r .manifests[0].digest)
+          echo "DIGEST=$DIGEST" >> $GITHUB_ENV
+
+      - name: Update platform compose
+        run: |
+          sed -i "s|ghcr.io/olympusoss/caddy@sha256:[a-f0-9]*|ghcr.io/olympusoss/caddy@sha256:$DIGEST|g" prod/compose.prod.yml
+          git add prod/compose.prod.yml
+          git commit -m "ci(caddy): pin to $DIGEST"
+          git push
+```
+
+The workflow:
+1. Compiles Caddy with `caddy-ratelimit`.
+2. Smoke-tests that the module is included.
+3. Builds a multi-arch container image.
+4. Pushes to GHCR.
+5. Updates `compose.prod.yml` to reference the new digest.
+6. Commits and pushes the digest bump, which triggers `deploy.yml`.
+
+End-to-end: ~15 minutes.
+
+## When to re-build
+
+- New upstream Caddy release.
+- New `caddy-ratelimit` release.
+- Security advisory affecting any of the above.
+
+Triggered manually via `gh workflow run caddy-build.yml` or on a weekly schedule.
+
+## Why reproducible
+
+The build inputs:
+- Caddy version (pinned by SHA in the `xcaddy build` command).
+- `caddy-ratelimit` version (pinned by Go module version).
+- `caddy:builder` base image (pinned by digest).
+
+Same inputs → same Caddy binary (modulo Go's build determinism). The output image digest is the verifiable artifact.
+
+## Verifying
+
+To verify what's running matches what was built:
+
+```bash
+ssh prod 'podman inspect olympus-caddy --format "{{.ImageDigest}}"'
+# Compare against compose.prod.yml
+grep caddy prod/compose.prod.yml
+```
+
+These must match. If they don't, someone (or something) pulled a different image.
+
+## Smoke test in the workflow
+
+The build workflow includes:
+
+```yaml
+- name: Verify rate_limit module loaded
+  run: |
+    ./caddy adapt --config dev/Caddyfile.test --pretty | grep ratelimit
+```
+
+Catches the case where the module compiled but isn't actually accessible.
+
+## Related
+
+- [Security, Caddy supply chain](/docs/security/infrastructure/caddy-supply-chain)
+- [Security, Rate limiting](/docs/security/web-attacks/rate-limiting)
+- [ADR 0009, Caddy over Nginx](/docs/adrs/0009-caddy-over-nginx)
+- [Internals, Platform deploy pipeline](/docs/internals/platform/platform-deploy-pipeline)

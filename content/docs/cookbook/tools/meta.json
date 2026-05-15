@@ -1,0 +1,20 @@
+{
+  "title": "Tools",
+  "pages": [
+    "admin-audit-page",
+    "admin-impersonate-user",
+    "admin-trail-views",
+    "customer-support-tooling",
+    "dev-team-onboarding",
+    "olympus-as-idp-argocd",
+    "olympus-as-idp-aws",
+    "olympus-as-idp-grafana",
+    "olympus-as-idp-pgadmin",
+    "onboarding-checklist",
+    "sdk-react-component-library",
+    "sdk-typescript-usage",
+    "test-brute-force-locally",
+    "test-data-management",
+    "user-onboarding-checklist-page"
+  ]
+}

@@ -1,0 +1,152 @@
+---
+title: Athena, testing
+description: Vitest + Playwright patterns used in Athena
+---
+
+Athena's test suite is Vitest (unit/integration) + Playwright (e2e), following the patterns described in [Develop, Testing strategy](/docs/develop/testing-strategy). This page goes into the Athena-specific specifics.
+
+## What's tested
+
+### Vitest
+
+- `services/kratos/*` and `services/hydra/*`, adapter functions, with `fetch` mocked.
+- `lib/*`, utility functions (cookie parsing, error mapping, etc.).
+- `features/<x>/actions.ts`, server actions, with services mocked.
+- A few representative `route.ts` handlers, most are pass-through.
+
+### Playwright
+
+- Login → land in dashboard.
+- Create identity → see in list → delete.
+- View OAuth2 client → rotate secret → confirm.
+- A small smoke test that visits every page.
+
+## Mocking the Ory clients
+
+Tests almost never hit a real Kratos or Hydra. Pattern:
+
+```ts
+import { vi } from "vitest";
+import * as identitiesService from "@/services/kratos/identities";
+
+vi.mock("@/services/kratos/identities", () => ({
+  listIdentities: vi.fn(),
+  createIdentity: vi.fn(),
+  patchIdentity: vi.fn(),
+  deleteIdentity: vi.fn(),
+}));
+
+test("delete identity calls service then re-fetches list", async () => {
+  vi.mocked(identitiesService.deleteIdentity).mockResolvedValue(undefined);
+  vi.mocked(identitiesService.listIdentities).mockResolvedValue([]);
+
+  await deleteIdentityAction("uuid");
+
+  expect(identitiesService.deleteIdentity).toHaveBeenCalledWith("ciam", "uuid");
+});
+```
+
+The service-layer abstraction makes this clean. Real Kratos is only touched in dev / staging.
+
+## Mocking the SDK
+
+Similar pattern for `@olympusoss/sdk`:
+
+```ts
+vi.mock("@olympusoss/sdk", () => ({
+  getSetting: vi.fn().mockResolvedValue("some-value"),
+  setSetting: vi.fn(),
+  encrypt: (s: string) => `v2:test:${s}`,
+  decrypt: (s: string) => s.split(":").pop(),
+}));
+```
+
+For tests that exercise the encryption flow, we use a deterministic test key:
+
+```ts
+vi.mock("@olympusoss/sdk/crypto", () => ({
+  // ... but real-ish crypto for round-trip tests
+}));
+```
+
+## Testing the middleware
+
+Edge middleware is hard to test in isolation because it uses Web Crypto. Approach:
+
+```ts
+import { middleware } from "@/middleware";
+
+test("rejects request without session cookie", async () => {
+  const request = new Request("http://test/api/identities", {
+    headers: { /* no cookie */ }
+  });
+  const response = await middleware(request);
+  expect(response.status).toBe(401);
+});
+```
+
+We construct `Request` objects manually rather than running the Next dev server.
+
+## Playwright setup
+
+`athena/playwright.config.ts`:
+
+```ts
+export default defineConfig({
+  testDir: "./tests",
+  use: {
+    baseURL: "http://localhost:3001",
+    trace: "on-first-retry",
+  },
+  webServer: {
+    command: "bun run dev",
+    port: 3001,
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+CI spins up the full dev stack (`podman compose up -d` in a pre-test step), then runs Playwright against it.
+
+## Snapshot tests
+
+Vitest's `toMatchSnapshot` is used sparingly, mostly for the shape of audit events:
+
+```ts
+test("emits expected audit event", async () => {
+  const event = await handleLogin(...);
+  expect(event).toMatchSnapshot();
+});
+```
+
+Snapshots live in `__snapshots__/`. Update with `bun run test -- -u` when the shape intentionally changes.
+
+## Coverage
+
+Run with coverage:
+
+```bash
+bun run test -- --coverage
+```
+
+Coverage isn't enforced as a CI gate (per directive). Useful for spotting un-tested branches.
+
+## When tests are slow
+
+The whole Athena Vitest suite runs in under 30s. If you find one test taking more than 5s, look at:
+- Unmocked fetch, accidentally hitting real Kratos.
+- Real database connection, should be mocked too.
+- Unawaited promises causing test hangs.
+
+## When tests are flaky
+
+Common causes:
+- Time-based assertions without mock clocks. Use `vi.useFakeTimers()`.
+- Tests sharing state. Each test should reset its mocks.
+- Playwright tests racing async UI updates. Use `expect(locator).toBeVisible()` (auto-retries) over `waitFor` with hardcoded timeouts.
+
+## Related
+
+- [Develop, Testing strategy](/docs/develop/testing-strategy)
+- [Develop, Running tests](/docs/develop/running-tests)
+- [ADR 0020, Vitest as test stack](/docs/adrs/0020-vitest-as-test-stack)

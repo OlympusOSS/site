@@ -1,0 +1,140 @@
+---
+title: Dark-launch a risky auth feature
+description: Run new code in production without affecting users
+---
+
+You're about to ship a new login flow / OAuth grant / MFA method. Before the user-visible launch, dark-launch: the code runs in production, but no user sees it. You measure stability, performance, and error rates.
+
+## What dark launch is
+
+Production traffic exercises the new code path:
+- Same DB writes.
+- Same logging.
+- Same metrics.
+
+But the user is shown the existing behavior.
+
+It's like a unit test in production, except with real data and real users (their actions trigger the new path, but they don't see results).
+
+## Use cases
+
+- New session signing algorithm, verify it can sign all real session shapes without breaking.
+- New MFA enrollment flow, run validation in shadow mode without saving credentials.
+- New password hash, compute new hash but keep using old for actual auth.
+- New audit log format, write to both old and new for a week, compare.
+
+## Pattern: shadow write
+
+Old:
+```ts
+async function login(email, password) {
+  const user = await db.findByEmail(email);
+  if (await verifyPassword(password, user.hash)) {
+    return createSession(user);
+  }
+  return null;
+}
+```
+
+New (shadow):
+```ts
+async function login(email, password) {
+  const user = await db.findByEmail(email);
+  const verifiedOld = await verifyPassword(password, user.hash);
+  
+  // SHADOW: also verify with new method, but don't act on result
+  try {
+    const verifiedNew = await verifyPasswordNew(password, user.hash_new);
+    if (verifiedOld !== verifiedNew) {
+      logger.warn("shadow_mismatch", { user_id: user.id, old: verifiedOld, new: verifiedNew });
+    }
+  } catch (err) {
+    logger.error("shadow_error", { error: err.message });
+  }
+  
+  if (verifiedOld) return createSession(user);
+  return null;
+}
+```
+
+Run for a week. If `shadow_mismatch` rate is 0 and `shadow_error` rate is 0, the new code is safe. Switch over.
+
+## Pattern: shadow API call
+
+You're migrating from one OIDC discovery URL to another. Shadow:
+
+```ts
+async function getOidcConfig() {
+  const oldConfig = await fetch(OLD_URL).then(r => r.json());
+  
+  // SHADOW: also fetch new, compare
+  fetch(NEW_URL).then(r => r.json()).then(newConfig => {
+    if (JSON.stringify(oldConfig) !== JSON.stringify(newConfig)) {
+      logger.warn("oidc_config_mismatch", { diff: ... });
+    }
+  }).catch(err => {
+    logger.warn("oidc_new_fetch_failed", { error: err.message });
+  });
+  
+  return oldConfig;
+}
+```
+
+## Logging strategy
+
+For dark-launched code:
+- Log structurally: `{ feature: "new_hash", outcome: "match" | "mismatch" }`
+- Sample, don't log every event (might be high-volume).
+- Dashboard the metric so you watch it.
+
+## Performance comparison
+
+Dark launch lets you compare performance:
+
+```ts
+const start = Date.now();
+await verifyPasswordNew(password, user.hash_new);
+metrics.histogram("verify_password_new_ms", Date.now() - start);
+```
+
+If new is 10x slower in production, you find out before launching.
+
+## Flagging on
+
+After dark launch is stable for a week:
+
+```ts
+const useNew = settingsVault.get("feature.use_new_password_verify");
+const verified = useNew
+  ? await verifyPasswordNew(...)
+  : await verifyPasswordOld(...);
+```
+
+Toggle in Athena's settings UI.
+
+## Cleanup
+
+After launch is live and stable:
+1. Remove the old code path.
+2. Remove the dark-launch logging.
+3. Remove the feature flag.
+
+The flag was scaffolding. Don't leave dead flag-checks in code.
+
+## Caveats
+
+- Dark launch costs CPU and DB on shadow paths. Acceptable for non-hot paths; risky for hot ones.
+- If the new code has side effects (writing to disk, calling external APIs), shadow can't be true read-only. Be careful.
+- Be explicit in code reviews that the shadow path's failure must NOT affect the main flow. Wrap in try/catch.
+
+## When NOT to dark-launch
+
+- Trivial changes (just push and watch).
+- UI changes (no real "shadow", user sees one or the other).
+- Database schema migrations (these need expand/contract, not shadow).
+
+## Related
+
+- [Cookbook, Canary deploy](/docs/cookbook/deployment/canary-deploy)
+- [Cookbook, Blue/green deploy](/docs/cookbook/deployment/blue-green-deploy)
+- [Cookbook, Add feature flag, settings vault](/docs/cookbook/integrations-billing/add-feature-flag-settings-vault)

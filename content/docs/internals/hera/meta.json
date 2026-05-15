@@ -1,0 +1,9 @@
+{
+  "title": "Hera",
+  "pages": [
+    "hera-analytics",
+    "hera-hydra-integration",
+    "hera-kratos-integration",
+    "hera-route-map"
+  ]
+}

@@ -1,0 +1,224 @@
+---
+title: CDN cache invalidation for auth content
+description: When and how to purge caches
+---
+
+CDN caching speeds up Hera's static assets. But cached content can be stale after deploys. Invalidate carefully.
+
+## What's cached
+
+- Hera's JS / CSS bundles (versioned URLs, auto-invalidate).
+- Static images / fonts.
+- HTML pages (if cached at all).
+- API responses (usually NOT cached, but check).
+
+Don't cache:
+- Login pages with CSRF tokens.
+- Anything personalized.
+- API responses with auth.
+
+## URL versioning
+
+Best invalidation: don't have to. Version assets:
+
+```
+/_next/static/abc123/main.js   ← unique hash per build
+```
+
+Next.js does this automatically. Old version stays cached forever (no one fetches it). New version has new URL.
+
+`Cache-Control: public, max-age=31536000, immutable`
+
+## API responses
+
+Usually:
+```
+Cache-Control: no-store
+```
+
+Auth-related responses change per user. No caching.
+
+For some read-only endpoints (like `/well-known/openid-configuration`):
+```
+Cache-Control: public, max-age=600
+```
+
+10 min. Auto-invalidates.
+
+## When to manually purge
+
+- Deployed wrong content (typo, broken).
+- Security update that invalidates cached responses.
+- Logo changed and old still served.
+
+```bash
+# Cloudflare API purge
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE/purge_cache" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data '{"files":["https://ciam.your-domain.com/logo.svg"]}'
+
+# Purge everything (heavy)
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE/purge_cache" \
+  -d '{"purge_everything": true}'
+```
+
+Don't purge everything for small changes, re-fetches all pages from origin, briefly slow.
+
+## Purge per tag
+
+Cloudflare allows tagging:
+
+```http
+Response: cf-cache-tag: hera-v1.4.0
+```
+
+Purge all `hera-v1.4.0`:
+```bash
+curl -X POST .../purge_cache --data '{"tags": ["hera-v1.4.0"]}'
+```
+
+Useful for "purge everything from this deploy."
+
+## Cache-Control directives
+
+```
+Cache-Control: public, max-age=3600
+```
+
+Cached for 1 hour.
+
+```
+Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+```
+
+Serve stale for 24h while fetching fresh.
+
+```
+Cache-Control: no-cache, no-store, must-revalidate
+```
+
+Never cache.
+
+```
+Cache-Control: private, max-age=0
+```
+
+Browser cache OK; CDN no.
+
+## ETags
+
+```
+ETag: "abc123"
+```
+
+Client sends `If-None-Match: "abc123"` on re-request. Server returns 304 Not Modified if unchanged.
+
+Saves bandwidth. CDN respects.
+
+## Purge after key rotation
+
+When rotating Hydra's JWKS:
+- New keys appear in `/well-known/jwks.json`.
+- CDN cache might serve old for `max-age`.
+
+Solutions:
+- Short TTL: `Cache-Control: public, max-age=60`.
+- Manual purge on rotation.
+
+```bash
+# In rotation script:
+curl -X POST $CF_API/purge_cache --data '{"files":["https://ciam.../.well-known/jwks.json"]}'
+```
+
+JWKS endpoints should have short TTL, minutes, not hours.
+
+## Versioned configuration
+
+For settings vault changes that affect cached content:
+
+1. Make change in settings vault.
+2. Increment `config_version` in metadata.
+3. Hera renders content with `?config_v=N` query.
+4. CDN treats as different URL → fresh cache.
+
+Granular invalidation without explicit purge.
+
+## Webhook from CMS
+
+If you have a CMS for Hera's brand assets:
+- CMS publishes change.
+- Webhook to your purge endpoint.
+- Endpoint hits CDN API.
+
+```ts
+app.post("/webhooks/cms-published", async (req, res) => {
+  await purgeUrl(req.body.url);
+  res.json({ ok: true });
+});
+```
+
+Auto-purge on content change.
+
+## Soft purge
+
+Cloudflare allows soft purge (mark stale, revalidate on next request):
+
+```
+curl ... --data '{"files":["..."], "soft_purge": true}'
+```
+
+Less impact than hard purge. CDN serves stale for ~30s while fetching fresh.
+
+## Origin shield
+
+Cloudflare Argo: requests go through one "shield" datacenter close to origin. Saves origin from being hit by all edges.
+
+```
+Edge 1 → Shield → Origin
+Edge 2 → Shield → Origin (cache hit at shield)
+Edge 3 → Shield → Origin (cache hit at shield)
+```
+
+If hot endpoint, $5/mo for Argo saves your origin from 100x traffic.
+
+## Test caching
+
+```bash
+curl -I https://your-domain.com/static/main.js
+# Look at:
+# - Cache-Control header
+# - CF-Cache-Status (HIT/MISS/EXPIRED)
+# - Age header
+```
+
+Verify what you think is cached IS cached.
+
+## Mistakes
+
+### Caching sensitive data
+
+```
+GET /api/whoami → cached
+```
+
+Different users see same response (the first user's). Privacy disaster.
+
+Fix: ALL API responses with auth:
+```
+Cache-Control: no-store
+```
+
+### Caching dynamic CSP
+
+If you per-request nonce, cached HTML has stale nonce → CSP rejects scripts.
+
+Solutions:
+- Don't cache HTML.
+- Or: vary CSP by deploy version, cache for short period.
+
+## Related
+
+- [Cookbook, Cloudflare in front](/docs/cookbook/deployment/cloudflare-in-front)
+- [Cookbook, CDN Bunny](/docs/cookbook/cdn-bunny)
+- [Cookbook, CDN Fastly](/docs/cookbook/cdn-fastly)
+- [Cookbook, Migrate to new domain](/docs/cookbook/deployment/migrate-to-new-domain)

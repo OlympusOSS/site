@@ -1,0 +1,10 @@
+{
+  "title": "Backups & recovery",
+  "pages": [
+    "backups-caddy-data",
+    "backups-postgres",
+    "disaster-recovery",
+    "incident-response",
+    "locked-account-unlock"
+  ]
+}

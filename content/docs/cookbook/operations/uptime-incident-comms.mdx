@@ -1,0 +1,195 @@
+---
+title: Incident communication
+description: Tell users when auth is broken
+---
+
+When Olympus is down (or degraded), users can't sign in. They're stuck. Communicate clearly.
+
+## Status page
+
+A separate domain (status.your-domain.com) hosted outside your main infra, so if main infra is dead, status still works.
+
+Tools:
+- Atlassian Statuspage (paid).
+- BetterStack.
+- Self-hosted Cstate / Upptime (GitHub-hosted static).
+
+## Manual incident lifecycle
+
+Mark status page:
+
+```
+[Identified - 2026-05-13 14:32 UTC]
+We're aware of users unable to sign in. Investigating.
+
+[Investigating - 14:45 UTC]
+We've identified the issue: database connection pool exhaustion.
+Working on a fix.
+
+[Identified - 15:02 UTC]
+Fix deployed. Monitoring recovery.
+
+[Resolved - 15:30 UTC]
+Authentication is back to normal. Postmortem to follow.
+```
+
+Time-stamped, factual, no jargon.
+
+## Notification channels
+
+When you mark "Identified," notifications:
+- Email to subscribers.
+- Webhook to Slack channel.
+- RSS feed.
+- Twitter / Bluesky (status page integrations).
+
+Customers subscribe to whatever they prefer.
+
+## Severity levels
+
+Define:
+- **Major outage**: total inability to sign in.
+- **Partial outage**: some users can't sign in (specific provider).
+- **Degraded**: slow but functional.
+- **Maintenance**: scheduled, communicated in advance.
+
+Use consistent labels. Customers learn what each means.
+
+## What to say (and not say)
+
+Say:
+- What's happening (high level).
+- Estimated time to fix.
+- What to do (or "no action needed").
+
+Don't say (yet):
+- Specific cause (in progress).
+- Blame (vendor, team).
+- Speculation.
+
+Save those for the postmortem.
+
+## In-app banner
+
+Beyond status page, banner in app:
+
+```tsx
+{incident && (
+  <Banner intent={incident.severity}>
+    {incident.message}
+    <Link href={`https://status.your-domain.com/incident/${incident.id}`}>
+      View status
+    </Link>
+  </Banner>
+)}
+```
+
+Fed from status page API.
+
+## Comms during the incident
+
+Update every:
+- 15 min while investigating.
+- 30 min after identification.
+- Resolution + 30 min ("monitoring").
+
+Even "no update, still investigating" is communication. Silence is the worst.
+
+## After resolution
+
+Within 5 business days, post the **postmortem**:
+
+```
+Postmortem: Authentication outage on 2026-05-13
+
+Summary
+-------
+On May 13, between 14:32 and 15:30 UTC, ~80% of sign-in attempts failed.
+Root cause: connection pool exhaustion after a config change.
+
+Timeline
+--------
+14:32 - Config change rolled out.
+14:35 - First reports of sign-in failures.
+14:42 - Incident identified.
+14:55 - Mitigation: rolled back config.
+15:02 - Auth recovering.
+15:30 - Fully resolved.
+
+Root cause
+----------
+Yesterday's config change increased the pool size, but a faulty entry
+caused fewer-than-expected connections. Under traffic, the pool was exhausted.
+
+Action items
+------------
+1. Add automated validation of config changes (Owner: SRE, due May 25).
+2. Add canary deploy for config (Owner: Platform, due June 1).
+3. Add connection pool monitoring (Owner: Platform, done).
+```
+
+Honest. Future-focused. No blame.
+
+## Customer notification
+
+For B2B with SLAs, notify directly:
+
+```
+Subject: Authentication outage on 2026-05-13, postmortem
+
+Dear Customer,
+
+Yesterday we experienced an authentication outage affecting approximately
+80% of sign-in attempts between 14:32 and 15:30 UTC.
+
+We've published a full postmortem here: [URL]
+
+As required by our SLA, you're entitled to a 5% service credit for the
+affected period, which will be applied to your next invoice.
+
+We're sorry for the disruption.
+
+[Your Team]
+```
+
+Apologize. Don't hide. Demonstrate the credit.
+
+## When NOT to mark
+
+Some events feel like outages but aren't:
+- One user can't sign in (might be user-side).
+- A specific edge feature broken (not "authentication").
+
+Mark only when meaningfully widespread. Otherwise: noise.
+
+## Maintenance
+
+For scheduled work:
+
+```
+Scheduled maintenance - 2026-05-20 04:00-04:30 UTC
+
+We're upgrading our database. Authentication may be briefly unavailable.
+
+Subscribed users will receive notification 48h beforehand.
+```
+
+Announce. Conduct. Confirm complete.
+
+## Practice
+
+Quarterly: tabletop exercise. Pretend outage happens. Walk through:
+- Detection: how fast?
+- Internal coordination: Slack channel ready?
+- Status page: who can update?
+- Customer comms: who writes the email?
+
+Tighten the process. When real, faster.
+
+## Related
+
+- [Operate, Incident response](/docs/operate/backups-recovery/incident-response)
+- [Cookbook, Disaster recovery](/docs/operate/backups-recovery/disaster-recovery)
+- [Operate, Chaos engineering](/docs/operate/performance/chaos-engineering)
+- [Cookbook, Health check monitoring](/docs/cookbook/operations/health-check-monitoring)
+- [Cookbook, Timeline of incident](/docs/cookbook/defensive-security/timeline-of-incident)

@@ -1,0 +1,14 @@
+{
+  "title": "OAuth2 & OIDC",
+  "pages": [
+    "logout-rp-initiated",
+    "oauth2-authorization-code",
+    "oauth2-client-credentials",
+    "oauth2-error-codes",
+    "oauth2-overview",
+    "oauth2-pkce",
+    "oauth2-refresh-tokens",
+    "oidc-discovery",
+    "oidc-userinfo"
+  ]
+}

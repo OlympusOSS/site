@@ -1,0 +1,60 @@
+---
+title: Provider, Hetzner Cloud
+description: Deploy Olympus on a Hetzner Cloud VPS
+---
+
+Hetzner Cloud (German provider) offers price/performance leadership: ~€4-5/mo for 4GB RAM. Use [Direct SSH](/docs/deploy/providers/provider-direct-ssh).
+
+## Recommended plan
+
+| Plan | RAM | vCPU | Disk | Monthly |
+|---|---|---|---|---|
+| CX22 | 4GB | 2 | 40GB | €4 |
+| CX32 | 8GB | 4 | 80GB | €7 |
+| CPX21 | 4GB | 3 | 80GB | €8 |
+
+CX22 is sufficient for ~500 MAU with managed Postgres. CX32 if self-hosting Postgres.
+
+## Setup
+
+```bash
+hcloud server create --name olympus-prod \
+  --type cx22 --image ubuntu-22.04 \
+  --location nbg1 --ssh-key my-key
+
+# Firewall
+hcloud firewall create --name olympus-fw
+hcloud firewall add-rule olympus-fw --direction in --protocol tcp --port 22 --source-ips $YOUR_IP/32
+hcloud firewall add-rule olympus-fw --direction in --protocol tcp --port 80 --source-ips 0.0.0.0/0
+hcloud firewall add-rule olympus-fw --direction in --protocol tcp --port 443 --source-ips 0.0.0.0/0
+hcloud firewall apply-to-resource olympus-fw --type server --server olympus-prod
+```
+
+## EU data residency
+
+Hetzner's locations include Nuremberg, Falkenstein (Germany), Helsinki (Finland), Ashburn (USA), Hillsboro (USA). For GDPR-sensitive deployments, choose an EU location.
+
+## Backups
+
+Hetzner offers automated weekly snapshots for +20% of server cost. Also use rclone to push Postgres dumps to Hetzner Storage Box:
+
+```bash
+rclone copy /backups/ hetzner-storage:olympus-backups/
+```
+
+Storage Box pricing starts at €3.50/mo for 100GB.
+
+## Cost estimate (1k MAU)
+
+- CX22 VPS: €4/mo
+- Storage Box 100GB: €3.50/mo
+- Snapshots: ~€1
+- **Total: ~€9/mo (~$10)**
+
+Cheapest credible production hosting for Olympus.
+
+## Where next
+
+- [Deploy, Provider, Direct SSH](/docs/deploy/providers/provider-direct-ssh)
+- [Operate, Backups (Postgres)](/docs/operate/backups-recovery/backups-postgres)
+- [Cookbook, Single VPS deployment](/docs/cookbook/deployment/single-vps-deployment)

@@ -1,0 +1,133 @@
+---
+title: Kubernetes deployment (off-spec)
+description: Running Olympus on K8s, out of supported scope but doable
+---
+
+Olympus is designed for single-host Compose ([ADR 0001](/docs/adrs/0001-dual-domain-architecture)). Kubernetes is officially **out of scope**. But operators sometimes need K8s anyway. Here's the rough shape, without guarantees.
+
+## Why this is off-spec
+
+- Olympus tests against Podman Compose, not Kubernetes.
+- Compose features (volume mounts, service names) translate but with subtle differences.
+- Olympus's single-host design loses some assumptions (e.g. shared Caddy data volume).
+- No Helm chart is published or maintained.
+
+If you do this anyway, you're on your own for upgrades.
+
+## Sketch
+
+Per Olympus service, a Deployment:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ciam-kratos
+spec:
+  replicas: 1   # KEEP AT 1, Kratos isn't tested for horizontal scale
+  selector: { matchLabels: { app: ciam-kratos } }
+  template:
+    metadata: { labels: { app: ciam-kratos } }
+    spec:
+      containers:
+      - name: kratos
+        image: oryd/kratos:v1.x@sha256:...
+        envFrom:
+        - secretRef: { name: olympus-secrets }
+        volumeMounts:
+        - { name: kratos-config, mountPath: /etc/config/kratos }
+        ports:
+        - { containerPort: 4433 }
+        - { containerPort: 4434 }
+        readinessProbe:
+          httpGet: { path: /health/ready, port: 4433 }
+      volumes:
+      - name: kratos-config
+        configMap: { name: ciam-kratos-config }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: ciam-kratos }
+spec:
+  selector: { app: ciam-kratos }
+  ports:
+  - { name: public, port: 5001, targetPort: 4433 }
+  - { name: admin, port: 5002, targetPort: 4434 }
+```
+
+Repeat for: `iam-kratos`, `ciam-hydra`, `iam-hydra`, `ciam-athena`, `iam-athena`, `ciam-hera`, `iam-hera`, `site`.
+
+## Ingress
+
+Replace Caddy with an Ingress + cert-manager:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: olympus
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts: [ciam.example.com, iam.example.com, www.example.com]
+    secretName: olympus-tls
+  rules:
+  - host: ciam.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend: { service: { name: ciam-hera, port: { number: 3000 } } }
+  # ... per host
+```
+
+Issues:
+- Olympus's Caddy rate_limit doesn't translate; use Ingress-NGINX's rate limit or a sidecar.
+- Caddy's security headers must be re-implemented at the Ingress level.
+
+## Secrets
+
+Use K8s Secrets or external-secrets-operator backed by AWS Secrets Manager / Vault:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata: { name: olympus-secrets }
+type: Opaque
+stringData:
+  ENCRYPTION_KEY: ...
+  SESSION_SIGNING_KEY: ...
+  DATABASE_URL_CIAM_KRATOS: ...
+```
+
+## Postgres
+
+Use a managed Postgres (RDS, Cloud SQL, Neon) outside K8s. Don't run Postgres inside the cluster unless you really know what you're doing.
+
+## What you give up
+
+- **The supported single-host model**. You're on a K8s island.
+- **Caddy's reproducible build with rate_limit**. Re-implement.
+- **Daedalus's deploy automation**. Don't apply on K8s.
+- **The IA-friendly compose pattern**. K8s YAML is verbose.
+
+## What you gain
+
+- **Existing K8s tooling integration**: Argo CD, Flux, K8s observability stack.
+- **Familiarity for K8s teams**.
+- **Multi-host failover** (more complex than the docs admit; still needs careful Postgres + Hydra signing-key handling).
+
+## Recommendation
+
+If you're heavily K8s-invested, consider:
+1. Run Olympus single-host on a beefy VM (k3s minimum).
+2. Treat it as a managed service in your K8s estate.
+
+This is closer to the supported model than fully K8s-native.
+
+## Related
+
+- [ADR 0001, Dual-domain architecture](/docs/adrs/0001-dual-domain-architecture)
+- [Deploy, Without Daedalus, manual](/docs/deploy/wizards/without-daedalus-manual)
+- [Deploy, Provider, Bare metal](/docs/deploy/providers/provider-bare-metal)

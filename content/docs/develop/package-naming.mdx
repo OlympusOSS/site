@@ -4,8 +4,8 @@ description: Why npm packages are scoped under @olympusoss/ and follow source-on
 ---
 
 Olympus has two distributable npm packages:
-- `@olympusoss/canvas` — the design system.
-- `@olympusoss/sdk` — the shared settings/encryption library.
+- `@olympusoss/canvas`, the design system.
+- `@olympusoss/sdk`, the shared settings/encryption library.
 
 (Plus `@olympusoss/octl` as the CLI, distributed via npm but not consumed as a library.)
 
@@ -15,7 +15,7 @@ All Olympus packages are scoped under the [`@olympusoss`](https://www.npmjs.com/
 
 Reasons:
 - Avoids name collisions in the global npm namespace.
-- Visible grouping — everything `@olympusoss/*` is from us.
+- Visible grouping, everything `@olympusoss/*` is from us.
 - Per-scope access policy: can require auth for publish.
 
 ## Source-only contract
@@ -32,7 +32,7 @@ Both packages ship raw TypeScript via `package.json`:
 
 No build step at publish time. Consumers' build pipelines (Bun, Next.js, Vite) handle transpilation.
 
-See [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages) for the rationale.
+See [ADR 0012, Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages) for the rationale.
 
 ## Consumer setup
 
@@ -105,7 +105,7 @@ bun install
 
 ## Related
 
-- [Develop — Workspace setup](/docs/develop/workspace-setup)
-- [ADR 0012 — Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
-- [Develop — Working with Canvas](/docs/develop/working-with-canvas)
-- [Develop — Working with SDK](/docs/develop/working-with-sdk)
+- [Develop, Workspace setup](/docs/develop/workspace-setup)
+- [ADR 0012, Source-only NPM packages](/docs/adrs/0012-source-only-npm-packages)
+- [Develop, Working with Canvas](/docs/develop/working-with-canvas)
+- [Develop, Working with SDK](/docs/develop/working-with-sdk)

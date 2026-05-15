@@ -1,0 +1,16 @@
+{
+  "title": "Infrastructure issues",
+  "pages": [
+    "cert-expired",
+    "clock-skew",
+    "database-ssl-mismatch",
+    "db-disk-full",
+    "email-bounce-rate-high",
+    "email-not-sending",
+    "encryption-key-startup-failure",
+    "pgadmin-sso-fails",
+    "podman-compose-fails",
+    "postgres-connection-exhausted",
+    "reload-api-key-invalid"
+  ]
+}

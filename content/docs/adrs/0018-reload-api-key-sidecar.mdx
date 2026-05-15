@@ -1,5 +1,5 @@
 ---
-title: "0018 — Reload API key sidecar"
+title: "0018, Reload API key sidecar"
 description: How Kratos identity-schema changes propagate to running services
 ---
 
@@ -29,10 +29,10 @@ The sidecar is a 50-line Bun script that listens on an internal port and validat
 ## Consequences
 
 - **Schema reload is a button click.** Athena's Schemas page can trigger reload after edits.
-- **Shared secret to rotate.** `CIAM_RELOAD_API_KEY` and `IAM_RELOAD_API_KEY` join the [secrets inventory](/docs/security/secrets-management). Rotated quarterly per [Operate — Reload API Key Rotation](/docs/operate/reload-api-key-rotation).
+- **Shared secret to rotate.** `CIAM_RELOAD_API_KEY` and `IAM_RELOAD_API_KEY` join the [secrets inventory](/docs/security/encryption-keys/secrets-management). Rotated quarterly per [Operate, Reload API Key Rotation](/docs/operate/rotation/reload-api-key-rotation).
 - **Tiny attack surface.** Sidecar accepts one operation (reload). No code paths to subvert.
 
 ## Related
 
-- [Operate — Reload API Key Rotation](/docs/operate/reload-api-key-rotation)
-- [Security — Secrets Management](/docs/security/secrets-management)
+- [Operate, Reload API Key Rotation](/docs/operate/rotation/reload-api-key-rotation)
+- [Security, Secrets Management](/docs/security/encryption-keys/secrets-management)

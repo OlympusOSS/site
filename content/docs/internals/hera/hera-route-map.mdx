@@ -1,0 +1,115 @@
+---
+title: Hera, route map
+description: Every page route and API route in Hera
+---
+
+Hera has 10 page routes, the user-visible login/consent/recovery experience. Internal API routes are minimal; Hera mostly proxies to Kratos and Hydra.
+
+## Page routes
+
+| Path | Source | Purpose |
+|---|---|---|
+| `/login` | `src/app/login/page.tsx` | Login form (Kratos login flow renderer). Accepts `login_challenge` from Hydra. |
+| `/registration` | `src/app/registration/page.tsx` | Registration form. |
+| `/recovery` | `src/app/recovery/page.tsx` | Password recovery form. Submits email and recovery token. |
+| `/verification` | `src/app/verification/page.tsx` | Email verification page. |
+| `/settings` | `src/app/settings/page.tsx` | User settings (password, MFA, profile). |
+| `/consent` | `src/app/consent/page.tsx` | OAuth2 consent screen (Hydra consent challenge). |
+| `/logout` | `src/app/logout/page.tsx` | RP-initiated logout confirmation. |
+| `/oidc-callback` | `src/app/oidc-callback/page.tsx` | Return from a social IdP (Google, GitHub, etc.). |
+| `/account-linking` | `src/app/account-linking/page.tsx` | Social-to-password linking confirmation. |
+| `/error` | `src/app/error/page.tsx` | Generic error page for Kratos / Hydra failures. |
+
+## API routes
+
+| Path | Method | Purpose |
+|---|---|---|
+| `/api/captcha/verify` | POST | Server-side Turnstile validation. |
+| `/api/breach-check` | POST | HIBP k-anonymity password breach check (SDK wrapper). |
+| `/api/social-providers` | GET | List enabled OIDC providers for rendering social buttons. |
+
+Hera deliberately doesn't expose more API surface, flows happen against Kratos and Hydra directly from the browser.
+
+## Why this shape
+
+Hera is a thin **rendering layer** over Kratos and Hydra. Most "logic" Hera implements is:
+- Reading a flow from Kratos.
+- Rendering the UI nodes Kratos returns.
+- POST-ing the user's submission back to Kratos.
+- (For OAuth2) accepting/rejecting Hydra's challenges.
+
+This thinness means Hera is **portable**, different theming, different per-tenant branding, different UI frameworks. The auth logic stays in Kratos / Hydra.
+
+## Flow rendering
+
+The `<SchemaForm>` component (from Canvas) takes Kratos's `ui.nodes[]` and renders the form. Adding a trait to the identity schema automatically adds a form field, no Hera code change.
+
+```tsx
+// src/app/login/page.tsx
+import { SchemaForm } from "@olympusoss/canvas";
+
+export default async function Login({ searchParams }) {
+  const flow = await getFlow(searchParams.flow);
+  return (
+    <SchemaForm
+      schema={flow.ui.nodes}
+      action={flow.ui.action}
+      messages={flow.ui.messages}
+      onSubmit={async (data) => {/* POST to Kratos */}}
+    />
+  );
+}
+```
+
+## Olympus-specific additions
+
+Beyond standard Kratos flow rendering:
+- **Brute-force check** before passing to Kratos (via the SDK).
+- **Captcha verification** server-side via `/api/captcha/verify`.
+- **Breached-password check** during registration / password change.
+- **Pre-linking confirmation** for social → password account linking.
+- **Analytics**, PKCE usage, social provider usage (logged for monitoring).
+
+These are gated by feature flags in the settings vault:
+- `hera.captcha_enabled` (per-flow toggle)
+- `hera.breach_check_enabled`
+
+## Consent screen
+
+`/consent` reads the consent challenge from Hydra:
+
+```ts
+const challenge = searchParams.consent_challenge;
+const consent = await fetch(`${hydraAdmin}/admin/oauth2/auth/requests/consent?consent_challenge=${challenge}`);
+```
+
+The consent UI shows the requesting client + scopes. The user accepts; Hera calls `acceptOAuth2ConsentRequest` on Hydra.
+
+For first-party clients with `metadata.skip_consent = true`, Hera auto-accepts without rendering, see [Cookbook, Brand consent screen](/docs/cookbook/ui-content/brand-consent-screen).
+
+## State across the OAuth2 flow
+
+Hera doesn't need cookies for OAuth2, Hydra's challenge ID encodes everything. But Hera does maintain:
+- The Kratos session cookie (for the user's identity).
+- A flow-specific CSRF cookie (Kratos manages).
+- Per-flow `code_verifier` if Hera initiated the auth (rare; usually the consumer app holds the verifier).
+
+## Where the analytics events go
+
+```ts
+process.stdout.write(JSON.stringify({
+  type: "audit",
+  event: "pkce_flow_completed",
+  client_id: "...",
+  ts: new Date().toISOString(),
+}) + "\n");
+```
+
+These appear in Hera's stdout, picked up by your log shipper. See [Operate, Logs and observability](/docs/operate/monitoring/logs-and-observability).
+
+## Related
+
+- [Internals, Hera, Kratos integration](/docs/internals/hera/hera-kratos-integration)
+- [Internals, Hera, Hydra integration](/docs/internals/hera/hera-hydra-integration)
+- [Internals, Hera, Analytics](/docs/internals/hera/hera-analytics)
+- [Repo map, Hera](/docs/repo-map)

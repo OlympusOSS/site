@@ -1,0 +1,117 @@
+---
+title: Django integration
+description: Authenticate via Olympus in a Django backend
+---
+
+Use [`django-allauth`](https://docs.allauth.org/) with the generic OpenID Connect provider.
+
+## Setup
+
+```bash
+pip install django-allauth[socialaccount]
+```
+
+`settings.py`:
+
+```python
+INSTALLED_APPS = [
+    # ...
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.openid_connect',
+]
+
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+SOCIALACCOUNT_PROVIDERS = {
+    'openid_connect': {
+        'APPS': [{
+            'provider_id': 'olympus',
+            'name': 'Olympus',
+            'client_id': os.environ['OLYMPUS_CLIENT_ID'],
+            'secret': os.environ['OLYMPUS_CLIENT_SECRET'],
+            'settings': {
+                'server_url': os.environ['OLYMPUS_ISSUER'],
+            },
+        }],
+    }
+}
+```
+
+## URLs
+
+```python
+urlpatterns = [
+    # ...
+    path('accounts/', include('allauth.urls')),
+]
+```
+
+`django-allauth` provides `/accounts/oidc/olympus/login/` to start the flow and `/accounts/oidc/olympus/login/callback/` for the callback.
+
+Configure these as the OAuth2 client redirect URI in Athena.
+
+## In views
+
+```python
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def dashboard(request):
+    user = request.user
+    # user.email, user.username, etc.
+    return render(request, 'dashboard.html', {'user': user})
+```
+
+## REST API (DRF)
+
+For API endpoints consumed by SPAs/mobile:
+
+```python
+# settings.py
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'myapp.auth.OlympusTokenAuthentication',
+    ],
+}
+```
+
+```python
+# myapp/auth.py
+from rest_framework import authentication, exceptions
+import requests
+
+class OlympusTokenAuthentication(authentication.BaseAuthentication):
+    def authenticate(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return None
+        token = auth_header[7:]
+
+        info = requests.post(
+            f"{settings.OLYMPUS_ISSUER}/admin/oauth2/introspect",
+            data={'token': token},
+            auth=(settings.HYDRA_ADMIN_USER, settings.HYDRA_ADMIN_PASS),
+        ).json()
+
+        if not info.get('active'):
+            raise exceptions.AuthenticationFailed('inactive token')
+
+        user, _ = User.objects.get_or_create(
+            username=info['sub'],
+            defaults={'email': info.get('ext', {}).get('email')}
+        )
+        return (user, info)
+```
+
+## Related
+
+- [Integrate, OAuth2 overview](/docs/integrate/oauth2/oauth2-overview)
+- [Cookbook, Validate access token (Python)](/docs/cookbook/tokens-oauth2/validate-token-python)

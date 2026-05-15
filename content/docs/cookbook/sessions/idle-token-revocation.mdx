@@ -1,0 +1,233 @@
+---
+title: Revoke tokens after long inactivity
+description: Cleanup stale tokens to reduce attack surface
+---
+
+Active session = active risk. After a user is inactive long enough, revoke tokens preemptively.
+
+## What "long enough"
+
+Trade-off:
+- Too short: user re-auths often. Friction.
+- Too long: stale tokens are leak risk.
+
+For different account types:
+- Admin: 7 days inactivity → revoke.
+- Regular user: 90 days → revoke.
+- Service accounts: never (they're automated).
+
+Adjust per security policy.
+
+## Cron
+
+```bash
+# /etc/cron.daily/revoke-stale-tokens
+node /opt/olympus/scripts/revoke-stale.js
+```
+
+```ts
+// scripts/revoke-stale.js
+const STALE = {
+  admin: 7,
+  user: 90,
+};
+
+const identities = await kratos.adminList();
+
+for (const id of identities) {
+  const role = id.traits.role;
+  const lastSeen = id.metadata.last_activity_at;
+  const daysSince = (Date.now() - new Date(lastSeen).getTime()) / 86400_000;
+  const threshold = STALE[role] ?? STALE.user;
+  
+  if (daysSince > threshold) {
+    // Revoke all sessions and refresh tokens
+    await kratos.adminRevokeSessions({ identity_id: id.id });
+    await hydra.adminRevokeOAuth2ConsentSessions({ subject: id.id });
+    
+    audit({ event: "tokens_revoked_stale", target: id.id, days_inactive: daysSince });
+    
+    // Optional: notify
+    await emailUser(id, "We signed you out due to inactivity");
+  }
+}
+```
+
+Daily run, reasonable cost.
+
+## last_activity tracking
+
+Where does `last_activity_at` come from?
+
+```ts
+// Middleware on every request
+async function updateActivity(req) {
+  const session = await getSession(req);
+  if (session) {
+    await kratos.adminPatch(session.identity.id, [
+      { op: "replace", path: "/metadata_admin/last_activity_at", value: new Date().toISOString() }
+    ]);
+  }
+}
+```
+
+Update on each request. Or batched (per minute):
+
+```ts
+const pending = new Map<string, Date>();
+function trackActivity(userId: string) {
+  pending.set(userId, new Date());
+}
+
+// Flush every minute
+setInterval(async () => {
+  for (const [userId, time] of pending) {
+    await kratos.adminPatch(userId, [
+      { op: "replace", path: "/metadata_admin/last_activity_at", value: time.toISOString() }
+    ]);
+  }
+  pending.clear();
+}, 60_000);
+```
+
+Reduces DB writes.
+
+## Inactive vs unused
+
+Different from session expiry (no activity within X). This is account-level: user might have done nothing for months.
+
+## Audit log as source
+
+Alternative: query the audit log:
+
+```sql
+SELECT i.id, MAX(a.created_at) AS last_activity
+FROM identities i
+LEFT JOIN security_audit a 
+  ON a.identity_id = i.id 
+  AND a.event_type IN ('login', 'whoami', 'oauth_token')
+GROUP BY 1
+HAVING MAX(a.created_at) < NOW() - INTERVAL '90 days';
+```
+
+No need for separate column. But: heavier query, slower.
+
+## Communication
+
+Tell users before sign-out:
+
+```
+Subject: We'll sign you out soon
+
+You haven't signed in for 60 days. For security, we'll automatically 
+sign out and revoke active sessions in 7 days.
+
+To stay signed in: just sign in.
+
+Sign in: https://your-app.com/login
+```
+
+Day -7: warning.
+Day 0: revoke.
+
+## After revoke
+
+User comes back to use app:
+- Browser cookie/token: invalid.
+- Redirected to login.
+- Signs in.
+- Fresh session.
+
+Annoying but security.
+
+## Per-user setting
+
+Some users (frequent API consumers) need long-lived tokens. Allow opt-out:
+
+```ts
+if (id.metadata_admin?.skip_stale_revocation) continue;
+```
+
+Mark via admin tool. Sales / customer success can set.
+
+## Audit
+
+```sql
+INSERT INTO security_audit (event_type, target_id, metadata)
+VALUES (
+  'token_revoked_stale',
+  $user_id,
+  '{"days_inactive": $days, "policy": "$policy"}'
+);
+```
+
+Trail. Report metrics: how many users hit revocation per month?
+
+## Differentiate token types
+
+- Web sessions: revoke after 90 days inactive.
+- Refresh tokens (long-lived): revoke after 180 days inactive.
+- Personal access tokens: revoke after 1 year inactive (or never).
+
+Per-token-type policy:
+
+```ts
+async function revokePATsForInactiveUsers() {
+  await db`UPDATE personal_access_tokens
+    SET revoked_at = NOW()
+    WHERE revoked_at IS NULL
+      AND last_used_at < NOW() - INTERVAL '1 year'
+      OR (last_used_at IS NULL AND created_at < NOW() - INTERVAL '1 year')
+  `;
+}
+```
+
+## When NOT to revoke
+
+- Service accounts (their job is to be available always).
+- Trusted long-running integrations.
+
+Mark these in metadata:
+
+```ts
+metadata_admin.account_type = "service" | "trusted_integration" | "regular"
+```
+
+Cron skips non-regular.
+
+## Manual reactivation
+
+After revocation, user can re-auth normally, no admin action needed. Just sign in.
+
+If their account is also disabled (different feature), admin must reactivate.
+
+## Token lifecycle ladder
+
+```
+Active (last activity recent) → Active.
+Inactive 30 days → Warn user.
+Inactive 60 days → Suspend new actions.
+Inactive 90 days → Revoke tokens.
+Inactive 180 days → Notify "we miss you."
+Inactive 365 days → Deactivate account.
+Inactive 730 days → Delete account (with notice).
+```
+
+Gradient response. Each step is reversible (re-engagement).
+
+## Don't auto-delete
+
+Revoking tokens is one thing. Deleting account is another.
+
+Token revocation is reversible (sign in again).
+Account deletion is not.
+
+Keep separate.
+
+## Related
+
+- [Cookbook, Automated deprovisioning](/docs/cookbook/data-compliance/automated-deprovisioning)
+- [Cookbook, Cron tasks list](/docs/cookbook/operations/cron-tasks-list)
+- [Cookbook, Grace period deletion](/docs/cookbook/data-compliance/grace-period-deletion)
+- [Cookbook, Refresh token rotation](/docs/cookbook/tokens-oauth2/refresh-token-rotation)
+- [Identity, Sessions](/docs/identity/sessions)

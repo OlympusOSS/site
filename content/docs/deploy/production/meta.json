@@ -1,0 +1,9 @@
+{
+  "title": "Production readiness",
+  "pages": [
+    "dev-vs-prod",
+    "dns-and-domains",
+    "first-production-deploy",
+    "kratos-production-config"
+  ]
+}

@@ -25,7 +25,7 @@ sequenceDiagram
     Note over App: Next refresh uses R2
     Note over App,Storage: If R1 is reused (attacker theft):
     App->>Hydra: POST /oauth2/token with R1 again
-    Hydra->>Hydra: R1 already consumed — REVOKE entire chain
+    Hydra->>Hydra: R1 already consumed, REVOKE entire chain
     Hydra-->>App: 400 invalid_grant
     Note over App: Force re-login
 ```
@@ -38,5 +38,5 @@ sequenceDiagram
 
 ## Where to learn more
 
-- [Integrate — Refresh tokens](/docs/integrate/oauth2-refresh-tokens)
-- [Reference — OAuth2 grant: refresh-token](/docs/reference/grants/refresh-token)
+- [Integrate, Refresh tokens](/docs/integrate/oauth2/oauth2-refresh-tokens)
+- [Reference, OAuth2 grant: refresh-token](/docs/reference/grants/refresh-token)

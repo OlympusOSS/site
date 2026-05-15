@@ -1,0 +1,120 @@
+---
+title: Hera, Hydra integration
+description: How Hera handles Hydra's login/consent/logout challenges
+---
+
+Hera plays the **login + consent UI** role for Hydra. When an OAuth2 client starts an auth flow at Hydra, Hydra delegates UI to Hera; Hera returns the user identity via Hydra's admin API.
+
+## The three challenges
+
+| Challenge | When |
+|---|---|
+| `login_challenge` | OAuth2 flow needs the user to authenticate. Hydra → Hera redirect with `?login_challenge=...`. |
+| `consent_challenge` | After login, the user must consent to scopes. Hydra → Hera with `?consent_challenge=...`. |
+| `logout_challenge` | An RP-initiated logout (`/oauth2/sessions/logout`). Hydra → Hera with `?logout_challenge=...`. |
+
+For each, Hera fetches the challenge details, makes a decision (often auto), and posts back to Hydra.
+
+## Login challenge
+
+```
+1. App → GET https://ciam/oauth2/auth?...&client_id=X
+2. Hydra → 302 https://ciam/login?login_challenge=Y
+3. Hera fetches: GET https://ciam/.ory/hydra/admin/oauth2/auth/requests/login?login_challenge=Y
+   Response includes: client info, subject (if Kratos session exists), requested scopes.
+4. Branch:
+   a. Kratos session exists → Hera POST https://ciam/.ory/hydra/admin/oauth2/auth/requests/login/accept
+      Body: { subject: "<identity.id>", remember: true }
+   b. No session → Hera renders login form (Kratos flow). User logs in. Then 4a.
+5. Hydra → 302 https://ciam/consent?consent_challenge=Z (consent step)
+```
+
+## Consent challenge
+
+```
+6. Hera fetches: GET .../requests/consent?consent_challenge=Z
+   Response: requested scopes, client metadata (including skip_consent flag).
+7. Branch:
+   a. metadata.skip_consent === true → auto-accept all scopes
+   b. else → render consent UI
+8. Hera POST .../requests/consent/accept
+   Body: { grant_scope: [...], session: { id_token, access_token } }
+9. Hydra issues code → 302 to app's callback
+```
+
+## Logout challenge
+
+```
+1. App → GET https://ciam/oauth2/sessions/logout?id_token_hint=...
+2. Hydra → 302 https://ciam/logout?logout_challenge=L
+3. Hera renders confirmation (or auto-accepts if requested explicitly)
+4. Hera POST .../requests/logout/accept
+5. Hydra revokes session, calls Kratos to revoke its session too
+6. Hydra → 302 to post_logout_redirect_uri
+```
+
+## Talking to Hydra's admin API
+
+Hera's server-side calls go to Hydra's **admin port** (`:3103` / `:4103`):
+
+```ts
+const hydraAdmin = process.env.HYDRA_ADMIN_URL; // http://ciam-hydra:5003
+
+await fetch(`${hydraAdmin}/admin/oauth2/auth/requests/login/accept?login_challenge=${challenge}`, {
+  method: "PUT",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ subject: identityId, remember: true })
+});
+```
+
+The admin port has no auth, security is via network ACL (admin port only reachable from inside the intranet). Hera reaching it is fine; external callers are blocked at the firewall.
+
+## Skip-consent for first-party clients
+
+```ts
+const consent = await fetchConsentChallenge(challenge);
+if (consent.client.metadata?.skip_consent === true) {
+  await acceptConsentChallenge(challenge, {
+    grant_scope: consent.requested_scope,
+    session: { id_token: { /* custom claims */ } }
+  });
+  return Response.redirect(consent.request_url);
+}
+// else render the UI
+```
+
+Athena and Site clients are configured with `skip_consent = true` in production.
+
+## Custom claims in the ID token
+
+Hera can shape the ID token at consent time:
+
+```ts
+await acceptConsentChallenge(challenge, {
+  grant_scope: requestedScopes,
+  session: {
+    id_token: {
+      role: identity.traits.role,
+      groups: identity.traits.groups,
+      // any custom claims
+    }
+  }
+});
+```
+
+Hydra includes these in the issued ID token. See [Cookbook, Add custom claim](/docs/cookbook/tokens-oauth2/add-custom-claim-id-token).
+
+## Failure modes
+
+| Failure | Cause |
+|---|---|
+| Hydra returns 404 to challenge fetch | Challenge expired (1h TTL) or invalid. User must restart flow. |
+| Accept returns 500 | Usually Hydra config issue, check `urls.consent`, `urls.login` are reachable from Hydra's perspective. |
+| Consent loop | Skip-consent isn't being honored. Verify `metadata.skip_consent` is on the right client. |
+
+## Related
+
+- [Internals, Hera, Route map](/docs/internals/hera/hera-route-map)
+- [Internals, Hera, Kratos integration](/docs/internals/hera/hera-kratos-integration)
+- [Integrate, OAuth2 authorization code](/docs/integrate/oauth2/oauth2-authorization-code)
+- [Reference, Hydra accept login request](/docs/reference/api/hydra/oauth2/acceptoauth2loginrequest)

@@ -1,0 +1,215 @@
+---
+title: Migrate from Firebase Auth to Olympus
+description: Move Google Cloud-based auth to self-hosted
+---
+
+Firebase Auth is GCP's hosted CIAM. Moving to Olympus brings auth in-house.
+
+## What translates
+
+| Firebase | Olympus |
+|---|---|
+| Users | Kratos identities |
+| Providers (Google, Apple, etc.) | Kratos OIDC providers |
+| Email/password sign-in | Kratos password method |
+| Anonymous auth | Custom, Olympus doesn't have built-in anonymous |
+| Custom claims | Identity traits or metadata |
+| Cloud Functions triggers | Kratos web_hooks |
+| Email templates | Kratos courier templates |
+
+## What's different
+
+### Firebase ID tokens
+
+Firebase issues short-lived ID tokens (JWT). Apps verify against Firebase's JWKS.
+
+Olympus's Hydra also issues OIDC-standard ID tokens. Format compatible, but issuer and audience differ, you'll need to update client config.
+
+### Anonymous auth
+
+Firebase has "anonymous" users that get a random UID. Olympus doesn't.
+
+Workaround: create an identity with placeholder traits:
+
+```ts
+const anonId = await kratos.adminCreate({
+  schema_id: "anonymous",
+  traits: { type: "anonymous", session_id: crypto.randomUUID() },
+});
+```
+
+Later, "promote to permanent" by setting credentials and updating traits.
+
+### Phone auth
+
+Firebase has built-in phone (SMS) auth. Kratos can do SMS via custom method or a webhook-based code flow:
+
+```yaml
+selfservice:
+  methods:
+    code:
+      enabled: true
+      config:
+        lifespan: 5m
+```
+
+Plus a courier configured for SMS (Twilio).
+
+## User export
+
+Firebase allows password hash export but in a custom format (Scrypt-like).
+
+```bash
+gcloud firebase auth:export users.json --project=YOUR-PROJECT --format=json
+```
+
+Each user has:
+```json
+{
+  "localId": "abc123",
+  "email": "alice@example.com",
+  "passwordHash": "BASE64_HASH",
+  "salt": "BASE64_SALT",
+  "passwordHashConfig": {
+    "rounds": 8,
+    "memCost": 14,
+    "saltSeparator": "Bw=="
+  }
+}
+```
+
+Kratos doesn't natively support Firebase Scrypt. Options:
+
+### Option A: Re-hash on first login
+
+On each user's next login, Kratos verifies their password (using Firebase's algorithm via a custom verifier) and re-hashes with Argon2id. Gradual migration.
+
+This requires a custom Kratos build with the Firebase verifier. Possible but non-trivial.
+
+### Option B: Force password reset
+
+For every imported user, mark `must_change_password`. They sign in once, see "set your new password" page.
+
+Simpler. Slightly worse UX.
+
+### Option C: Federate Firebase as OIDC
+
+Keep Firebase active during migration. Olympus signs users in via Firebase OIDC.
+
+Users transparently migrate to Olympus identities. After full migration, decommission Firebase.
+
+```yaml
+selfservice:
+  methods:
+    oidc:
+      config:
+        providers:
+          - id: firebase-legacy
+            provider: generic
+            issuer_url: https://securetoken.google.com/YOUR-PROJECT
+            client_id: ...
+```
+
+## Auth state on the client
+
+Firebase SDK manages auth state:
+
+```ts
+import { onAuthStateChanged } from "firebase/auth";
+onAuthStateChanged(auth, user => { /* ... */ });
+```
+
+Olympus equivalent:
+
+```ts
+import { OlympusClient } from "@olympusoss/sdk";
+const olympus = new OlympusClient(...);
+
+setInterval(async () => {
+  const session = await olympus.toSession();
+  // handle
+}, 60_000);
+```
+
+Less elegant. For finer control, use the React hooks library.
+
+## Custom claims
+
+Firebase:
+```ts
+await admin.auth().setCustomUserClaims(uid, { role: "admin" });
+```
+
+Olympus (set traits):
+```ts
+await kratos.adminPatch(id, [
+  { op: "replace", path: "/traits/role", value: "admin" }
+]);
+```
+
+Apps read from JWT or session, same idea.
+
+## Cloud Functions migration
+
+Each Firebase Auth trigger maps to a Kratos hook:
+
+| Firebase trigger | Kratos hook |
+|---|---|
+| `onCreate` | registration.after |
+| `onDelete` | n/a (Kratos doesn't have delete hooks; handle via API watch) |
+| `onAuthEvent` | various |
+
+Rewrite Cloud Functions as Kratos webhook handlers.
+
+## Project structure
+
+Firebase has Auth, Firestore, Storage, Functions. Often coupled. Moving Auth alone leaves the rest of Firebase intact.
+
+Olympus + Firebase: possible. Identity in Olympus, data in Firestore. Bridge via:
+
+```ts
+// On Olympus login, exchange JWT for Firebase custom token
+const olympusToken = await olympus.exchangeCodeForTokens(code);
+const decoded = jwt.decode(olympusToken.id_token);
+
+// Backend: mint Firebase custom token using identity UUID
+const firebaseToken = await admin.auth().createCustomToken(decoded.sub, {
+  email: decoded.email,
+  role: decoded.role,
+});
+
+// Return to client; client signs into Firebase with custom token
+await signInWithCustomToken(auth, firebaseToken);
+```
+
+Now user is signed in to Firestore using their Olympus identity. Hybrid setup.
+
+## What to do with Firebase data
+
+When fully migrated:
+1. Export everything.
+2. Move to your own DB (or stay on Firestore for now).
+3. Delete Firebase project after grace period.
+
+## Cost
+
+Firebase Auth: free up to 50k MAU, then $0.0055/MAU.
+Olympus self-hosted: ~$80/mo infra.
+
+For < 50k MAU: Firebase is free, Olympus is operational overhead. Olympus's value: no per-MAU pricing later + control over data.
+
+For > 50k MAU: clear cost win.
+
+## Timeline
+
+Firebase → Olympus migration: similar to Auth0, ~6-12 weeks. The complexity is in apps that use Firebase Auth heavily.
+
+Run in parallel for 30+ days post-cutover.
+
+## Related
+
+- [Migration, Auth0](/docs/migration/from-auth0)
+- [Migration, Cognito](/docs/migration/from-cognito)
+- [Cookbook, Migrate from Auth0](/docs/cookbook/platform-migration/migrate-from-auth0)
+- [Cookbook, Bulk import identities](/docs/cookbook/data-compliance/bulk-import-identities)
+- [Cookbook, Migrate password hash](/docs/cookbook/platform-migration/migrate-password-hash)

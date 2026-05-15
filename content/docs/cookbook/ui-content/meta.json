@@ -1,0 +1,20 @@
+{
+  "title": "UI & content",
+  "pages": [
+    "brand-consent-screen",
+    "cdn-cache-invalidation",
+    "cdn-image-resize",
+    "custom-email-templates",
+    "customize-registration-form",
+    "email-sender-warmup",
+    "email-template-version-control",
+    "feature-tour-and-product-tours",
+    "feedback-button-help-flow",
+    "hera-react-customization",
+    "i18n-strategy",
+    "localize-hera-ui",
+    "notification-templates",
+    "passport-photo-upload",
+    "release-notes-template"
+  ]
+}

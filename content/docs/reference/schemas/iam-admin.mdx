@@ -11,13 +11,13 @@ description: JSON Schema reference for the Admin Identity identity model
 
 | Field | Type | Format | Required | Ory bindings | Description |
 |-------|------|--------|----------|--------------|-------------|
-| `traits` | object | — | no | — | — |
+| `traits` | object | - | no | - |, |
 | `traits.email` | string | email | yes | password identifier, verifiable (email), recovery (email) | Email |
-| `traits.name` | object | — | no | — | — |
-| `traits.name.first` | string | — | no | — | First Name |
-| `traits.name.last` | string | — | no | — | Last Name |
-| `traits.role` | string | — | no | — | Role |
-| `traits.roles` | array | — | no | — | Access control roles for this identity (e.g. 'dba' grants pgAdmin access) |
+| `traits.name` | object | - | no | - |, |
+| `traits.name.first` | string | - | no | - | First Name |
+| `traits.name.last` | string | - | no | - | Last Name |
+| `traits.role` | string | - | no | - | Role |
+| `traits.roles` | array | - | no | - | Access control roles for this identity (e.g. 'dba' grants pgAdmin access) |
 
 ## Raw schema
 
