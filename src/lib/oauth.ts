@@ -125,8 +125,9 @@ export async function handleOAuthLogout(
     ]);
   }
 
-  // Clear the local session cookie and redirect home
-  const response = NextResponse.redirect(appUrl);
+  // Clear the local session cookie and redirect to the playground section so
+  // the user can see the state flip back to "Login" without having to scroll.
+  const response = NextResponse.redirect(new URL("/#playground", appUrl));
   response.cookies.delete(config.sessionCookie);
   return response;
 }
@@ -163,7 +164,7 @@ export async function handleOAuthCallback(
       `${config.errorPrefix.toUpperCase()} OAuth state mismatch — possible CSRF attack`,
     );
     return NextResponse.redirect(
-      new URL(`/?error=${config.errorPrefix}_state_mismatch`, appUrl),
+      new URL(`/?error=${config.errorPrefix}_state_mismatch#playground`, appUrl),
     );
   }
 
@@ -186,7 +187,7 @@ export async function handleOAuthCallback(
       const error = await tokenRes.text();
       console.error(`${config.errorPrefix.toUpperCase()} token exchange failed:`, error);
       return NextResponse.redirect(
-        new URL(`/?error=${config.errorPrefix}_token_exchange_failed`, appUrl),
+        new URL(`/?error=${config.errorPrefix}_token_exchange_failed#playground`, appUrl),
       );
     }
 
@@ -214,8 +215,11 @@ export async function handleOAuthCallback(
     };
 
     // ── Set secure session cookie & clean up state cookie ─────────────────
+    // Land on #playground so the user sees the "Authenticated" badge + their
+    // token claims immediately, instead of the hero at the top of the page.
+    // The hash takes effect in the browser after the 302 — no JS needed.
     const isProduction = process.env.NODE_ENV === "production";
-    const response = NextResponse.redirect(new URL("/", appUrl));
+    const response = NextResponse.redirect(new URL("/#playground", appUrl));
 
     response.cookies.set(config.sessionCookie, JSON.stringify(sessionData), {
       httpOnly: true,
@@ -237,7 +241,7 @@ export async function handleOAuthCallback(
   } catch (err) {
     console.error(`${config.errorPrefix.toUpperCase()} callback error:`, err);
     return NextResponse.redirect(
-      new URL(`/?error=${config.errorPrefix}_callback_failed`, appUrl),
+      new URL(`/?error=${config.errorPrefix}_callback_failed#playground`, appUrl),
     );
   }
 }
