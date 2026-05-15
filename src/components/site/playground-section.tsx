@@ -25,7 +25,7 @@ export function PlaygroundSection({
 				>
 					<Badge
 						variant="outline"
-						className="border-border bg-background/60 font-mono text-[11px] font-normal"
+						className="try-it-out-flash border-border bg-background/60 font-mono text-[11px] font-normal"
 					>
 						try it out
 					</Badge>
@@ -67,6 +67,37 @@ export function PlaygroundSection({
 					</div>
 				</motion.div>
 			</div>
+
+			{/* "try it out" badge animation. Outer-ring glow that pulses outward
+				(no scale jitter — keeps the page layout stable) plus a soft
+				background-tint sweep so the chip itself reads as alive. Color
+				is the brand indigo from the hero-rainbow palette so the flash
+				doesn't introduce a new accent colour. Honors prefers-reduced-motion. */}
+			<style jsx>{`
+				:global(.try-it-out-flash) {
+					position: relative;
+					animation: try-it-out-flash 1.8s ease-out infinite;
+				}
+				@keyframes try-it-out-flash {
+					0% {
+						box-shadow: 0 0 0 0 hsl(243 75% 59% / 0.55);
+						background-color: hsl(243 75% 59% / 0.08);
+					}
+					70% {
+						box-shadow: 0 0 0 10px hsl(243 75% 59% / 0);
+						background-color: hsl(243 75% 59% / 0);
+					}
+					100% {
+						box-shadow: 0 0 0 0 hsl(243 75% 59% / 0);
+						background-color: hsl(243 75% 59% / 0);
+					}
+				}
+				@media (prefers-reduced-motion: reduce) {
+					:global(.try-it-out-flash) {
+						animation: none !important;
+					}
+				}
+			`}</style>
 		</section>
 	);
 }
