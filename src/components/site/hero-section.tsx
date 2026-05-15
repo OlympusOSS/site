@@ -243,9 +243,8 @@ export function HeroSection({ canvasVersion = "" }: HeroSectionProps) {
 						Identity and OAuth2, on your terms.
 					</h1>
 					<p className="mb-7 max-w-[520px] text-[17px] leading-[1.55] text-muted-foreground">
-						Olympus is an open-source identity platform built on Ory
-						Kratos and Hydra. Self-hosted, standards-compliant, no
-						per-seat pricing.
+						Olympus is a free identity solution built on Ory Kratos and
+						Hydra. Self-hosted, standards-compliant, no per-seat pricing.
 					</p>
 					<div className="flex flex-wrap items-center gap-2.5">
 						<a

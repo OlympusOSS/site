@@ -30,7 +30,7 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 								Olympus
 							</span>
 							<span className="font-mono text-[10px] text-muted-foreground">
-								open-source identity
+								free identity solution
 							</span>
 						</span>
 					</a>
@@ -42,7 +42,7 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 								Olympus
 							</span>
 							<span className="font-mono text-[10px] text-muted-foreground">
-								open-source identity
+								free identity solution
 							</span>
 						</span>
 					</a>

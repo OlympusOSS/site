@@ -1,6 +1,6 @@
 # Site
 
-Brochure site and OAuth2 playground for the [OlympusOSS Identity Platform](https://github.com/OlympusOSS/platform).
+Brochure site and OAuth2 playground for the [Olympus Identity Platform](https://github.com/OlympusOSS/platform).
 
 Built with Next.js, TypeScript, and the [Canvas](https://github.com/OlympusOSS/canvas) design system.
 
@@ -14,7 +14,7 @@ Built with Next.js, TypeScript, and the [Canvas](https://github.com/OlympusOSS/c
 
 ## What It Does
 
-The main site for OlympusOSS — showcases the platform with a brochure landing page and includes a working OAuth2 playground that demonstrates the full Authorization Code flow against Ory Hydra.
+The main site for Olympus — showcases the platform with a brochure landing page and includes a working OAuth2 playground that demonstrates the full Authorization Code flow against Ory Hydra.
 
 - **Brochure** — Hero, features, architecture diagram, and getting started guide
 - **OAuth2 Playground** — Log in as a customer (CIAM) or employee (IAM) and inspect tokens
@@ -45,7 +45,7 @@ The main site for OlympusOSS — showcases the platform with a brochure landing 
 
 ## Getting Started
 
-Site is part of the [OlympusOSS Identity Platform](https://github.com/OlympusOSS/platform). All repos must be cloned as siblings under a shared workspace:
+Site is part of the [Olympus Identity Platform](https://github.com/OlympusOSS/platform). All repos must be cloned as siblings under a shared workspace:
 
 ```
 Olympus/

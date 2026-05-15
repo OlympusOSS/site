@@ -68,12 +68,12 @@ export function SiteFooter({ logoSrc }: { logoSrc?: string }) {
 								/>
 							)}
 							<span className="text-sm font-semibold text-foreground">
-								OlympusOSS
+								Olympus
 							</span>
 						</div>
 						<p className="m-0 max-w-[280px] text-[13px] leading-relaxed text-muted-foreground">
-							Open-source identity and OAuth2 for teams that run their
-							own infrastructure.
+							A free identity solution and OAuth2 layer for teams that
+							run their own infrastructure.
 						</p>
 					</div>
 					<FooterColumn title="Product" links={PRODUCT_LINKS} />
@@ -82,7 +82,7 @@ export function SiteFooter({ logoSrc }: { logoSrc?: string }) {
 				</div>
 
 				<div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-border pt-5 text-xs text-muted-foreground sm:flex-row">
-					<span>Apache 2.0 · © {year} OlympusOSS</span>
+					<span>Apache 2.0 · © {year} Olympus</span>
 					<span className="font-mono">v2.3.0</span>
 				</div>
 			</div>

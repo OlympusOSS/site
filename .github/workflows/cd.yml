@@ -70,12 +70,16 @@ jobs:
       contents: read
       packages: write
     strategy:
+      # ARM64 is temporarily disabled: `next build` segfaults inside the
+      # ubuntu-24.04-arm runner while generating the 920 static pages
+      # (seen on v1.1.7 — Bun ARM64 regression with the doc-heavy MDX
+      # set). Production VMs run amd64, so a single-arch image unblocks
+      # the deploy. Re-enable when Bun's ARM64 stability returns or when
+      # we slim the static-page count.
       matrix:
         include:
           - platform: linux/amd64
             runner: ubuntu-latest
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v6
