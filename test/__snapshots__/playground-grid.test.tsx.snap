@@ -1,0 +1,77 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PlaygroundGrid (snapshot) > matches AuthStatusBadgeRow snapshot 1`] = `
+<div>
+  <div
+    class="flex items-center gap-2"
+  >
+    <span
+      data-testid="badge-child"
+    >
+      badge
+    </span>
+  </div>
+</div>
+`;
+
+exports[`PlaygroundGrid (snapshot) > matches AuthStatusRow snapshot 1`] = `
+<div>
+  <div
+    class="space-y-3"
+  >
+    <span
+      data-testid="status-child"
+    >
+      status
+    </span>
+  </div>
+</div>
+`;
+
+exports[`PlaygroundGrid (snapshot) > matches LogoutLink snapshot 1`] = `
+<div>
+  <a
+    class="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 no-underline transition-colors hover:bg-red-100"
+    href="/logout/ciam"
+  >
+    Sign out
+  </a>
+</div>
+`;
+
+exports[`PlaygroundGrid (snapshot) > matches PlaygroundAdminSection snapshot 1`] = `
+<div>
+  <div
+    class="mt-8"
+  >
+    <div
+      class="mb-4 font-mono text-[12px] uppercase tracking-[0.08em] text-muted-foreground"
+    >
+      Admin panels
+    </div>
+    <div
+      class="grid gap-5 sm:grid-cols-2"
+    >
+      <div
+        data-testid="admin-child"
+      >
+        child
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`PlaygroundGrid (snapshot) > matches PlaygroundGrid snapshot 1`] = `
+<div>
+  <div
+    class="grid gap-5 sm:grid-cols-2"
+  >
+    <div
+      data-testid="child"
+    >
+      hi
+    </div>
+  </div>
+</div>
+`;

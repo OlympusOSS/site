@@ -1,0 +1,831 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ArchitectureSection (snapshot) > matches default snapshot 1`] = `
+<div>
+  <section
+    class="scroll-mt-20 px-4 py-16 landscape:py-10 sm:px-6 sm:py-20 lg:py-24"
+    id="architecture"
+  >
+    <div
+      class="mx-auto max-w-4xl"
+    >
+      <div
+        class="mb-8 text-center sm:mb-12 lg:mb-16"
+        style="opacity: 0; transform: translateY(20px);"
+      >
+        <h2
+          class="mb-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl"
+        >
+          Dual-domain architecture
+        </h2>
+        <p
+          class="text-base text-muted-foreground"
+        >
+          Separate identity domains for customers and employees — clean isolation, shared infrastructure.
+        </p>
+      </div>
+      <div
+        style="opacity: 0; transform: translateY(30px);"
+      >
+        <div
+          class="rounded-xl border border-border bg-card text-card-foreground shadow"
+        >
+          <div
+            class="p-6"
+          >
+            <div
+              class="relative"
+            >
+              <div
+                class="relative grid gap-4 sm:grid-cols-2"
+              >
+                <div
+                  class="rounded-xl border p-5"
+                  style="border-color: rgba(99, 102, 241, 0.25);"
+                >
+                  <div
+                    class="mb-4 text-center"
+                  >
+                    <h4
+                      class="text-sm font-semibold text-foreground"
+                    >
+                      CIAM
+                    </h4>
+                    <p
+                      class="text-[11px] text-muted-foreground"
+                    >
+                      Customer identity
+                    </p>
+                  </div>
+                  <div
+                    class="relative"
+                  >
+                    <svg
+                      class="pointer-events-none absolute inset-0 z-0 h-full w-full"
+                      fill="none"
+                      preserveAspectRatio="none"
+                      viewBox="0 0 100 100"
+                    >
+                      <line
+                        opacity="0.7"
+                        stroke="#818cf8"
+                        stroke-dasharray="4 3"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                        x1="23"
+                        x2="23"
+                        y1="47"
+                        y2="68"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          dur="2s"
+                          from="0"
+                          repeatCount="indefinite"
+                          to="-14"
+                        />
+                      </line>
+                      <line
+                        opacity="0.7"
+                        stroke="#818cf8"
+                        stroke-dasharray="4 3"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                        x1="77"
+                        x2="77"
+                        y1="47"
+                        y2="68"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          begin="0.5s"
+                          dur="2s"
+                          from="0"
+                          repeatCount="indefinite"
+                          to="-14"
+                        />
+                      </line>
+                      <line
+                        opacity="0.7"
+                        stroke="#818cf8"
+                        stroke-dasharray="4 3"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                        x1="47"
+                        x2="53"
+                        y1="84"
+                        y2="84"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          begin="1s"
+                          dur="2s"
+                          from="0"
+                          repeatCount="indefinite"
+                          to="-14"
+                        />
+                      </line>
+                      <polyline
+                        fill="none"
+                        opacity="0.7"
+                        points="72,47 72,60 33,60 33,68"
+                        stroke="#818cf8"
+                        stroke-dasharray="4 3"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          begin="1.5s"
+                          dur="2s"
+                          from="0"
+                          repeatCount="indefinite"
+                          to="-14"
+                        />
+                      </polyline>
+                    </svg>
+                    <div
+                      class="relative z-10 grid grid-cols-2 gap-6"
+                    >
+                      <div
+                        class="rounded-lg border border-border bg-card px-3 py-2.5 text-center"
+                      >
+                        <div
+                          class="text-xs font-medium text-foreground"
+                        >
+                          Hera
+                        </div>
+                        <div
+                          class="mt-1 flex items-center justify-center gap-2"
+                        >
+                          <div
+                            class="flex items-center gap-0.5 text-[9px] text-muted-foreground"
+                          >
+                            <svg
+                              fill="none"
+                              height="12"
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              viewBox="0 0 24 24"
+                              width="12"
+                            >
+                              <rect
+                                height="20"
+                                rx="2"
+                                ry="2"
+                                width="14"
+                                x="5"
+                                y="2"
+                              />
+                              <line
+                                x1="12"
+                                x2="12.01"
+                                y1="18"
+                                y2="18"
+                              />
+                            </svg>
+                            <span>
+                              iOS
+                            </span>
+                          </div>
+                          <div
+                            class="flex items-center gap-0.5 text-[9px] text-muted-foreground"
+                          >
+                            <svg
+                              fill="none"
+                              height="12"
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              viewBox="0 0 24 24"
+                              width="12"
+                            >
+                              <rect
+                                height="20"
+                                rx="2"
+                                ry="2"
+                                width="14"
+                                x="5"
+                                y="2"
+                              />
+                              <line
+                                x1="12"
+                                x2="12.01"
+                                y1="18"
+                                y2="18"
+                              />
+                            </svg>
+                            <span>
+                              Android
+                            </span>
+                          </div>
+                          <div
+                            class="flex items-center gap-0.5 text-[9px] text-muted-foreground"
+                          >
+                            <svg
+                              fill="none"
+                              height="12"
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              viewBox="0 0 24 24"
+                              width="12"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="10"
+                              />
+                              <line
+                                x1="2"
+                                x2="22"
+                                y1="12"
+                                y2="12"
+                              />
+                              <path
+                                d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                              />
+                            </svg>
+                            <span>
+                              Web
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        class="rounded-lg border border-border bg-card px-3 py-2.5 text-center"
+                      >
+                        <div
+                          class="text-xs font-medium text-foreground"
+                        >
+                          Athena
+                        </div>
+                        <div
+                          class="mt-1 flex items-center justify-center gap-2"
+                        >
+                          <div
+                            class="flex items-center gap-0.5 text-[9px] text-muted-foreground"
+                          >
+                            <svg
+                              fill="none"
+                              height="12"
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              viewBox="0 0 24 24"
+                              width="12"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="10"
+                              />
+                              <line
+                                x1="2"
+                                x2="22"
+                                y1="12"
+                                y2="12"
+                              />
+                              <path
+                                d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                              />
+                            </svg>
+                            <span>
+                              Web
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        class="rounded-lg border border-border bg-card px-3 py-2.5 text-center"
+                      >
+                        <div
+                          class="text-xs font-medium text-foreground"
+                        >
+                          Hydra
+                        </div>
+                      </div>
+                      <div
+                        class="rounded-lg border border-border bg-card px-3 py-2.5 text-center"
+                      >
+                        <div
+                          class="text-xs font-medium text-foreground"
+                        >
+                          Kratos
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="rounded-xl border p-5"
+                  style="border-color: rgba(245, 158, 11, 0.25);"
+                >
+                  <div
+                    class="mb-4 text-center"
+                  >
+                    <h4
+                      class="text-sm font-semibold text-foreground"
+                    >
+                      IAM
+                    </h4>
+                    <p
+                      class="text-[11px] text-muted-foreground"
+                    >
+                      Employee identity
+                    </p>
+                  </div>
+                  <div
+                    class="relative"
+                  >
+                    <svg
+                      class="pointer-events-none absolute inset-0 z-0 h-full w-full"
+                      fill="none"
+                      preserveAspectRatio="none"
+                      viewBox="0 0 100 100"
+                    >
+                      <line
+                        opacity="0.7"
+                        stroke="#fbbf24"
+                        stroke-dasharray="4 3"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                        x1="23"
+                        x2="23"
+                        y1="47"
+                        y2="68"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          dur="2s"
+                          from="0"
+                          repeatCount="indefinite"
+                          to="-14"
+                        />
+                      </line>
+                      <line
+                        opacity="0.7"
+                        stroke="#fbbf24"
+                        stroke-dasharray="4 3"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                        x1="77"
+                        x2="77"
+                        y1="47"
+                        y2="68"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          begin="0.5s"
+                          dur="2s"
+                          from="0"
+                          repeatCount="indefinite"
+                          to="-14"
+                        />
+                      </line>
+                      <line
+                        opacity="0.7"
+                        stroke="#fbbf24"
+                        stroke-dasharray="4 3"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                        x1="47"
+                        x2="53"
+                        y1="84"
+                        y2="84"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          begin="1s"
+                          dur="2s"
+                          from="0"
+                          repeatCount="indefinite"
+                          to="-14"
+                        />
+                      </line>
+                      <polyline
+                        fill="none"
+                        opacity="0.7"
+                        points="72,47 72,60 33,60 33,68"
+                        stroke="#fbbf24"
+                        stroke-dasharray="4 3"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          begin="1.5s"
+                          dur="2s"
+                          from="0"
+                          repeatCount="indefinite"
+                          to="-14"
+                        />
+                      </polyline>
+                      <line
+                        opacity="0.7"
+                        stroke="#fbbf24"
+                        stroke-dasharray="4 3"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                        x1="55"
+                        x2="45"
+                        y1="30"
+                        y2="30"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          begin="0.7s"
+                          dur="2s"
+                          from="0"
+                          repeatCount="indefinite"
+                          to="-14"
+                        />
+                      </line>
+                    </svg>
+                    <div
+                      class="relative z-10 grid grid-cols-2 gap-6"
+                    >
+                      <div
+                        class="rounded-lg border border-border bg-card px-3 py-2.5 text-center"
+                      >
+                        <div
+                          class="text-xs font-medium text-foreground"
+                        >
+                          Hera
+                        </div>
+                        <div
+                          class="mt-1 flex items-center justify-center gap-2"
+                        >
+                          <div
+                            class="flex items-center gap-0.5 text-[9px] text-muted-foreground"
+                          >
+                            <svg
+                              fill="none"
+                              height="12"
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              viewBox="0 0 24 24"
+                              width="12"
+                            >
+                              <rect
+                                height="20"
+                                rx="2"
+                                ry="2"
+                                width="14"
+                                x="5"
+                                y="2"
+                              />
+                              <line
+                                x1="12"
+                                x2="12.01"
+                                y1="18"
+                                y2="18"
+                              />
+                            </svg>
+                            <span>
+                              iOS
+                            </span>
+                          </div>
+                          <div
+                            class="flex items-center gap-0.5 text-[9px] text-muted-foreground"
+                          >
+                            <svg
+                              fill="none"
+                              height="12"
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              viewBox="0 0 24 24"
+                              width="12"
+                            >
+                              <rect
+                                height="20"
+                                rx="2"
+                                ry="2"
+                                width="14"
+                                x="5"
+                                y="2"
+                              />
+                              <line
+                                x1="12"
+                                x2="12.01"
+                                y1="18"
+                                y2="18"
+                              />
+                            </svg>
+                            <span>
+                              Android
+                            </span>
+                          </div>
+                          <div
+                            class="flex items-center gap-0.5 text-[9px] text-muted-foreground"
+                          >
+                            <svg
+                              fill="none"
+                              height="12"
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              viewBox="0 0 24 24"
+                              width="12"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="10"
+                              />
+                              <line
+                                x1="2"
+                                x2="22"
+                                y1="12"
+                                y2="12"
+                              />
+                              <path
+                                d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                              />
+                            </svg>
+                            <span>
+                              Web
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        class="rounded-lg border border-border bg-card px-3 py-2.5 text-center"
+                      >
+                        <div
+                          class="text-xs font-medium text-foreground"
+                        >
+                          Athena
+                        </div>
+                        <div
+                          class="mt-1 flex items-center justify-center gap-2"
+                        >
+                          <div
+                            class="flex items-center gap-0.5 text-[9px] text-muted-foreground"
+                          >
+                            <svg
+                              fill="none"
+                              height="12"
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              viewBox="0 0 24 24"
+                              width="12"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="10"
+                              />
+                              <line
+                                x1="2"
+                                x2="22"
+                                y1="12"
+                                y2="12"
+                              />
+                              <path
+                                d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                              />
+                            </svg>
+                            <span>
+                              Web
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        class="rounded-lg border border-border bg-card px-3 py-2.5 text-center"
+                      >
+                        <div
+                          class="text-xs font-medium text-foreground"
+                        >
+                          Hydra
+                        </div>
+                      </div>
+                      <div
+                        class="rounded-lg border border-border bg-card px-3 py-2.5 text-center"
+                      >
+                        <div
+                          class="text-xs font-medium text-foreground"
+                        >
+                          Kratos
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <svg
+                  class="pointer-events-none absolute inset-0 z-20 hidden h-full w-full sm:block"
+                  fill="none"
+                  preserveAspectRatio="none"
+                  viewBox="0 0 200 100"
+                >
+                  <polyline
+                    fill="none"
+                    opacity="0.6"
+                    points="73,35 73,25 127,25 127,35"
+                    stroke="#c084fc"
+                    stroke-dasharray="4 3"
+                    stroke-linejoin="round"
+                    stroke-width="1.5"
+                    vector-effect="non-scaling-stroke"
+                  >
+                    <animate
+                      attributeName="stroke-dashoffset"
+                      dur="2.5s"
+                      from="0"
+                      repeatCount="indefinite"
+                      to="-14"
+                    />
+                  </polyline>
+                </svg>
+              </div>
+              <div
+                class="h-8"
+              />
+              <div
+                class="relative flex flex-wrap items-center justify-center gap-3 rounded-xl border border-success/20 bg-success/5 px-5 py-3"
+              >
+                <span
+                  class="text-[11px] font-medium uppercase tracking-wider text-success"
+                >
+                  Shared
+                </span>
+                <div
+                  class="inline-flex items-center rounded-md border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-border text-[11px] text-muted-foreground"
+                >
+                  PostgreSQL
+                </div>
+                <svg
+                  class="-mx-3"
+                  fill="none"
+                  height="2"
+                  viewBox="0 0 48 2"
+                  width="48"
+                >
+                  <line
+                    opacity="0.6"
+                    stroke="#34d399"
+                    stroke-dasharray="4 3"
+                    stroke-width="1.5"
+                    x1="0"
+                    x2="48"
+                    y1="1"
+                    y2="1"
+                  >
+                    <animate
+                      attributeName="stroke-dashoffset"
+                      dur="2s"
+                      from="0"
+                      repeatCount="indefinite"
+                      to="14"
+                    />
+                  </line>
+                </svg>
+                <div
+                  class="inline-flex items-center rounded-md border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-border text-[11px] text-muted-foreground"
+                >
+                  pgAdmin
+                </div>
+              </div>
+              <svg
+                class="pointer-events-none absolute inset-0 z-0 hidden h-full w-full sm:block"
+                fill="none"
+                preserveAspectRatio="none"
+                viewBox="0 0 200 100"
+              >
+                <polyline
+                  fill="none"
+                  opacity="0.6"
+                  points="26,65 26,78.5 91,78.5 91,88"
+                  stroke="#34d399"
+                  stroke-dasharray="4 3"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  vector-effect="non-scaling-stroke"
+                >
+                  <animate
+                    attributeName="stroke-dashoffset"
+                    dur="2s"
+                    from="0"
+                    repeatCount="indefinite"
+                    to="-14"
+                  />
+                </polyline>
+                <polyline
+                  fill="none"
+                  opacity="0.6"
+                  points="73,65 73,74.5 93,74.5 93,88"
+                  stroke="#34d399"
+                  stroke-dasharray="4 3"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  vector-effect="non-scaling-stroke"
+                >
+                  <animate
+                    attributeName="stroke-dashoffset"
+                    begin="0.3s"
+                    dur="2s"
+                    from="0"
+                    repeatCount="indefinite"
+                    to="-14"
+                  />
+                </polyline>
+                <polyline
+                  fill="none"
+                  opacity="0.6"
+                  points="127,65 127,74.5 95,74.5 95,88"
+                  stroke="#34d399"
+                  stroke-dasharray="4 3"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  vector-effect="non-scaling-stroke"
+                >
+                  <animate
+                    attributeName="stroke-dashoffset"
+                    begin="0.6s"
+                    dur="2s"
+                    from="0"
+                    repeatCount="indefinite"
+                    to="-14"
+                  />
+                </polyline>
+                <polyline
+                  fill="none"
+                  opacity="0.6"
+                  points="174,65 174,78.5 97,78.5 97,88"
+                  stroke="#34d399"
+                  stroke-dasharray="4 3"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  vector-effect="non-scaling-stroke"
+                >
+                  <animate
+                    attributeName="stroke-dashoffset"
+                    begin="0.9s"
+                    dur="2s"
+                    from="0"
+                    repeatCount="indefinite"
+                    to="-14"
+                  />
+                </polyline>
+              </svg>
+            </div>
+            <div
+              class="mt-6 rounded-lg border border-border bg-muted p-4"
+            >
+              <p
+                class="text-center text-[12px] leading-relaxed text-muted-foreground"
+              >
+                <span
+                  class="text-foreground"
+                >
+                  OAuth2 flow:
+                </span>
+                 App → Hydra 
+                <span
+                  class="text-primary"
+                >
+                  /oauth2/auth
+                </span>
+                 → Hera
+                 
+                <span
+                  class="text-primary"
+                >
+                  /login
+                </span>
+                 → Kratos auth → 
+                <span
+                  class="text-primary"
+                >
+                  /consent
+                </span>
+                 → Hydra issues tokens → App receives code
+              </p>
+              <p
+                class="mt-1.5 text-center text-[11px] text-muted-foreground"
+              >
+                Athena admin panels authenticate via IAM Hera (employee SSO)
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+`;

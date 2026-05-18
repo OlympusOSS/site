@@ -1,0 +1,308 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GettingStartedSection (snapshot) > matches default snapshot 1`] = `
+<div>
+  <section
+    class="scroll-mt-20 px-4 py-16 landscape:py-10 sm:px-6 sm:py-20 lg:py-24"
+    id="get-started"
+  >
+    <div
+      class="mx-auto max-w-5xl"
+    >
+      <div
+        class="mb-8 text-center sm:mb-12 lg:mb-16"
+        style="opacity: 0; transform: translateY(20px);"
+      >
+        <h2
+          class="mb-3 text-2xl font-bold text-foreground sm:text-3xl"
+        >
+          Get Started
+        </h2>
+        <p
+          class="text-base text-muted-foreground"
+        >
+          Up and running in three steps — locally or in production.
+        </p>
+      </div>
+      <div
+        class="grid gap-6 sm:grid-cols-2"
+      >
+        <div
+          class="min-w-0"
+          style="opacity: 0; transform: translateX(-30px);"
+        >
+          <div
+            class="rounded-xl border border-border bg-card text-card-foreground shadow h-full"
+          >
+            <div
+              class="p-4 sm:p-6"
+            >
+              <div
+                class="mb-5 text-center sm:mb-8"
+              >
+                <h3
+                  class="text-lg font-bold text-green-500"
+                >
+                  Development
+                </h3>
+                <p
+                  class="mt-1 text-sm text-muted-foreground"
+                >
+                  octl CLI + live reload
+                </p>
+              </div>
+              <div
+                class="space-y-5 sm:space-y-6"
+              >
+                <div>
+                  <div
+                    class="mb-3 flex items-start gap-3"
+                  >
+                    <span
+                      class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary sm:h-8 sm:w-8"
+                    >
+                      01
+                    </span>
+                    <div
+                      class="min-w-0"
+                    >
+                      <h3
+                        class="text-sm font-semibold text-foreground"
+                      >
+                        Clone the repos
+                      </h3>
+                      <p
+                        class="text-[12px] leading-relaxed text-muted-foreground"
+                      >
+                        Multi-repo workspace — clone all repos as siblings.
+                      </p>
+                    </div>
+                  </div>
+                  <pre
+                    data-language="bash"
+                    data-testid="code-block"
+                  >
+                    mkdir Olympus && cd Olympus
+for repo in platform athena hera site canvas sdk; do
+  git clone https://github.com/OlympusOSS/$repo.git
+done
+                  </pre>
+                </div>
+                <div>
+                  <div
+                    class="mb-3 flex items-start gap-3"
+                  >
+                    <span
+                      class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary sm:h-8 sm:w-8"
+                    >
+                      02
+                    </span>
+                    <div
+                      class="min-w-0"
+                    >
+                      <h3
+                        class="text-sm font-semibold text-foreground"
+                      >
+                        Start the platform
+                      </h3>
+                      <p
+                        class="text-[12px] leading-relaxed text-muted-foreground"
+                      >
+                        octl bootstraps Podman, starts 13 services, and seeds test data with live reload.
+                      </p>
+                    </div>
+                  </div>
+                  <pre
+                    data-language="bash"
+                    data-testid="code-block"
+                  >
+                    npm install -g octl
+octl dev
+                  </pre>
+                </div>
+                <div>
+                  <div
+                    class="mb-3 flex items-start gap-3"
+                  >
+                    <span
+                      class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary sm:h-8 sm:w-8"
+                    >
+                      03
+                    </span>
+                    <div
+                      class="min-w-0"
+                    >
+                      <h3
+                        class="text-sm font-semibold text-foreground"
+                      >
+                        Open the apps
+                      </h3>
+                      <p
+                        class="text-[12px] leading-relaxed text-muted-foreground"
+                      >
+                        Edit app code locally — changes reflect instantly via hot reload.
+                      </p>
+                    </div>
+                  </div>
+                  <pre
+                    data-language="bash"
+                    data-testid="code-block"
+                  >
+                    # Site, docs & OAuth2 playground
+open http://localhost:2000
+
+# Admin dashboards
+open http://localhost:3001  # CIAM Admin
+open http://localhost:4001  # IAM Admin
+
+# Login: admin@demo.user / admin123!
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="min-w-0"
+          style="opacity: 0; transform: translateX(30px);"
+        >
+          <div
+            class="rounded-xl border border-border bg-card text-card-foreground shadow h-full"
+          >
+            <div
+              class="p-4 sm:p-6"
+            >
+              <div
+                class="mb-5 text-center sm:mb-8"
+              >
+                <h3
+                  class="text-lg font-bold text-primary"
+                >
+                  Production
+                </h3>
+                <p
+                  class="mt-1 text-sm text-muted-foreground"
+                >
+                  Daedalus + GitHub Actions
+                </p>
+              </div>
+              <div
+                class="space-y-5 sm:space-y-6"
+              >
+                <div>
+                  <div
+                    class="mb-3 flex items-start gap-3"
+                  >
+                    <span
+                      class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary sm:h-8 sm:w-8"
+                    >
+                      01
+                    </span>
+                    <div
+                      class="min-w-0"
+                    >
+                      <h3
+                        class="text-sm font-semibold text-foreground"
+                      >
+                        Launch Daedalus
+                      </h3>
+                      <p
+                        class="text-[12px] leading-relaxed text-muted-foreground"
+                      >
+                        The deployment wizard handles everything — VPS, DNS, certs, secrets.
+                      </p>
+                    </div>
+                  </div>
+                  <pre
+                    data-language="bash"
+                    data-testid="code-block"
+                  >
+                    # Download from GitHub Releases
+# or build from source:
+cd daedalus
+npx tauri build --debug
+                  </pre>
+                </div>
+                <div>
+                  <div
+                    class="mb-3 flex items-start gap-3"
+                  >
+                    <span
+                      class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary sm:h-8 sm:w-8"
+                    >
+                      02
+                    </span>
+                    <div
+                      class="min-w-0"
+                    >
+                      <h3
+                        class="text-sm font-semibold text-foreground"
+                      >
+                        Configure & deploy
+                      </h3>
+                      <p
+                        class="text-[12px] leading-relaxed text-muted-foreground"
+                      >
+                        Daedalus provisions your Hostinger VPS, generates SSL certs, sets GitHub Secrets, and triggers the deploy.
+                      </p>
+                    </div>
+                  </div>
+                  <pre
+                    data-language="bash"
+                    data-testid="code-block"
+                  >
+                    # Daedalus wizard configures:
+# ├── Hostinger VPS + firewall
+# ├── Domain + DNS records
+# ├── PostgreSQL SSL certificates
+# ├── GitHub Secrets & Variables
+# └── One-click deploy via GitHub Actions
+                  </pre>
+                </div>
+                <div>
+                  <div
+                    class="mb-3 flex items-start gap-3"
+                  >
+                    <span
+                      class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary sm:h-8 sm:w-8"
+                    >
+                      03
+                    </span>
+                    <div
+                      class="min-w-0"
+                    >
+                      <h3
+                        class="text-sm font-semibold text-foreground"
+                      >
+                        Push to deploy
+                      </h3>
+                      <p
+                        class="text-[12px] leading-relaxed text-muted-foreground"
+                      >
+                        Tag a release — GitHub Actions builds, pushes to GHCR, and deploys to your VPS.
+                      </p>
+                    </div>
+                  </div>
+                  <pre
+                    data-language="bash"
+                    data-testid="code-block"
+                  >
+                    # Bump version
+octl bump
+
+# CD triggers on release tags (v*)
+# ├── Build container images
+# ├── Push to GitHub Container Registry
+# ├── SSH deploy to VPS
+# └── Health check verification
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+`;

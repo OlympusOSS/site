@@ -1,0 +1,125 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`LoginButton (snapshot) > matches default tone snapshot 1`] = `
+<div>
+  <span
+    class="inline-flex items-center gap-2 text-sm font-medium"
+    style="color: hsl(var(--primary));"
+  >
+    Sign in
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-arrow-right h-3.5 w-3.5"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2.5"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M5 12h14"
+      />
+      <path
+        d="m12 5 7 7-7 7"
+      />
+    </svg>
+  </span>
+</div>
+`;
+
+exports[`LoginButton (snapshot) > matches indigo tone snapshot 1`] = `
+<div>
+  <span
+    class="inline-flex items-center gap-2 text-sm font-medium"
+    style="color: rgb(39, 56, 155);"
+  >
+    Continue
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-arrow-right h-3.5 w-3.5"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2.5"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M5 12h14"
+      />
+      <path
+        d="m12 5 7 7-7 7"
+      />
+    </svg>
+  </span>
+</div>
+`;
+
+exports[`LoginButton (snapshot) > matches slate tone snapshot 1`] = `
+<div>
+  <span
+    class="inline-flex items-center gap-2 text-sm font-medium"
+    style="color: rgb(54, 61, 99);"
+  >
+    Continue
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-arrow-right h-3.5 w-3.5"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2.5"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M5 12h14"
+      />
+      <path
+        d="m12 5 7 7-7 7"
+      />
+    </svg>
+  </span>
+</div>
+`;
+
+exports[`LoginButton (snapshot) > matches violet tone snapshot 1`] = `
+<div>
+  <span
+    class="inline-flex items-center gap-2 text-sm font-medium"
+    style="color: rgb(91, 48, 166);"
+  >
+    Continue
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-arrow-right h-3.5 w-3.5"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2.5"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M5 12h14"
+      />
+      <path
+        d="m12 5 7 7-7 7"
+      />
+    </svg>
+  </span>
+</div>
+`;

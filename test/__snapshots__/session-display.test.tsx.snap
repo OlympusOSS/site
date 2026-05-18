@@ -1,0 +1,336 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SessionDisplay (snapshot) > matches snapshot with claims missing email 1`] = `
+<div>
+  <div
+    class="space-y-3 text-[13px]"
+    style="opacity: 0; height: 0px;"
+  >
+    <div
+      class="rounded-xl border border-border bg-card text-card-foreground shadow"
+    >
+      <div
+        class="p-4"
+      >
+        <h3
+          class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          User Info
+        </h3>
+        <div
+          class="space-y-2"
+        >
+          <div
+            class="flex items-baseline gap-2"
+          >
+            <span
+              class="shrink-0 text-muted-foreground"
+            >
+              Subject
+              :
+            </span>
+            <span
+              class="truncate text-foreground font-mono text-[11px]"
+            >
+              no-email
+            </span>
+          </div>
+          <div
+            class="flex items-baseline gap-2"
+          >
+            <span
+              class="shrink-0 text-muted-foreground"
+            >
+              Scopes
+              :
+            </span>
+            <span
+              class="truncate text-foreground "
+            >
+              openid profile email
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="rounded-xl border border-border bg-card text-card-foreground shadow"
+    >
+      <button
+        class="flex w-full items-center justify-between p-4 text-left"
+        type="button"
+      >
+        <h3
+          class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          ID Token Claims
+        </h3>
+        <svg
+          class="text-muted-foreground"
+          fill="none"
+          height="16"
+          stroke="currentColor"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="16"
+        >
+          <polyline
+            points="6 9 12 15 18 9"
+          />
+        </svg>
+      </button>
+    </div>
+    <div
+      class="rounded-xl border border-border bg-card text-card-foreground shadow"
+    >
+      <div
+        class="p-4"
+      >
+        <h3
+          class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          Tokens
+        </h3>
+        <div
+          class="space-y-2"
+        >
+          <div
+            class="flex items-center justify-between"
+          >
+            <div
+              class="min-w-0 flex-1"
+            >
+              <div
+                class="flex items-baseline gap-2"
+              >
+                <span
+                  class="shrink-0 text-muted-foreground"
+                >
+                  Access Token
+                  :
+                </span>
+                <span
+                  class="truncate text-foreground font-mono text-[11px]"
+                >
+                  atoken_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+                </span>
+              </div>
+            </div>
+            <button
+              class="ml-2 shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              type="button"
+            >
+              Copy
+            </button>
+          </div>
+          <div
+            class="flex items-baseline gap-2"
+          >
+            <span
+              class="shrink-0 text-muted-foreground"
+            >
+              Type
+              :
+            </span>
+            <span
+              class="truncate text-foreground "
+            >
+              Bearer
+            </span>
+          </div>
+          <div
+            class="flex items-baseline gap-2"
+          >
+            <span
+              class="shrink-0 text-muted-foreground"
+            >
+              Expires
+              :
+            </span>
+            <span
+              class="truncate text-foreground "
+            >
+              3600s
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`SessionDisplay (snapshot) > matches snapshot with full claims 1`] = `
+<div>
+  <div
+    class="space-y-3 text-[13px]"
+    style="opacity: 0; height: 0px;"
+  >
+    <div
+      class="rounded-xl border border-border bg-card text-card-foreground shadow"
+    >
+      <div
+        class="p-4"
+      >
+        <h3
+          class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          User Info
+        </h3>
+        <div
+          class="space-y-2"
+        >
+          <div
+            class="flex items-baseline gap-2"
+          >
+            <span
+              class="shrink-0 text-muted-foreground"
+            >
+              Subject
+              :
+            </span>
+            <span
+              class="truncate text-foreground font-mono text-[11px]"
+            >
+              user-1
+            </span>
+          </div>
+          <div
+            class="flex items-baseline gap-2"
+          >
+            <span
+              class="shrink-0 text-muted-foreground"
+            >
+              Email
+              :
+            </span>
+            <span
+              class="truncate text-foreground "
+            >
+              a@b.c
+            </span>
+          </div>
+          <div
+            class="flex items-baseline gap-2"
+          >
+            <span
+              class="shrink-0 text-muted-foreground"
+            >
+              Scopes
+              :
+            </span>
+            <span
+              class="truncate text-foreground "
+            >
+              openid profile email
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="rounded-xl border border-border bg-card text-card-foreground shadow"
+    >
+      <button
+        class="flex w-full items-center justify-between p-4 text-left"
+        type="button"
+      >
+        <h3
+          class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          ID Token Claims
+        </h3>
+        <svg
+          class="text-muted-foreground"
+          fill="none"
+          height="16"
+          stroke="currentColor"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="16"
+        >
+          <polyline
+            points="6 9 12 15 18 9"
+          />
+        </svg>
+      </button>
+    </div>
+    <div
+      class="rounded-xl border border-border bg-card text-card-foreground shadow"
+    >
+      <div
+        class="p-4"
+      >
+        <h3
+          class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          Tokens
+        </h3>
+        <div
+          class="space-y-2"
+        >
+          <div
+            class="flex items-center justify-between"
+          >
+            <div
+              class="min-w-0 flex-1"
+            >
+              <div
+                class="flex items-baseline gap-2"
+              >
+                <span
+                  class="shrink-0 text-muted-foreground"
+                >
+                  Access Token
+                  :
+                </span>
+                <span
+                  class="truncate text-foreground font-mono text-[11px]"
+                >
+                  atoken_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+                </span>
+              </div>
+            </div>
+            <button
+              class="ml-2 shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              type="button"
+            >
+              Copy
+            </button>
+          </div>
+          <div
+            class="flex items-baseline gap-2"
+          >
+            <span
+              class="shrink-0 text-muted-foreground"
+            >
+              Type
+              :
+            </span>
+            <span
+              class="truncate text-foreground "
+            >
+              Bearer
+            </span>
+          </div>
+          <div
+            class="flex items-baseline gap-2"
+          >
+            <span
+              class="shrink-0 text-muted-foreground"
+            >
+              Expires
+              :
+            </span>
+            <span
+              class="truncate text-foreground "
+            >
+              3600s
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

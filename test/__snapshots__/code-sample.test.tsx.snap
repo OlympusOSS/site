@@ -1,0 +1,49 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CodeSample (snapshot) > matches default snapshot 1`] = `
+<div>
+  <section
+    class="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-24"
+  >
+    <div
+      class="mx-auto max-w-[1100px]"
+    >
+      <div
+        class="mb-6 max-w-[640px]"
+        style="opacity: 0; transform: translateY(20px);"
+      >
+        <div
+          class="mb-2 font-mono text-xs text-muted-foreground"
+        >
+          SDK
+        </div>
+        <h2
+          class="m-0 text-3xl font-semibold tracking-tight text-foreground sm:text-[32px]"
+        >
+          Three lines to your first session.
+        </h2>
+      </div>
+      <div
+        style="opacity: 0; transform: translateY(30px);"
+      >
+        <pre
+          data-language="app/auth.ts"
+          data-testid="code-block"
+        >
+          import { OlympusClient } from '@olympusoss/sdk';
+
+const olympus = new OlympusClient({
+  issuer: 'https://auth.olympus.dev',
+  clientId: 'site-ciam-client',
+  pkce: true,
+});
+
+await olympus.signIn();
+const session = await olympus.getSession();
+console.log(session.identity.traits.email);
+        </pre>
+      </div>
+    </div>
+  </section>
+</div>
+`;
