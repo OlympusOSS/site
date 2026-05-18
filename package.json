@@ -4,8 +4,8 @@
 	"private": true,
 	"description": "Olympus brochure site and OAuth2 playground",
 	"scripts": {
-		"gen": "bun run scripts/gen/index.mjs",
-		"prebuild": "bun run gen",
+		"gen": "node scripts/gen/index.mjs",
+		"prebuild": "npm run gen",
 		"dev": "next dev",
 		"build": "next build",
 		"start": "next start",

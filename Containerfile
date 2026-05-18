@@ -1,11 +1,19 @@
+# Stage 1 — install ALL deps with Bun. Bun's installer is fast and stable on
+# both arm64 and amd64 (native and emulated). The output is a standard
+# node_modules tree that the Node-based builder stage can consume directly.
 FROM oven/bun:1-alpine AS deps
 WORKDIR /app
 ARG CACHE_BUST
 COPY package.json ./
 RUN --mount=type=secret,id=npmrc,target=/app/.npmrc \
-    bun install --production
+    bun install
 
-FROM oven/bun:1-alpine AS builder
+# Stage 2 — build with Node. The previous Bun-based builder ran fine on
+# amd64 but segfaulted on `next build` under QEMU-emulated arm64 while
+# generating the 920-page MDX corpus. Node 22's arm64 build pipeline is
+# rock-solid under native and emulated arm64, so the switch is the
+# root-cause fix for multi-arch publishing.
+FROM node:22-alpine AS builder
 WORKDIR /app
 ARG CACHE_BUST
 # Tell scripts/gen/index.mjs to tolerate missing sibling repos
@@ -15,13 +23,12 @@ ARG CACHE_BUST
 # `podman build`, where the GH-Actions `CI` env var is not visible. Mirrors
 # the existing CI tolerance in scripts/gen/index.mjs.
 ENV OLYMPUS_GEN_TOLERATE_MISSING=1
-COPY package.json ./
-RUN --mount=type=secret,id=npmrc,target=/app/.npmrc \
-    bun install
-
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN bun run build
+RUN npm run build
 
+# Stage 3 — run with Bun. Bun's runtime is faster than Node for the Next.js
+# standalone server and is stable on both arm64 and amd64.
 FROM oven/bun:1-alpine AS runner
 WORKDIR /app
 RUN apk --no-cache add wget

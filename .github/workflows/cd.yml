@@ -4,12 +4,6 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      platforms:
-        description: Build platforms (comma-separated). Override to scope an emergency run, e.g. linux/amd64 only when arm64 emulation misbehaves.
-        type: string
-        default: linux/amd64,linux/arm64
-        required: false
 
 env:
   REGISTRY: ghcr.io
@@ -120,7 +114,11 @@ jobs:
         with:
           context: .
           file: ./Containerfile
-          platforms: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
+          # Every CD run publishes multi-arch. No workflow_dispatch override
+          # — if a multi-arch build hangs, fix the root cause (the Node
+          # builder swap in the Containerfile is that fix), don't fall
+          # back to amd64-only.
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.new_version }}
