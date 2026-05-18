@@ -3,7 +3,7 @@
  * Per-OAuth2-grant deep-dive pages.
  */
 
-import { writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const OUT_DIR = "content/docs/reference/grants";
@@ -36,7 +36,8 @@ const GRANTS = [
 		rfc: "RFC 6749 §4.4",
 		supported: true,
 		whenToUse: "Backend-to-backend (M2M). No user involved.",
-		summary: "Confidential client POSTs `grant_type=client_credentials` with its credentials. Hydra returns an access token (no refresh, no ID token).",
+		summary:
+			"Confidential client POSTs `grant_type=client_credentials` with its credentials. Hydra returns an access token (no refresh, no ID token).",
 		integration: "/docs/integrate/oauth2-client-credentials",
 	},
 	{
@@ -62,7 +63,8 @@ const GRANTS = [
 		rfc: "RFC 6749 §4.3 (deprecated)",
 		supported: false,
 		whenToUse: "Never. Removed in OAuth 2.1. Use Authorization Code instead.",
-		summary: "Client collected the user's password and POSTed directly to the token endpoint. The user's password is in your app — defeats the point of OAuth2 delegation.",
+		summary:
+			"Client collected the user's password and POSTed directly to the token endpoint. The user's password is in your app — defeats the point of OAuth2 delegation.",
 	},
 ];
 
@@ -80,19 +82,16 @@ for (const g of GRANTS) {
 }
 
 let overview = `---\ntitle: OAuth2 grant types\ndescription: ${JSON.stringify("Every OAuth2 grant type, supported and unsupported")}\n---\n\nOlympus supports four OAuth2 grant types and explicitly rejects two deprecated ones.\n\n## Supported\n\n| Grant | RFC | When to use |\n|-------|-----|-------------|\n`;
-for (const g of GRANTS.filter(x => x.supported)) {
+for (const g of GRANTS.filter((x) => x.supported)) {
 	overview += `| [${g.title}](./${g.slug}) | ${g.rfc} | ${g.whenToUse} |\n`;
 }
 overview += `\n## Not supported (deprecated)\n\n| Grant | RFC | Why |\n|-------|-----|-----|\n`;
-for (const g of GRANTS.filter(x => !x.supported)) {
+for (const g of GRANTS.filter((x) => !x.supported)) {
 	overview += `| [${g.title}](./${g.slug}) | ${g.rfc} | ${g.whenToUse} |\n`;
 }
 overview += `\nSee [Integrate — OAuth2 overview](/docs/integrate/oauth2-overview) for picking the right grant.\n`;
 writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
-writeFileSync(
-	join(OUT_DIR, "meta.json"),
-	JSON.stringify({ title: "Grants", pages: ["overview", ...GRANTS.map(g => g.slug)] }, null, 2),
-);
+writeFileSync(join(OUT_DIR, "meta.json"), JSON.stringify({ title: "Grants", pages: ["overview", ...GRANTS.map((g) => g.slug)] }, null, 2));
 
 console.log(`Generated ${GRANTS.length + 1} OAuth2 grant pages in ${OUT_DIR}`);

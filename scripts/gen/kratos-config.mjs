@@ -3,8 +3,8 @@
  * Generate Kratos configuration reference. One page per top-level section.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 
 const FILES = [
@@ -66,7 +66,7 @@ function formatValue(v) {
 	if (Array.isArray(v)) return `array[${v.length}]`;
 	if (typeof v === "object") return "object";
 	if (typeof v === "string") {
-		const truncated = v.length > 60 ? v.slice(0, 57) + "…" : v;
+		const truncated = v.length > 60 ? `${v.slice(0, 57)}…` : v;
 		return `\`${truncated.replace(/\|/g, "\\|").replace(/`/g, "'")}\``;
 	}
 	return `\`${String(v).replace(/\|/g, "\\|")}\``;
@@ -108,9 +108,6 @@ for (const section of Object.keys(sections).sort()) {
 overview += `\n${keys.length} keys total. Upstream schema: [Ory Kratos](https://www.ory.sh/docs/kratos/reference/configuration).\n`;
 writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
-writeFileSync(
-	join(OUT_DIR, "meta.json"),
-	JSON.stringify({ title: "kratos.yml", pages: ["overview", ...Object.keys(sections).sort()] }, null, 2),
-);
+writeFileSync(join(OUT_DIR, "meta.json"), JSON.stringify({ title: "kratos.yml", pages: ["overview", ...Object.keys(sections).sort()] }, null, 2));
 
 console.log(`Generated ${Object.keys(sections).length + 1} Kratos config pages in ${OUT_DIR}`);

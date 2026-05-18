@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
 import type { LauncherCardTone } from "@olympusoss/canvas";
+import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 const TONE_FG: Record<LauncherCardTone, string> = {
@@ -18,10 +18,7 @@ interface LoginButtonProps {
 
 export function LoginButton({ tone, children }: LoginButtonProps) {
 	return (
-		<span
-			className="inline-flex items-center gap-2 text-sm font-medium"
-			style={{ color: TONE_FG[tone] }}
-		>
+		<span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: TONE_FG[tone] }}>
 			{children}
 			<ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} />
 		</span>

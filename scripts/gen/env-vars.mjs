@@ -5,8 +5,8 @@
  * Output: site/content/docs/reference/env-vars.mdx — one page with a grouped table.
  */
 
-import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
-import { resolve, join, relative } from "node:path";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const REPOS = [
 	{ name: "athena", path: "../athena/src", pat: /process\.env\.([A-Z][A-Z0-9_]+)/g },

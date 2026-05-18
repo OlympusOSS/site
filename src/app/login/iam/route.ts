@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { generateOAuthState, buildAuthUrl } from "@/lib/oauth";
+import { buildAuthUrl, generateOAuthState } from "@/lib/oauth";
 
 export async function GET() {
 	const state = generateOAuthState();

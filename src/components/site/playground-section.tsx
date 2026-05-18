@@ -1,15 +1,11 @@
 "use client";
 
+import { Badge } from "@olympusoss/canvas";
 import { motion } from "framer-motion";
 import { Info } from "lucide-react";
-import { Badge } from "@olympusoss/canvas";
 import type { ReactNode } from "react";
 
-export function PlaygroundSection({
-	children,
-}: {
-	children: ReactNode;
-}) {
+export function PlaygroundSection({ children }: { children: ReactNode }) {
 	return (
 		<section
 			id="playground"
@@ -23,22 +19,15 @@ export function PlaygroundSection({
 					transition={{ duration: 0.5 }}
 					className="mb-9 max-w-[640px]"
 				>
-					<Badge
-						variant="outline"
-						className="try-it-out-flash border-border bg-background/60 font-mono text-[11px] font-normal"
-					>
+					<Badge variant="outline" className="try-it-out-flash border-border bg-background/60 font-mono text-[11px] font-normal">
 						try it out
 					</Badge>
 					<h2 className="mt-3.5 mb-2.5 text-3xl font-semibold tracking-tight text-foreground sm:text-[36px] sm:leading-[1.1]">
 						Live Olympus, two domains.
 					</h2>
 					<p className="m-0 text-base leading-relaxed text-muted-foreground">
-						Real instances on{" "}
-						<code className="font-mono text-sm text-foreground">
-							nannier.com
-						</code>{" "}
-						— sign in, walk through the full OAuth2 + PKCE handshake,
-						then come back with an authorization code.
+						Real instances on <code className="font-mono text-sm text-foreground">nannier.com</code> — sign in, walk through the full OAuth2 + PKCE
+						handshake, then come back with an authorization code.
 					</p>
 				</motion.div>
 
@@ -53,16 +42,8 @@ export function PlaygroundSection({
 					<div className="mt-7 flex items-start gap-3 rounded-[10px] border border-border bg-background px-4 py-3.5 text-[13px] leading-relaxed text-muted-foreground">
 						<Info className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
 						<span>
-							Each login button redirects to{" "}
-							<strong className="font-medium text-foreground">
-								Ory Hydra
-							</strong>
-							, which routes through{" "}
-							<strong className="font-medium text-foreground">
-								Hera
-							</strong>{" "}
-							for authentication before returning here with an
-							authorization code.
+							Each login button redirects to <strong className="font-medium text-foreground">Ory Hydra</strong>, which routes through{" "}
+							<strong className="font-medium text-foreground">Hera</strong> for authentication before returning here with an authorization code.
 						</span>
 					</div>
 				</motion.div>

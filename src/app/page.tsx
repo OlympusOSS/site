@@ -1,5 +1,5 @@
-import { cookies } from "next/headers";
 import { LauncherCard } from "@olympusoss/canvas";
+import { cookies } from "next/headers";
 import {
 	ArchitectureSection,
 	AuthStatusBadgeRow,
@@ -41,10 +41,7 @@ interface TokenData {
  */
 async function getLatestCanvasVersion(): Promise<string> {
 	try {
-		const res = await fetch(
-			"https://registry.npmjs.org/@olympusoss/canvas/latest",
-			{ next: { revalidate: 3600 } },
-		);
+		const res = await fetch("https://registry.npmjs.org/@olympusoss/canvas/latest", { next: { revalidate: 3600 } });
 		if (!res.ok) return "";
 		const data = (await res.json()) as { version?: string };
 		return data.version ?? "";
@@ -54,10 +51,7 @@ async function getLatestCanvasVersion(): Promise<string> {
 }
 
 export default async function HomePage() {
-	const [cookieStore, canvasVersion] = await Promise.all([
-		cookies(),
-		getLatestCanvasVersion(),
-	]);
+	const [cookieStore, canvasVersion] = await Promise.all([cookies(), getLatestCanvasVersion()]);
 
 	let ciamData: TokenData | null = null;
 	let iamData: TokenData | null = null;
@@ -76,10 +70,8 @@ export default async function HomePage() {
 		} catch {}
 	}
 
-	const ciamAthenaUrl =
-		process.env.NEXT_PUBLIC_CIAM_ATHENA_URL || "http://localhost:3001";
-	const iamAthenaUrl =
-		process.env.NEXT_PUBLIC_IAM_ATHENA_URL || "http://localhost:4001";
+	const ciamAthenaUrl = process.env.NEXT_PUBLIC_CIAM_ATHENA_URL || "http://localhost:3001";
+	const iamAthenaUrl = process.env.NEXT_PUBLIC_IAM_ATHENA_URL || "http://localhost:4001";
 
 	const ciamAuthUrl = "/login/ciam";
 	const iamAuthUrl = "/login/iam";
@@ -107,13 +99,8 @@ export default async function HomePage() {
 						{ciamData ? (
 							<AuthStatusRow>
 								<AuthStatusBadgeRow>
-									<StatusBadge
-										label="Authenticated"
-										bg="#059669"
-									/>
-									<LogoutLink href="/logout/ciam">
-										Logout
-									</LogoutLink>
+									<StatusBadge label="Authenticated" bg="#059669" />
+									<LogoutLink href="/logout/ciam">Logout</LogoutLink>
 								</AuthStatusBadgeRow>
 								<SessionDisplay data={ciamData} />
 							</AuthStatusRow>
@@ -133,13 +120,8 @@ export default async function HomePage() {
 						{iamData ? (
 							<AuthStatusRow>
 								<AuthStatusBadgeRow>
-									<StatusBadge
-										label="Authenticated"
-										bg="#059669"
-									/>
-									<LogoutLink href="/logout/iam">
-										Logout
-									</LogoutLink>
+									<StatusBadge label="Authenticated" bg="#059669" />
+									<LogoutLink href="/logout/iam">Logout</LogoutLink>
 								</AuthStatusBadgeRow>
 								<SessionDisplay data={iamData} />
 							</AuthStatusRow>

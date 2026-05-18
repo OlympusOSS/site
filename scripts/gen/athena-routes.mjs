@@ -10,8 +10,8 @@
  * Emit one MDX page per route.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { resolve, join, relative } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const APP_API = "../athena/src/app/api";
 const OUT_DIR = "content/docs/reference/api/athena";
@@ -24,7 +24,7 @@ function findRoutes(dir, base = "") {
 		const p = join(dir, e);
 		const st = statSync(p);
 		if (st.isDirectory()) {
-			out.push(...findRoutes(p, base + "/" + e));
+			out.push(...findRoutes(p, `${base}/${e}`));
 		} else if (e === "route.ts") {
 			out.push({ file: p, urlPath: base || "/" });
 		}
@@ -100,4 +100,6 @@ writeFileSync(
 	),
 );
 
-console.log(`Generated ${summaries.length} Athena route pages (${summaries.reduce((s, x) => s + x.methods.length, 0)} method handlers) in ${OUT_DIR}`);
+console.log(
+	`Generated ${summaries.length} Athena route pages (${summaries.reduce((s, x) => s + x.methods.length, 0)} method handlers) in ${OUT_DIR}`,
+);

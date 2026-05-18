@@ -9,8 +9,8 @@
  *   bun run scripts/gen/openapi-to-mdx.mjs ../athena/openapi.json content/docs/reference/api/hydra hydra
  */
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
-import { resolve, dirname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const [, , specPath, outDir, serviceName] = process.argv;
 if (!specPath || !outDir || !serviceName) {
@@ -148,7 +148,7 @@ for (const [path, pathItem] of Object.entries(spec.paths || {})) {
 	for (const method of HTTP_METHODS) {
 		const op = pathItem[method];
 		if (!op) continue;
-		const tags = op.tags && op.tags.length ? op.tags : ["other"];
+		const tags = op.tags?.length ? op.tags : ["other"];
 		operations.push({ method, path, op, tag: tags[0] });
 	}
 }
@@ -218,10 +218,7 @@ for (const tag of Object.keys(byTag).sort()) {
 		const opId = op.operationId || `${method}-${slugify(path)}`;
 		return slugify(opId);
 	});
-	writeFileSync(
-		join(tagDir, "meta.json"),
-		JSON.stringify({ title: tag, pages: ["overview", ...opSlugs] }, null, 2),
-	);
+	writeFileSync(join(tagDir, "meta.json"), JSON.stringify({ title: tag, pages: ["overview", ...opSlugs] }, null, 2));
 }
 
 // Top-level overview + meta.json
@@ -234,17 +231,23 @@ This reference is generated from the ${SERVICE_TITLE} OpenAPI specification at b
 
 ## Tags
 
-${Object.keys(byTag).sort().map((tag) => {
-	const tagSlug = slugify(tag);
-	const count = byTag[tag].length;
-	return `- [${tag}](./${tagSlug}/overview) — ${count} endpoint${count === 1 ? "" : "s"}`;
-}).join("\n")}
+${Object.keys(byTag)
+	.sort()
+	.map((tag) => {
+		const tagSlug = slugify(tag);
+		const count = byTag[tag].length;
+		return `- [${tag}](./${tagSlug}/overview) — ${count} endpoint${count === 1 ? "" : "s"}`;
+	})
+	.join("\n")}
 
 ## Total surface
 
 | Tag | Endpoint count |
 |-----|----------------|
-${Object.keys(byTag).sort().map((tag) => `| ${tag} | ${byTag[tag].length} |`).join("\n")}
+${Object.keys(byTag)
+	.sort()
+	.map((tag) => `| ${tag} | ${byTag[tag].length} |`)
+	.join("\n")}
 | **Total** | **${operations.length}** |
 `;
 writeFileSync(join(outDir, "overview.mdx"), topOverview);

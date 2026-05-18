@@ -3,8 +3,8 @@
  * Caddyfile reference. One page per host block + a global page + overview.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const SRC = "../platform/prod/Caddyfile";
 const OUT_DIR = "content/docs/reference/config/caddy";
@@ -24,7 +24,7 @@ const lines = raw.split("\n");
 const blocks = [];
 let cur = null;
 let braceDepth = 0;
-let globalBlock = { directives: [] };
+const globalBlock = { directives: [] };
 let inGlobal = false;
 
 for (const lineRaw of lines) {
@@ -65,15 +65,18 @@ for (const lineRaw of lines) {
 }
 
 function slugify(s) {
-	return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+	return s
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-|-$/g, "");
 }
 
-let globalBody = `---\ntitle: Global block\ndescription: ${JSON.stringify("Global Caddy configuration applied to all host blocks")}\n---\n\nThe Caddyfile global block applies to every host block. ${globalBlock.directives.length} directives.\n\n\`\`\`text\n${globalBlock.directives.join("\n")}\n\`\`\`\n\nSee [Caddy directives reference](https://caddyserver.com/docs/caddyfile/options).\n`;
+const globalBody = `---\ntitle: Global block\ndescription: ${JSON.stringify("Global Caddy configuration applied to all host blocks")}\n---\n\nThe Caddyfile global block applies to every host block. ${globalBlock.directives.length} directives.\n\n\`\`\`text\n${globalBlock.directives.join("\n")}\n\`\`\`\n\nSee [Caddy directives reference](https://caddyserver.com/docs/caddyfile/options).\n`;
 writeFileSync(join(OUT_DIR, "global.mdx"), globalBody);
 
 for (const b of blocks) {
 	const slug = slugify(b.host);
-	let body = `---\ntitle: ${JSON.stringify(b.host)}\ndescription: ${JSON.stringify(`Caddy host block for ${b.host}`)}\n---\n\nHost block for \`${b.host}\` — ${b.directives.length} directives.\n\n\`\`\`text\n${b.directives.join("\n")}\n\`\`\`\n\n## Upstream reference\n\n- [Caddy directives](https://caddyserver.com/docs/caddyfile/directives)\n- [reverse_proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)\n- [rate_limit module](https://github.com/mholt/caddy-ratelimit)\n`;
+	const body = `---\ntitle: ${JSON.stringify(b.host)}\ndescription: ${JSON.stringify(`Caddy host block for ${b.host}`)}\n---\n\nHost block for \`${b.host}\` — ${b.directives.length} directives.\n\n\`\`\`text\n${b.directives.join("\n")}\n\`\`\`\n\n## Upstream reference\n\n- [Caddy directives](https://caddyserver.com/docs/caddyfile/directives)\n- [reverse_proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)\n- [rate_limit module](https://github.com/mholt/caddy-ratelimit)\n`;
 	writeFileSync(join(OUT_DIR, `${slug}.mdx`), body);
 }
 
@@ -84,7 +87,7 @@ writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
 writeFileSync(
 	join(OUT_DIR, "meta.json"),
-	JSON.stringify({ title: "Caddyfile", pages: ["overview", "global", ...blocks.map(b => slugify(b.host))] }, null, 2),
+	JSON.stringify({ title: "Caddyfile", pages: ["overview", "global", ...blocks.map((b) => slugify(b.host))] }, null, 2),
 );
 
 console.log(`Generated ${blocks.length + 2} Caddy config pages in ${OUT_DIR}`);

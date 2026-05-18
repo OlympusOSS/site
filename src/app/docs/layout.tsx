@@ -3,12 +3,9 @@ import type { ReactNode } from "react";
 import { source } from "../../../source";
 
 export default function Layout({ children }: { children: ReactNode }) {
-  return (
-    <DocsLayout
-      tree={source.pageTree}
-      nav={{ title: "Olympus Docs" }}
-    >
-      {children}
-    </DocsLayout>
-  );
+	return (
+		<DocsLayout tree={source.pageTree} nav={{ title: "Olympus Docs" }}>
+			{children}
+		</DocsLayout>
+	);
 }

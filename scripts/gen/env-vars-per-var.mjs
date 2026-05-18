@@ -5,8 +5,8 @@
  * page per env var with detailed metadata.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, readdirSync, statSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const REPOS = [
 	{ name: "athena", path: "../athena/src", pat: /process\.env\.([A-Z][A-Z0-9_]+)/g },
@@ -182,7 +182,7 @@ for (const v of vars) {
 let overview = `---\ntitle: Environment variables\ndescription: ${JSON.stringify(`${vars.length} environment variables referenced across Olympus`)}\n---\n\nThis section lists every environment variable read by any Olympus service. Each variable has its own page with purpose, sensitivity, and rotation guidance.\n\n## Catalog\n\n| Variable | athena | hera | sdk | site | octl | daedalus | Secret |\n|----------|:------:|:----:|:---:|:----:|:----:|:--------:|:------:|\n`;
 for (const v of vars) {
 	const s = byVar[v];
-	const isSecret = (OVERLAY[v]?.secret) ? "yes" : "—";
+	const isSecret = OVERLAY[v]?.secret ? "yes" : "—";
 	overview += `| [\`${v}\`](./${slugify(v)}) | ${s.has("athena") ? "✓" : ""} | ${s.has("hera") ? "✓" : ""} | ${s.has("sdk") ? "✓" : ""} | ${s.has("site") ? "✓" : ""} | ${s.has("octl") ? "✓" : ""} | ${s.has("daedalus") ? "✓" : ""} | ${isSecret} |\n`;
 }
 overview += `\n## Total: ${vars.length} variables.\n`;

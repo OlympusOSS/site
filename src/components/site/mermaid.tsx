@@ -42,10 +42,5 @@ export function Mermaid({ chart }: { chart: string }) {
 		);
 	}
 
-	return (
-		<div
-			ref={ref}
-			className="my-6 flex justify-center overflow-x-auto rounded border border-fd-border bg-fd-card p-4"
-		/>
-	);
+	return <div ref={ref} className="my-6 flex justify-center overflow-x-auto rounded border border-fd-border bg-fd-card p-4" />;
 }

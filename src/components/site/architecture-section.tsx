@@ -1,7 +1,7 @@
 "use client";
 
+import { Badge, Card, CardContent } from "@olympusoss/canvas";
 import { motion } from "framer-motion";
-import { Card, CardContent, Badge } from "@olympusoss/canvas";
 
 /* Simple inline SVG icons for platform badges */
 function PhoneIcon() {
@@ -84,45 +84,19 @@ function PlatformIcon({ type }: { type: "phone" | "globe" }) {
  */
 function ConnectionOverlay({ color, showAthenaToHera }: { color: string; showAthenaToHera?: boolean }) {
 	return (
-		<svg
-			className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-			viewBox="0 0 100 100"
-			preserveAspectRatio="none"
-			fill="none"
-		>
+		<svg className="pointer-events-none absolute inset-0 z-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" fill="none">
 			{/* Hera (cx=23, bot=47) <-> Hydra (cx=23, top=68) — vertical left */}
-			<line
-				x1="23" y1="47" x2="23" y2="68"
-				stroke={color}
-				strokeWidth="1.5"
-				strokeDasharray="4 3"
-				opacity="0.7"
-				vectorEffect="non-scaling-stroke"
-			>
+			<line x1="23" y1="47" x2="23" y2="68" stroke={color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" vectorEffect="non-scaling-stroke">
 				<animate attributeName="stroke-dashoffset" from="0" to="-14" dur="2s" repeatCount="indefinite" />
 			</line>
 
 			{/* Athena (cx=77, bot=47) <-> Kratos (cx=77, top=68) — vertical right */}
-			<line
-				x1="77" y1="47" x2="77" y2="68"
-				stroke={color}
-				strokeWidth="1.5"
-				strokeDasharray="4 3"
-				opacity="0.7"
-				vectorEffect="non-scaling-stroke"
-			>
+			<line x1="77" y1="47" x2="77" y2="68" stroke={color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" vectorEffect="non-scaling-stroke">
 				<animate attributeName="stroke-dashoffset" from="0" to="-14" dur="2s" begin="0.5s" repeatCount="indefinite" />
 			</line>
 
 			{/* Hydra (right=47) <-> Kratos (left=53) — horizontal bottom */}
-			<line
-				x1="47" y1="84" x2="53" y2="84"
-				stroke={color}
-				strokeWidth="1.5"
-				strokeDasharray="4 3"
-				opacity="0.7"
-				vectorEffect="non-scaling-stroke"
-			>
+			<line x1="47" y1="84" x2="53" y2="84" stroke={color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" vectorEffect="non-scaling-stroke">
 				<animate attributeName="stroke-dashoffset" from="0" to="-14" dur="2s" begin="1s" repeatCount="indefinite" />
 			</line>
 
@@ -142,14 +116,7 @@ function ConnectionOverlay({ color, showAthenaToHera }: { color: string; showAth
 
 			{/* Athena (right~55) -> Hera (left~45) — horizontal top (IAM only: Athena authenticates via Hera) */}
 			{showAthenaToHera && (
-				<line
-					x1="55" y1="30" x2="45" y2="30"
-					stroke={color}
-					strokeWidth="1.5"
-					strokeDasharray="4 3"
-					opacity="0.7"
-					vectorEffect="non-scaling-stroke"
-				>
+				<line x1="55" y1="30" x2="45" y2="30" stroke={color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.7" vectorEffect="non-scaling-stroke">
 					<animate attributeName="stroke-dashoffset" from="0" to="-14" dur="2s" begin="0.7s" repeatCount="indefinite" />
 				</line>
 			)}
@@ -176,10 +143,7 @@ function DomainColumn({
 	showAthenaToHera?: boolean;
 }) {
 	return (
-		<div
-			className="rounded-xl border p-5"
-			style={{ borderColor: `${borderColor}40` }}
-		>
+		<div className="rounded-xl border p-5" style={{ borderColor: `${borderColor}40` }}>
 			<div className="mb-4 text-center">
 				<h4 className="text-sm font-semibold text-foreground">{title}</h4>
 				<p className="text-[11px] text-muted-foreground">{subtitle}</p>
@@ -190,20 +154,12 @@ function DomainColumn({
 
 				<div className="relative z-10 grid grid-cols-2 gap-6">
 					{services.map((svc) => (
-						<div
-							key={svc.name}
-							className="rounded-lg border border-border bg-card px-3 py-2.5 text-center"
-						>
-							<div className="text-xs font-medium text-foreground">
-								{svc.name}
-							</div>
+						<div key={svc.name} className="rounded-lg border border-border bg-card px-3 py-2.5 text-center">
+							<div className="text-xs font-medium text-foreground">{svc.name}</div>
 							{svc.platforms && (
 								<div className="mt-1 flex items-center justify-center gap-2">
 									{svc.platforms.map((p) => (
-										<div
-											key={p.label}
-											className="flex items-center gap-0.5 text-[9px] text-muted-foreground"
-										>
+										<div key={p.label} className="flex items-center gap-0.5 text-[9px] text-muted-foreground">
 											<PlatformIcon type={p.icon} />
 											<span>{p.label}</span>
 										</div>
@@ -229,12 +185,9 @@ export function ArchitectureSection() {
 					transition={{ duration: 0.5 }}
 					className="mb-8 text-center sm:mb-12 lg:mb-16"
 				>
-					<h2 className="mb-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-						Dual-domain architecture
-					</h2>
+					<h2 className="mb-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Dual-domain architecture</h2>
 					<p className="text-base text-muted-foreground">
-						Separate identity domains for customers and employees —
-						clean isolation, shared infrastructure.
+						Separate identity domains for customers and employees — clean isolation, shared infrastructure.
 					</p>
 				</motion.div>
 
@@ -254,13 +207,7 @@ export function ArchitectureSection() {
 							<div className="relative">
 								{/* Two domains side by side */}
 								<div className="relative grid gap-4 sm:grid-cols-2">
-									<DomainColumn
-										title="CIAM"
-										subtitle="Customer identity"
-										services={CIAM_SERVICES}
-										borderColor="#6366f1"
-										lineColor="#818cf8"
-									/>
+									<DomainColumn title="CIAM" subtitle="Customer identity" services={CIAM_SERVICES} borderColor="#6366f1" lineColor="#818cf8" />
 									<DomainColumn
 										title="IAM"
 										subtitle="Employee identity"
@@ -297,21 +244,13 @@ export function ArchitectureSection() {
 
 								{/* Shared services */}
 								<div className="relative flex flex-wrap items-center justify-center gap-3 rounded-xl border border-success/20 bg-success/5 px-5 py-3">
-									<span className="text-[11px] font-medium uppercase tracking-wider text-success">
-										Shared
-									</span>
+									<span className="text-[11px] font-medium uppercase tracking-wider text-success">Shared</span>
 									<Badge variant="outline" className="border-border text-[11px] text-muted-foreground">
 										PostgreSQL
 									</Badge>
 									{/* Animated dotted line: pgAdmin -> PostgreSQL (flows right-to-left) */}
 									<svg width="48" height="2" viewBox="0 0 48 2" fill="none" className="-mx-3">
-										<line
-											x1="0" y1="1" x2="48" y2="1"
-											stroke={DB_COLOR}
-											strokeWidth="1.5"
-											strokeDasharray="4 3"
-											opacity="0.6"
-										>
+										<line x1="0" y1="1" x2="48" y2="1" stroke={DB_COLOR} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6">
 											<animate attributeName="stroke-dashoffset" from="0" to="14" dur="2s" repeatCount="indefinite" />
 										</line>
 									</svg>
@@ -388,18 +327,11 @@ export function ArchitectureSection() {
 							{/* Flow description */}
 							<div className="mt-6 rounded-lg border border-border bg-muted p-4">
 								<p className="text-center text-[12px] leading-relaxed text-muted-foreground">
-									<span className="text-foreground">OAuth2 flow:</span>{" "}
-									App → Hydra{" "}
-									<span className="text-primary">/oauth2/auth</span>{" "}
-									→ Hera{" "}
-									<span className="text-primary">/login</span> →
-									Kratos auth →{" "}
-									<span className="text-primary">/consent</span> →
-									Hydra issues tokens → App receives code
+									<span className="text-foreground">OAuth2 flow:</span> App → Hydra <span className="text-primary">/oauth2/auth</span> → Hera{" "}
+									<span className="text-primary">/login</span> → Kratos auth → <span className="text-primary">/consent</span> → Hydra issues tokens →
+									App receives code
 								</p>
-								<p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-									Athena admin panels authenticate via IAM Hera (employee SSO)
-								</p>
+								<p className="mt-1.5 text-center text-[11px] text-muted-foreground">Athena admin panels authenticate via IAM Hera (employee SSO)</p>
 							</div>
 						</CardContent>
 					</Card>

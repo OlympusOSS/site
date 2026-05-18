@@ -1,6 +1,6 @@
-import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { ImageResponse } from "next/og";
 
 /**
  * Open Graph / Twitter card image for the homepage.

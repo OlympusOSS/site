@@ -1,7 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Card, CardContent, CodeBlock } from "@olympusoss/canvas";
+import { motion } from "framer-motion";
 
 interface Step {
 	number: string;
@@ -18,15 +18,14 @@ const DEV_STEPS: Step[] = [
 		description: "Multi-repo workspace — clone all repos as siblings.",
 		code: `mkdir Olympus && cd Olympus
 for repo in platform athena hera site canvas sdk; do
-  git clone https://github.com/OlympusOSS/\$repo.git
+  git clone https://github.com/OlympusOSS/$repo.git
 done`,
 		language: "bash",
 	},
 	{
 		number: "02",
 		title: "Start the platform",
-		description:
-			"octl bootstraps Podman, starts 13 services, and seeds test data with live reload.",
+		description: "octl bootstraps Podman, starts 13 services, and seeds test data with live reload.",
 		code: `npm install -g octl
 octl dev`,
 		language: "bash",
@@ -61,8 +60,7 @@ npx tauri build --debug`,
 	{
 		number: "02",
 		title: "Configure & deploy",
-		description:
-			"Daedalus provisions your Hostinger VPS, generates SSL certs, sets GitHub Secrets, and triggers the deploy.",
+		description: "Daedalus provisions your Hostinger VPS, generates SSL certs, sets GitHub Secrets, and triggers the deploy.",
 		code: `# Daedalus wizard configures:
 # ├── Hostinger VPS + firewall
 # ├── Domain + DNS records
@@ -74,8 +72,7 @@ npx tauri build --debug`,
 	{
 		number: "03",
 		title: "Push to deploy",
-		description:
-			"Tag a release — GitHub Actions builds, pushes to GHCR, and deploys to your VPS.",
+		description: "Tag a release — GitHub Actions builds, pushes to GHCR, and deploys to your VPS.",
 		code: `# Bump version
 octl bump
 
@@ -96,12 +93,8 @@ function StepCard({ step }: { step: Step }) {
 					{step.number}
 				</span>
 				<div className="min-w-0">
-					<h3 className="text-sm font-semibold text-foreground">
-						{step.title}
-					</h3>
-					<p className="text-[12px] leading-relaxed text-muted-foreground">
-						{step.description}
-					</p>
+					<h3 className="text-sm font-semibold text-foreground">{step.title}</h3>
+					<p className="text-[12px] leading-relaxed text-muted-foreground">{step.description}</p>
 				</div>
 			</div>
 			<CodeBlock code={step.code} language={step.language} />
@@ -120,13 +113,8 @@ export function GettingStartedSection() {
 					transition={{ duration: 0.5 }}
 					className="mb-8 text-center sm:mb-12 lg:mb-16"
 				>
-					<h2 className="mb-3 text-2xl font-bold text-foreground sm:text-3xl">
-						Get Started
-					</h2>
-					<p className="text-base text-muted-foreground">
-						Up and running in three steps — locally or in
-						production.
-					</p>
+					<h2 className="mb-3 text-2xl font-bold text-foreground sm:text-3xl">Get Started</h2>
+					<p className="text-base text-muted-foreground">Up and running in three steps — locally or in production.</p>
 				</motion.div>
 
 				<div className="grid gap-6 sm:grid-cols-2">
@@ -141,19 +129,12 @@ export function GettingStartedSection() {
 						<Card className="h-full">
 							<CardContent className="p-4 sm:p-6">
 								<div className="mb-5 text-center sm:mb-8">
-									<h3 className="text-lg font-bold text-green-500">
-										Development
-									</h3>
-									<p className="mt-1 text-sm text-muted-foreground">
-										octl CLI + live reload
-									</p>
+									<h3 className="text-lg font-bold text-green-500">Development</h3>
+									<p className="mt-1 text-sm text-muted-foreground">octl CLI + live reload</p>
 								</div>
 								<div className="space-y-5 sm:space-y-6">
 									{DEV_STEPS.map((step) => (
-										<StepCard
-											key={step.number}
-											step={step}
-										/>
+										<StepCard key={step.number} step={step} />
 									))}
 								</div>
 							</CardContent>
@@ -171,19 +152,12 @@ export function GettingStartedSection() {
 						<Card className="h-full">
 							<CardContent className="p-4 sm:p-6">
 								<div className="mb-5 text-center sm:mb-8">
-									<h3 className="text-lg font-bold text-primary">
-										Production
-									</h3>
-									<p className="mt-1 text-sm text-muted-foreground">
-										Daedalus + GitHub Actions
-									</p>
+									<h3 className="text-lg font-bold text-primary">Production</h3>
+									<p className="mt-1 text-sm text-muted-foreground">Daedalus + GitHub Actions</p>
 								</div>
 								<div className="space-y-5 sm:space-y-6">
 									{PROD_STEPS.map((step) => (
-										<StepCard
-											key={step.number}
-											step={step}
-										/>
+										<StepCard key={step.number} step={step} />
 									))}
 								</div>
 							</CardContent>

@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { RootProvider } from "fumadocs-ui/provider/next";
+import type { Metadata } from "next";
 import "fumadocs-ui/style.css";
 import "@/styles/globals.css";
 
@@ -39,11 +39,7 @@ export const metadata: Metadata = {
 	},
 };
 
-export default function RootLayout({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
 	return (
 		<html lang="en" className="scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
 			<body className="min-h-screen antialiased">

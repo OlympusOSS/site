@@ -3,7 +3,7 @@
  * Per-MFA-method deep-dive pages.
  */
 
-import { writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const OUT_DIR = "content/docs/reference/mfa";
@@ -59,7 +59,8 @@ const METHODS = [
 		weaknesses: ["SIM swap (SMS)", "Email compromise gives access", "Latency"],
 		enrollment: "Implicit — the verified email/phone IS the channel.",
 		recoveryStory: "User regains channel access via separate channel.",
-		olympusNote: "Olympus's default doesn't include SMS (no SMS provider configured). Email-code is available via the recovery flow but typically not for ongoing MFA.",
+		olympusNote:
+			"Olympus's default doesn't include SMS (no SMS provider configured). Email-code is available via the recovery flow but typically not for ongoing MFA.",
 	},
 	{
 		slug: "step-up",
@@ -77,7 +78,7 @@ const METHODS = [
 ];
 
 for (const m of METHODS) {
-	let body = `---\ntitle: ${JSON.stringify(m.name)}\ndescription: ${JSON.stringify(m.summary)}\n---\n\n# ${m.fullName}\n\n**Spec:** ${m.rfc}\n\n**Provides AAL:** ${m.aal}\n\n## Summary\n\n${m.summary}\n\n## Strengths\n\n${m.strengths.map(s => `- ${s}`).join("\n")}\n\n## Weaknesses\n\n${m.weaknesses.map(w => `- ${w}`).join("\n")}\n\n## Enrollment\n\n${m.enrollment}\n\n## Recovery\n\n${m.recoveryStory}\n\n`;
+	let body = `---\ntitle: ${JSON.stringify(m.name)}\ndescription: ${JSON.stringify(m.summary)}\n---\n\n# ${m.fullName}\n\n**Spec:** ${m.rfc}\n\n**Provides AAL:** ${m.aal}\n\n## Summary\n\n${m.summary}\n\n## Strengths\n\n${m.strengths.map((s) => `- ${s}`).join("\n")}\n\n## Weaknesses\n\n${m.weaknesses.map((w) => `- ${w}`).join("\n")}\n\n## Enrollment\n\n${m.enrollment}\n\n## Recovery\n\n${m.recoveryStory}\n\n`;
 	if (m.olympusNote) body += `## Olympus specifics\n\n${m.olympusNote}\n\n`;
 	body += `## Related\n\n- [Identity — TOTP and WebAuthn](/docs/identity/totp-and-webauthn)\n- [Identity — MFA policy](/docs/identity/mfa-policy)\n- [Identity — Sessions, AAL, refresh](/docs/identity/sessions-aal-refresh)\n`;
 	writeFileSync(join(OUT_DIR, `${m.slug}.mdx`), body);
@@ -85,15 +86,13 @@ for (const m of METHODS) {
 
 let overview = `---\ntitle: MFA methods\ndescription: ${JSON.stringify("Multi-factor authentication methods supported by Olympus")}\n---\n\nOlympus supports four primary MFA methods plus a step-up mechanism.\n\n| Method | AAL | Phishing-resistant |\n|--------|-----|--------------------|\n`;
 for (const m of METHODS) {
-	const phishResistant = m.slug === "webauthn" ? "**Yes**" : m.slug === "totp" ? "no" : m.slug === "lookup-secret" ? "no" : m.slug === "code" ? "no" : "—";
+	const phishResistant =
+		m.slug === "webauthn" ? "**Yes**" : m.slug === "totp" ? "no" : m.slug === "lookup-secret" ? "no" : m.slug === "code" ? "no" : "—";
 	overview += `| [${m.name}](./${m.slug}) | ${m.aal} | ${phishResistant} |\n`;
 }
 overview += `\n**Recommendation:** WebAuthn for primary MFA, lookup-secret as fallback. See [Identity — MFA policy](/docs/identity/mfa-policy).\n`;
 writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
-writeFileSync(
-	join(OUT_DIR, "meta.json"),
-	JSON.stringify({ title: "MFA methods", pages: ["overview", ...METHODS.map(m => m.slug)] }, null, 2),
-);
+writeFileSync(join(OUT_DIR, "meta.json"), JSON.stringify({ title: "MFA methods", pages: ["overview", ...METHODS.map((m) => m.slug)] }, null, 2));
 
 console.log(`Generated ${METHODS.length + 1} MFA method pages in ${OUT_DIR}`);

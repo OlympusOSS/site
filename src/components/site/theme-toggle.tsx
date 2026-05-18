@@ -26,12 +26,7 @@ export function ThemeToggle() {
 
 	if (!mounted) {
 		// Reserve the same dimensions so the nav doesn't shift on hydrate.
-		return (
-			<span
-				aria-hidden="true"
-				className="inline-block h-8 w-8 rounded-full"
-			/>
-		);
+		return <span aria-hidden="true" className="inline-block h-8 w-8 rounded-full" />;
 	}
 
 	const isDark = resolvedTheme === "dark";

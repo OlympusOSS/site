@@ -3,8 +3,8 @@
  * Generate identity schema reference pages from the JSON Schema files.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const OUT_DIR = "content/docs/reference/schemas";
 const SCHEMAS = [
@@ -64,7 +64,7 @@ for (const s of SCHEMAS) {
 		continue;
 	}
 
-	const id = schema["$id"] || s.slug;
+	const id = schema.$id || s.slug;
 	const title = schema.title || s.title;
 	const rows = walkSchema(schema);
 

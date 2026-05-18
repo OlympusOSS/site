@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@olympusoss/canvas";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 
 interface TokenData {
@@ -18,19 +18,11 @@ interface TokenData {
 	};
 }
 
-function InfoRow({
-	label,
-	value,
-	mono,
-}: { label: string; value: string; mono?: boolean }) {
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
 	return (
 		<div className="flex items-baseline gap-2">
 			<span className="shrink-0 text-muted-foreground">{label}:</span>
-			<span
-				className={`truncate text-foreground ${mono ? "font-mono text-[11px]" : ""}`}
-			>
-				{value}
-			</span>
+			<span className={`truncate text-foreground ${mono ? "font-mono text-[11px]" : ""}`}>{value}</span>
 		</div>
 	);
 }
@@ -54,28 +46,18 @@ export function SessionDisplay({ data }: { data: TokenData }) {
 		>
 			<Card>
 				<CardContent className="p-4">
-					<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-						User Info
-					</h3>
+					<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">User Info</h3>
 					<div className="space-y-2">
 						<InfoRow label="Subject" value={data.claims.sub} mono />
-						{data.claims.email && (
-							<InfoRow label="Email" value={data.claims.email as string} />
-						)}
+						{data.claims.email && <InfoRow label="Email" value={data.claims.email as string} />}
 						<InfoRow label="Scopes" value={data.scope} />
 					</div>
 				</CardContent>
 			</Card>
 
 			<Card>
-				<button
-					type="button"
-					onClick={() => setShowClaims(!showClaims)}
-					className="flex w-full items-center justify-between p-4 text-left"
-				>
-					<h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-						ID Token Claims
-					</h3>
+				<button type="button" onClick={() => setShowClaims(!showClaims)} className="flex w-full items-center justify-between p-4 text-left">
+					<h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ID Token Claims</h3>
 					<motion.svg
 						animate={{ rotate: showClaims ? 180 : 0 }}
 						transition={{ duration: 0.2 }}
@@ -109,17 +91,11 @@ export function SessionDisplay({ data }: { data: TokenData }) {
 
 			<Card>
 				<CardContent className="p-4">
-					<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-						Tokens
-					</h3>
+					<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tokens</h3>
 					<div className="space-y-2">
 						<div className="flex items-center justify-between">
 							<div className="min-w-0 flex-1">
-								<InfoRow
-									label="Access Token"
-									value={`${data.access_token.substring(0, 40)}\u2026`}
-									mono
-								/>
+								<InfoRow label="Access Token" value={`${data.access_token.substring(0, 40)}\u2026`} mono />
 							</div>
 							<button
 								type="button"

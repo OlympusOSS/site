@@ -3,7 +3,7 @@
  * Per-error-code reference pages — Athena, Kratos, Hydra, OAuth2 RFC.
  */
 
-import { writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const OUT_DIR = "content/docs/reference/errors-detail";
@@ -179,8 +179,8 @@ const ERRORS = [
 
 for (const e of ERRORS) {
 	let body = `---\ntitle: ${JSON.stringify(`${e.code}`)}\ndescription: ${JSON.stringify(`${e.summary} — source: ${e.source}`)}\n---\n\n# \`${e.code}\`\n\n**Source:** ${e.source}\n\n**HTTP:** ${e.http}\n\n## Summary\n\n${e.summary}\n\n## When this fires\n\n${e.when}\n\n`;
-	if (e.causes && e.causes.length) {
-		body += `## Common causes\n\n${e.causes.map(c => `- ${c}`).join("\n")}\n\n`;
+	if (e.causes?.length) {
+		body += `## Common causes\n\n${e.causes.map((c) => `- ${c}`).join("\n")}\n\n`;
 	}
 	body += `## Fix\n\n${e.fix}\n\n`;
 	body += `## Source code\n\nGenerated from the platform's error catalog. To find emit sites: \`grep -r "${e.code}" ../<repo>/src\`.\n`;
@@ -200,9 +200,6 @@ for (const source of Object.keys(bySource).sort()) {
 }
 writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
-writeFileSync(
-	join(OUT_DIR, "meta.json"),
-	JSON.stringify({ title: "Error catalog", pages: ["overview", ...ERRORS.map(e => e.slug)] }, null, 2),
-);
+writeFileSync(join(OUT_DIR, "meta.json"), JSON.stringify({ title: "Error catalog", pages: ["overview", ...ERRORS.map((e) => e.slug)] }, null, 2));
 
 console.log(`Generated ${ERRORS.length + 1} error catalog pages in ${OUT_DIR}`);

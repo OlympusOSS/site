@@ -9,8 +9,8 @@
  * Emit one MDX page per source file.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
-import { resolve, join, basename } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 
 const SDK_SRC = "../sdk/src";
 const OUT_DIR = "content/docs/reference/api/sdk";
@@ -38,7 +38,7 @@ function extractExports(content) {
 	return exports;
 }
 
-function extractModuleDoc() {
+function _extractModuleDoc() {
 	// Skip: we don't include JSDoc verbatim to avoid MDX parsing issues.
 	return "";
 }
@@ -68,7 +68,7 @@ for (const file of files) {
 	} else {
 		for (const e of exports) {
 			body += `### \`${e.name}\` (\`${e.kind}\`)\n\n`;
-			body += `\`\`\`ts\n${e.kind} ${e.name}${e.tail ? " " + e.tail : ""}\n\`\`\`\n\n`;
+			body += `\`\`\`ts\n${e.kind} ${e.name}${e.tail ? ` ${e.tail}` : ""}\n\`\`\`\n\n`;
 		}
 	}
 
@@ -80,7 +80,10 @@ for (const file of files) {
 // Overview
 let overview = `---\ntitle: SDK API\ndescription: "@olympusoss/sdk exported API surface"\n---\n\nThe SDK is consumed by Athena, Hera, and Site. It provides:\n- Settings vault (key-value in the \`olympus\` database)\n- AES-256-GCM encryption with HKDF-SHA256 key derivation\n- In-memory TTL cache for hot reads\n- Brute-force tracking, lockout, and security audit\n- Session location tracking\n\nThe API is small. There are no async iterators, no event emitters, no streaming. Most functions are async (read/write Postgres) and return well-typed data.\n\n## Modules\n\n| Module | Exports | Description |\n|--------|---------|-------------|\n`;
 for (const m of moduleSummaries.sort((a, b) => a.name.localeCompare(b.name))) {
-	overview += `| [${m.name}](./${m.name}) | ${m.exports.length} | ${m.exports.slice(0, 3).map((e) => `\`${e.name}\``).join(", ")}${m.exports.length > 3 ? ", …" : ""} |\n`;
+	overview += `| [${m.name}](./${m.name}) | ${m.exports.length} | ${m.exports
+		.slice(0, 3)
+		.map((e) => `\`${e.name}\``)
+		.join(", ")}${m.exports.length > 3 ? ", …" : ""} |\n`;
 }
 overview += `\n## Installation\n\n\`\`\`bash\nbun add @olympusoss/sdk\n\`\`\`\n\n`;
 overview += `## Required environment\n\nThe SDK requires:\n- \`DATABASE_URL\` — Postgres connection string\n- \`ENCRYPTION_KEY\` — 32-byte base64-encoded key for AES-256-GCM (see [Security — Encryption at Rest](/docs/security/encryption-at-rest))\n\nSee the [environment variable catalog](/docs/reference/env-vars) for the full list.\n`;

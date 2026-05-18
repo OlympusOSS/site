@@ -6,11 +6,11 @@ export { HeroSection } from "./hero-section";
 export { LoginButton } from "./login-button";
 export { NavBar } from "./nav-bar";
 export {
-	PlaygroundGrid,
-	PlaygroundAdminSection,
-	AuthStatusRow,
 	AuthStatusBadgeRow,
+	AuthStatusRow,
 	LogoutLink,
+	PlaygroundAdminSection,
+	PlaygroundGrid,
 } from "./playground-grid";
 export { PlaygroundSection } from "./playground-section";
 export { SessionDisplay } from "./session-display";

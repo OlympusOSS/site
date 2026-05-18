@@ -3,8 +3,8 @@
  * Generate per-feature-module pages for athena/src/features/.
  */
 
-import { writeFileSync, mkdirSync, existsSync, rmSync, readdirSync, statSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const FEATURES_DIR = "../athena/src/features";
 const OUT_DIR = "content/docs/reference/api/athena-features";
@@ -56,9 +56,6 @@ for (const f of features) {
 overview += `\nSee [Internals — Athena features](/docs/internals/athena-features) for the architectural pattern.\n`;
 writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
-writeFileSync(
-	join(OUT_DIR, "meta.json"),
-	JSON.stringify({ title: "Athena features", pages: ["overview", ...features] }, null, 2),
-);
+writeFileSync(join(OUT_DIR, "meta.json"), JSON.stringify({ title: "Athena features", pages: ["overview", ...features] }, null, 2));
 
 console.log(`Generated ${features.length + 1} athena feature pages in ${OUT_DIR}`);

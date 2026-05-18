@@ -26,12 +26,8 @@ export function CodeSample() {
 					transition={{ duration: 0.5 }}
 					className="mb-6 max-w-[640px]"
 				>
-					<div className="mb-2 font-mono text-xs text-muted-foreground">
-						SDK
-					</div>
-					<h2 className="m-0 text-3xl font-semibold tracking-tight text-foreground sm:text-[32px]">
-						Three lines to your first session.
-					</h2>
+					<div className="mb-2 font-mono text-xs text-muted-foreground">SDK</div>
+					<h2 className="m-0 text-3xl font-semibold tracking-tight text-foreground sm:text-[32px]">Three lines to your first session.</h2>
 				</motion.div>
 
 				<motion.div

@@ -7,11 +7,7 @@ export function PlaygroundGrid({ children }: { children: ReactNode }) {
 }
 
 export function PlaygroundAdminHeading() {
-	return (
-		<div className="mb-4 font-mono text-[12px] uppercase tracking-[0.08em] text-muted-foreground">
-			Admin panels
-		</div>
-	);
+	return <div className="mb-4 font-mono text-[12px] uppercase tracking-[0.08em] text-muted-foreground">Admin panels</div>;
 }
 
 export function PlaygroundAdminSection({ children }: { children: ReactNode }) {
@@ -31,13 +27,7 @@ export function AuthStatusBadgeRow({ children }: { children: ReactNode }) {
 	return <div className="flex items-center gap-2">{children}</div>;
 }
 
-export function LogoutLink({
-	href,
-	children,
-}: {
-	href: string;
-	children: ReactNode;
-}) {
+export function LogoutLink({ href, children }: { href: string; children: ReactNode }) {
 	return (
 		<a
 			href={href}

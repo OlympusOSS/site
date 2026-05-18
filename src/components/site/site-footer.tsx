@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 const PRODUCT_LINKS = [
 	{ label: "hera (auth UI)", href: "https://github.com/OlympusOSS/hera" },
 	{ label: "athena (admin)", href: "https://github.com/OlympusOSS/athena" },
@@ -32,16 +34,11 @@ interface FooterColumnProps {
 function FooterColumn({ title, links }: FooterColumnProps) {
 	return (
 		<div>
-			<div className="mb-2.5 font-mono text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
-				{title}
-			</div>
+			<div className="mb-2.5 font-mono text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">{title}</div>
 			<ul className="m-0 flex list-none flex-col gap-2 p-0">
 				{links.map((link) => (
 					<li key={link.label}>
-						<a
-							href={link.href}
-							className="text-[13px] font-medium text-muted-foreground no-underline transition-colors hover:text-foreground"
-						>
+						<a href={link.href} className="text-[13px] font-medium text-muted-foreground no-underline transition-colors hover:text-foreground">
 							{link.label}
 						</a>
 					</li>
@@ -60,20 +57,11 @@ export function SiteFooter({ logoSrc }: { logoSrc?: string }) {
 				<div className="grid gap-8 sm:grid-cols-2 lg:[grid-template-columns:1.4fr_1fr_1fr_1fr]">
 					<div className="sm:col-span-2 lg:col-span-1">
 						<div className="mb-2.5 flex items-center gap-2.5">
-							{logoSrc && (
-								<img
-									src={logoSrc}
-									alt="Olympus"
-									className="h-[22px] w-auto"
-								/>
-							)}
-							<span className="text-sm font-semibold text-foreground">
-								Olympus
-							</span>
+							{logoSrc && <Image src={logoSrc} alt="Olympus" width={22} height={22} className="h-[22px] w-auto" />}
+							<span className="text-sm font-semibold text-foreground">Olympus</span>
 						</div>
 						<p className="m-0 max-w-[280px] text-[13px] leading-relaxed text-muted-foreground">
-							A free identity solution and OAuth2 layer for teams that
-							run their own infrastructure.
+							A free identity solution and OAuth2 layer for teams that run their own infrastructure.
 						</p>
 					</div>
 					<FooterColumn title="Product" links={PRODUCT_LINKS} />
@@ -86,7 +74,6 @@ export function SiteFooter({ logoSrc }: { logoSrc?: string }) {
 					<span className="font-mono">v2.3.0</span>
 				</div>
 			</div>
-
 		</footer>
 	);
 }

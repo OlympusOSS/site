@@ -6,8 +6,8 @@
  *   name, description, input_schema (as raw JSON).
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const SRC = "../daedalus/src-tauri/src/mcp/tools.rs";
 const OUT_DIR = "content/docs/reference/api/mcp";
@@ -76,9 +76,6 @@ for (const t of tools) {
 overview += `\n## Total\n\n${tools.length} tools.\n`;
 writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
-writeFileSync(
-	join(OUT_DIR, "meta.json"),
-	JSON.stringify({ title: "MCP", pages: ["overview", ...tools.map((t) => t.name)] }, null, 2),
-);
+writeFileSync(join(OUT_DIR, "meta.json"), JSON.stringify({ title: "MCP", pages: ["overview", ...tools.map((t) => t.name)] }, null, 2));
 
 console.log(`Generated ${tools.length} MCP tool pages in ${OUT_DIR}`);

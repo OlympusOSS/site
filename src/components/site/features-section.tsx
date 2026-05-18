@@ -1,14 +1,7 @@
 "use client";
 
+import { Card, CardContent, CardHeader, CardTitle, Icon, type IconName } from "@olympusoss/canvas";
 import { motion } from "framer-motion";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-	Icon,
-	type IconName,
-} from "@olympusoss/canvas";
 
 interface Feature {
 	icon: IconName;
@@ -51,10 +44,7 @@ const FEATURES: Feature[] = [
 
 export function FeaturesSection() {
 	return (
-		<section
-			id="features"
-			className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-24"
-		>
+		<section id="features" className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-24">
 			<div className="mx-auto max-w-[1100px]">
 				<motion.div
 					initial={{ opacity: 0, y: 20 }}
@@ -63,17 +53,14 @@ export function FeaturesSection() {
 					transition={{ duration: 0.5 }}
 					className="mb-10 max-w-[640px]"
 				>
-					<div className="mb-2 font-mono text-xs uppercase tracking-[0.06em] text-muted-foreground">
-						Capabilities
-					</div>
+					<div className="mb-2 font-mono text-xs uppercase tracking-[0.06em] text-muted-foreground">Capabilities</div>
 					<h2 className="m-0 text-3xl font-semibold tracking-tight text-foreground text-balance sm:text-[38px] sm:leading-[1.18]">
 						Everything Ory gives you,
 						<br />
 						packaged for humans.
 					</h2>
 					<p className="mt-3.5 m-0 text-base leading-relaxed text-muted-foreground">
-						Canvas, hera, and athena compose a working stack on top of
-						Ory. Bring your own Postgres, deploy anywhere.
+						Canvas, hera, and athena compose a working stack on top of Ory. Bring your own Postgres, deploy anywhere.
 					</p>
 				</motion.div>
 
@@ -102,14 +89,10 @@ export function FeaturesSection() {
 									>
 										<Icon name={feature.icon} size={18} />
 									</div>
-									<CardTitle className="text-[15px] font-semibold text-foreground">
-										{feature.title}
-									</CardTitle>
+									<CardTitle className="text-[15px] font-semibold text-foreground">{feature.title}</CardTitle>
 								</CardHeader>
 								<CardContent>
-									<p className="text-sm leading-[1.5] text-muted-foreground">
-										{feature.body}
-									</p>
+									<p className="text-sm leading-[1.5] text-muted-foreground">{feature.body}</p>
 								</CardContent>
 							</Card>
 						</motion.div>

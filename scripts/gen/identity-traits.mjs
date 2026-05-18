@@ -4,8 +4,8 @@
  * One page per leaf field in each JSON Schema.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const SCHEMAS = [
 	{ slug: "ciam-default", path: "../platform/dev/ciam-kratos/identity.schema.json", title: "CIAM Default" },
@@ -113,10 +113,14 @@ writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
 writeFileSync(
 	join(OUT_DIR, "meta.json"),
-	JSON.stringify({
-		title: "Traits",
-		pages: ["overview", ...allTraits.map((t) => `${t.schema}-${slugify(t.path)}`)],
-	}, null, 2),
+	JSON.stringify(
+		{
+			title: "Traits",
+			pages: ["overview", ...allTraits.map((t) => `${t.schema}-${slugify(t.path)}`)],
+		},
+		null,
+		2,
+	),
 );
 
 console.log(`Generated ${allTraits.length + 1} identity-trait pages in ${OUT_DIR}`);

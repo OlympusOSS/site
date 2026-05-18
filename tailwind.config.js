@@ -1,10 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
 	darkMode: "class",
-	content: [
-		"./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-		"./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-	],
+	content: ["./src/app/**/*.{js,ts,jsx,tsx,mdx}", "./src/components/**/*.{js,ts,jsx,tsx,mdx}"],
 	theme: {
 		extend: {
 			colors: {
@@ -34,7 +31,7 @@ module.exports = {
 			animation: {
 				"fade-in": "fade-in 0.6s ease-out",
 				"slide-up": "slide-up 0.6s ease-out",
-				"float": "float 6s ease-in-out infinite",
+				float: "float 6s ease-in-out infinite",
 				"float-delayed": "float 6s ease-in-out 3s infinite",
 				"pulse-glow": "pulse-glow 4s ease-in-out infinite",
 			},

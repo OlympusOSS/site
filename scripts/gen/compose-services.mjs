@@ -8,8 +8,8 @@
  * Also emits a "dev vs prod" diff page.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 
 const DEV_PATH = "../platform/dev/compose.dev.yml";
@@ -81,10 +81,7 @@ function describeService(name, def, env) {
 	return out;
 }
 
-const allServices = new Set([
-	...Object.keys(dev.services || {}),
-	...Object.keys(prod.services || {}),
-]);
+const allServices = new Set([...Object.keys(dev.services || {}), ...Object.keys(prod.services || {})]);
 
 if (existsSync(OUT_DIR)) rmSync(OUT_DIR, { recursive: true, force: true });
 mkdirSync(OUT_DIR, { recursive: true });
@@ -116,9 +113,6 @@ for (const name of sortedServices) {
 }
 writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
-writeFileSync(
-	join(OUT_DIR, "meta.json"),
-	JSON.stringify({ title: "Compose Services", pages: ["overview", ...sortedServices] }, null, 2),
-);
+writeFileSync(join(OUT_DIR, "meta.json"), JSON.stringify({ title: "Compose Services", pages: ["overview", ...sortedServices] }, null, 2));
 
 console.log(`Generated ${sortedServices.length} compose service pages in ${OUT_DIR}`);

@@ -2,6 +2,7 @@
 
 import { NavBar as CanvasNavBar, Logo, type NavLink } from "@olympusoss/canvas";
 import { Github } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -18,34 +19,21 @@ export function NavBar({ logoSrc }: { logoSrc?: string }) {
 			linkComponent={Link}
 			logo={
 				logoSrc ? (
-					<a href="#" className="flex items-center gap-2.5 no-underline">
-						<img
-							src={logoSrc}
-							alt=""
-							aria-hidden="true"
-							className="h-8 w-auto"
-						/>
+					<Link href="/" className="flex items-center gap-2.5 no-underline">
+						<Image src={logoSrc} alt="" aria-hidden width={32} height={32} className="h-8 w-auto" />
 						<span className="flex flex-col leading-tight">
-							<span className="text-[15px] font-semibold tracking-tight text-foreground">
-								Olympus
-							</span>
-							<span className="font-mono text-[10px] text-muted-foreground">
-								free identity solution
-							</span>
+							<span className="text-[15px] font-semibold tracking-tight text-foreground">Olympus</span>
+							<span className="font-mono text-[10px] text-muted-foreground">free identity solution</span>
 						</span>
-					</a>
+					</Link>
 				) : (
-					<a href="#" className="flex items-center gap-2.5 no-underline">
+					<Link href="/" className="flex items-center gap-2.5 no-underline">
 						<Logo size={24} />
 						<span className="flex flex-col leading-tight">
-							<span className="text-[15px] font-semibold tracking-tight text-foreground">
-								Olympus
-							</span>
-							<span className="font-mono text-[10px] text-muted-foreground">
-								free identity solution
-							</span>
+							<span className="text-[15px] font-semibold tracking-tight text-foreground">Olympus</span>
+							<span className="font-mono text-[10px] text-muted-foreground">free identity solution</span>
 						</span>
-					</a>
+					</Link>
 				)
 			}
 			links={NAV_LINKS}

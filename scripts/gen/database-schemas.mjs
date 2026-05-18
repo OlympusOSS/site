@@ -4,7 +4,7 @@
  * one page per table.
  */
 
-import { writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const OUT_DIR = "content/docs/reference/schemas/databases";
@@ -20,7 +20,8 @@ const DATABASES = [
 		owner: "Ory Kratos (CIAM)",
 		description: "Customer identities, sessions, recovery tokens, courier messages.",
 		schema_source: "Kratos migrations (upstream Ory)",
-		notes: "Schema is owned by Kratos. Migrations run on container startup. See [Ory Kratos persistence docs](https://www.ory.sh/docs/kratos/reference/configuration#dsn).",
+		notes:
+			"Schema is owned by Kratos. Migrations run on container startup. See [Ory Kratos persistence docs](https://www.ory.sh/docs/kratos/reference/configuration#dsn).",
 	},
 	{
 		slug: "ciam-hydra",
@@ -171,7 +172,7 @@ for (const t of TABLES) {
 	for (const c of columns) {
 		body += `| \`${c.name}\` | \`${c.type}\` | ${c.nullable} | ${c.description} |\n`;
 	}
-	if (t.related && t.related.length) {
+	if (t.related?.length) {
 		body += `\n## Related\n\n`;
 		for (const r of t.related) {
 			body += `- [${r}](${r})\n`;
@@ -198,11 +199,7 @@ writeFileSync(
 	JSON.stringify(
 		{
 			title: "Databases",
-			pages: [
-				"overview",
-				...DATABASES.map((d) => d.slug),
-				...TABLES.map((t) => t.slug),
-			],
+			pages: ["overview", ...DATABASES.map((d) => d.slug), ...TABLES.map((t) => t.slug)],
 		},
 		null,
 		2,

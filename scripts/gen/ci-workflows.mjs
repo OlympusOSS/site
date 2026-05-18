@@ -4,8 +4,8 @@
  * across all repos.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, readdirSync } from "node:fs";
-import { resolve, join, basename } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 
 const REPOS = ["platform", "athena", "hera", "site", "sdk", "canvas", "octl", "daedalus"];
@@ -35,7 +35,11 @@ for (const repo of REPOS) {
 }
 
 function slugify(s) {
-	return s.toLowerCase().replace(/\.ya?ml$/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+	return s
+		.toLowerCase()
+		.replace(/\.ya?ml$/, "")
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-|-$/g, "");
 }
 
 function summarizeTriggers(on) {
@@ -43,27 +47,31 @@ function summarizeTriggers(on) {
 	if (typeof on === "string") return `on \`${on}\``;
 	if (Array.isArray(on)) return on.map((t) => `\`${t}\``).join(", ");
 	if (typeof on === "object") {
-		return Object.keys(on).map((t) => {
-			const cfg = on[t];
-			if (t === "schedule" && Array.isArray(cfg) && cfg[0]?.cron) {
-				return `\`schedule(${cfg[0].cron})\``;
-			}
-			if (t === "push" && cfg?.branches) {
-				return `\`push\` (branches: ${cfg.branches.join(", ")})`;
-			}
-			return `\`${t}\``;
-		}).join(", ");
+		return Object.keys(on)
+			.map((t) => {
+				const cfg = on[t];
+				if (t === "schedule" && Array.isArray(cfg) && cfg[0]?.cron) {
+					return `\`schedule(${cfg[0].cron})\``;
+				}
+				if (t === "push" && cfg?.branches) {
+					return `\`push\` (branches: ${cfg.branches.join(", ")})`;
+				}
+				return `\`${t}\``;
+			})
+			.join(", ");
 	}
 	return "(unknown)";
 }
 
 function summarizeJobs(jobs) {
 	if (!jobs || typeof jobs !== "object") return "(no jobs)";
-	return Object.keys(jobs).map((name) => {
-		const job = jobs[name];
-		const stepCount = job?.steps?.length || 0;
-		return `- **\`${name}\`** — ${stepCount} steps, runs on \`${job?.["runs-on"] || "(default)"}\``;
-	}).join("\n");
+	return Object.keys(jobs)
+		.map((name) => {
+			const job = jobs[name];
+			const stepCount = job?.steps?.length || 0;
+			return `- **\`${name}\`** — ${stepCount} steps, runs on \`${job?.["runs-on"] || "(default)"}\``;
+		})
+		.join("\n");
 }
 
 // Per-workflow pages
@@ -124,10 +132,14 @@ writeFileSync(join(OUT_DIR, "overview.mdx"), overview);
 
 writeFileSync(
 	join(OUT_DIR, "meta.json"),
-	JSON.stringify({
-		title: "Workflows",
-		pages: ["overview", ...workflows.map(w => `${w.repo}-${slugify(w.file)}`)],
-	}, null, 2),
+	JSON.stringify(
+		{
+			title: "Workflows",
+			pages: ["overview", ...workflows.map((w) => `${w.repo}-${slugify(w.file)}`)],
+		},
+		null,
+		2,
+	),
 );
 
 console.log(`Generated ${workflows.length + 1} CI workflow pages in ${OUT_DIR}`);
