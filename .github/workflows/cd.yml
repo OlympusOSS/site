@@ -77,6 +77,13 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # SLSA-style provenance attestations on the pushed image.
+      # docker/build-push-action@v6 auto-emits attestations when
+      # id-token + attestations are writable. Mirrors canvas's
+      # `id-token: write` on npm publish — same idea, different
+      # registry (GHCR instead of npmjs).
+      id-token: write
+      attestations: write
 
     steps:
       - uses: actions/checkout@v6
