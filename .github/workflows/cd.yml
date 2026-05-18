@@ -4,6 +4,12 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: Build platforms (comma-separated). Override to scope an emergency run, e.g. linux/amd64 only when arm64 emulation misbehaves.
+        type: string
+        default: linux/amd64,linux/arm64
+        required: false
 
 env:
   REGISTRY: ghcr.io
@@ -64,28 +70,29 @@ jobs:
       - run: echo "Version v${{ needs.validate.outputs.tag_version }} passed validation"
 
   build:
+    # Multi-arch via docker buildx + QEMU emulation on a single amd64 runner.
+    # The previous strategy (amd64 native; arm64 native via ubuntu-24.04-arm
+    # commented out) was abandoned because `next build` segfaults inside the
+    # ubuntu-24.04-arm runner while generating the 920 static pages — almost
+    # certainly a native-arm64 SWC / lightningcss / next-swc binary bug
+    # interacting with the doc-heavy MDX set. QEMU-translated arm64 binaries
+    # run a different code path and dodge that bug class. Pattern mirrors
+    # platform/.github/workflows/caddy-build.yml.
     needs: [validate, version]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    strategy:
-      # ARM64 is temporarily disabled: `next build` segfaults inside the
-      # ubuntu-24.04-arm runner while generating the 920 static pages
-      # (seen on v1.1.7 — Bun ARM64 regression with the doc-heavy MDX
-      # set). Production VMs run amd64, so a single-arch image unblocks
-      # the deploy. Re-enable when Bun's ARM64 stability returns or when
-      # we slim the static-page count.
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v6
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create .npmrc for build
         # @olympusoss/canvas is published to npmjs.org by canvas's
@@ -94,95 +101,41 @@ jobs:
           echo "@olympusoss:registry=https://registry.npmjs.org" > /tmp/.build-npmrc
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> /tmp/.build-npmrc
 
-      - name: Build image
-        id: build
-        run: |
-          podman build \
-            --secret id=npmrc,src=/tmp/.build-npmrc \
-            --build-arg CACHE_BUST=${{ github.run_id }} \
-            --build-arg APP_VERSION=${{ needs.validate.outputs.tag_version }} \
-            --layers=true \
-            -f ./Containerfile \
-            -t ${{ env.IMAGE_NAME }}:build-${{ github.sha }}-${{ strategy.job-index }} \
-            .
-
-      - name: Push image by digest
-        id: push
-        # GHCR occasionally returns 504 Gateway Timeout on blob uploads
-        # (seen mid-run on 2026-05-12). One transient failure was enough
-        # to break the whole multi-arch pipeline and force a manual
-        # re-dispatch. Retry the push up to 3 times with a short backoff
-        # so the chain self-recovers on registry hiccups.
-        run: |
-          IMAGE_TAG="${{ env.IMAGE_NAME }}:build-${{ github.sha }}-${{ strategy.job-index }}"
-          for attempt in 1 2 3; do
-            if podman push --digestfile /tmp/digest "${IMAGE_TAG}"; then
-              DIGEST=$(cat /tmp/digest)
-              echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
-              echo "Pushed digest on attempt ${attempt}: ${DIGEST}"
-              exit 0
-            fi
-            echo "::warning::podman push attempt ${attempt} failed; retrying after ${attempt}0s..."
-            sleep $((attempt * 10))
-          done
-          echo "::error::podman push failed after 3 attempts"
-          exit 1
-
-      - name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.push.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-
-      - name: Upload digest
-        uses: actions/upload-artifact@v7
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
         with:
-          name: digests-${{ matrix.runner }}
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
+          platforms: linux/amd64,linux/arm64
 
-  merge:
-    needs: [version, build]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Download digests
-        uses: actions/download-artifact@v8
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        # The previous podman flow needed an explicit 3-attempt retry loop
+        # around the push step because GHCR occasionally returns 504 on
+        # blob uploads (seen mid-run on 2026-05-12). buildkit handles
+        # transient registry errors internally, so the loop is gone here.
+        # If 504s come back, the right fix is the standard
+        # `nick-fields/retry@v3` wrapper, not re-rolling our own.
+        uses: docker/build-push-action@v6
         with:
-          path: /tmp/digests
-          pattern: digests-*
-          merge-multiple: true
-
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Compute tags
-        id: tags
-        run: |
-          TAGS="${{ env.IMAGE_NAME }}:${{ needs.version.outputs.new_version }}"
-          TAGS="${TAGS} ${{ env.IMAGE_NAME }}:sha-${GITHUB_SHA::7}"
-          TAGS="${TAGS} ${{ env.IMAGE_NAME }}:latest"
-          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
-
-      - name: Create manifest list and push
-        working-directory: /tmp/digests
-        run: |
-          podman manifest create ${{ env.IMAGE_NAME }}:manifest
-          for digest in *; do
-            podman manifest add ${{ env.IMAGE_NAME }}:manifest ${{ env.IMAGE_NAME }}@sha256:${digest}
-          done
-          for tag in ${{ steps.tags.outputs.tags }}; do
-            podman manifest push ${{ env.IMAGE_NAME }}:manifest ${tag}
-          done
-
-      - name: Inspect image
-        run: podman manifest inspect ${{ env.IMAGE_NAME }}:latest || true
+          context: .
+          file: ./Containerfile
+          platforms: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.new_version }}
+            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            CACHE_BUST=${{ github.run_id }}
+            APP_VERSION=${{ needs.validate.outputs.tag_version }}
+          secret-files: |
+            npmrc=/tmp/.build-npmrc
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   release:
-    needs: [version, merge]
+    needs: [version, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
