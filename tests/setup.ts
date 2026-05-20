@@ -14,8 +14,7 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
 		rootMargin = "";
 		thresholds = [] as ReadonlyArray<number>;
 	}
-	// @ts-expect-error — jsdom global typing doesn't include this constructor.
-	globalThis.IntersectionObserver = MockIntersectionObserver;
+	globalThis.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver;
 }
 
 // matchMedia is used by next-themes / framer-motion's reduced-motion checks.
