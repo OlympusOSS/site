@@ -110,6 +110,37 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Replace local workspace refs with latest published versions
+        # Dev uses link:@olympusoss/canvas for fast local iteration.
+        # CI must install from the registry so builds are reproducible.
+        # The Containerfile COPYs package.json and runs bun install inside
+        # the container, so the swap must happen before the build step.
+        run: |
+          node -e "
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            let changed = false;
+            for (const depGroup of ['dependencies', 'devDependencies', 'peerDependencies']) {
+              const deps = pkg[depGroup];
+              if (!deps) continue;
+              for (const [name, version] of Object.entries(deps)) {
+                if (typeof version === 'string' && (version.startsWith('file:') || version.startsWith('link:'))) {
+                  const latest = execSync('npm view ' + name + ' version', { encoding: 'utf8' }).trim();
+                  console.log(depGroup + ': ' + name + ' ' + version + ' -> ^' + latest);
+                  deps[name] = '^' + latest;
+                  changed = true;
+                }
+              }
+            }
+            if (changed) {
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, '\t') + '\n');
+              console.log('Replaced local refs with registry versions.');
+            } else {
+              console.log('No local refs found.');
+            }
+          "
+
       - name: Build and push
         # The previous podman flow needed an explicit 3-attempt retry loop
         # around the push step because GHCR occasionally returns 504 on
