@@ -5,7 +5,7 @@ description: Every environment variable referenced across every Olympus containe
 
 This catalog lists every environment variable referenced in Olympus source code. The presence of a checkmark in a column means that repo's source reads the variable.
 
-The catalog is generated at build time by grepping `process.env.X` (TypeScript) and `std::env::var("X")` (Rust). If a variable is referenced but missing from this list, the catalog is stale, re-run `bun run scripts/gen/env-vars.mjs`.
+The catalog is generated at build time by grepping `process.env.X` (TypeScript) and `std::env::var("X")` (Rust). If a variable is referenced but missing from this list, the catalog is stale — re-run `bun run scripts/gen/env-vars.mjs`.
 
 ## Catalog
 
@@ -19,10 +19,8 @@ The catalog is generated at build time by grepping `process.env.X` (TypeScript) 
 | `AUTH_HYDRA_URL` | ✓ |  |  |  |  |  |
 | `AUTH_KRATOS_ADMIN_URL` | ✓ |  |  |  |  |  |
 | `BASE_PATH` | ✓ |  |  |  |  |  |
-| `BREACH_CHECK_ENABLED` |  | ✓ |  |  |  |  |
-| `CAPTCHA_ENABLED` | ✓ | ✓ |  |  |  |  |
-| `CAPTCHA_SECRET_KEY` |  | ✓ |  |  |  |  |
-| `CAPTCHA_SITE_KEY` | ✓ | ✓ |  |  |  |  |
+| `CAPTCHA_ENABLED` | ✓ |  |  |  |  |  |
+| `CAPTCHA_SITE_KEY` | ✓ |  |  |  |  |  |
 | `CIAM_CLIENT_ID` |  |  |  | ✓ |  |  |
 | `CIAM_CLIENT_SECRET` |  |  |  | ✓ |  |  |
 | `CIAM_HYDRA_ADMIN_URL` |  |  |  | ✓ |  |  |
@@ -33,9 +31,8 @@ The catalog is generated at build time by grepping `process.env.X` (TypeScript) 
 | `DATABASE_URL` |  |  | ✓ |  |  |  |
 | `DEFAULT_CLIENT_ID` | ✓ |  |  |  |  |  |
 | `DEFAULT_OAUTH2_CLIENT_ID` |  | ✓ |  |  |  |  |
+| `DOCS_URL` |  | ✓ |  |  |  |  |
 | `ENCRYPTION_KEY` | ✓ | ✓ | ✓ |  |  |  |
-| `GEO_ENABLED` |  | ✓ |  |  |  |  |
-| `GEO_MANDATORY` |  | ✓ |  |  |  |  |
 | `GITHUB_TOKEN` |  |  |  |  | ✓ |  |
 | `HERA_INTERNAL_URL` | ✓ |  |  |  |  |  |
 | `HOME` |  |  |  |  | ✓ | ✓ |
@@ -53,6 +50,7 @@ The catalog is generated at build time by grepping `process.env.X` (TypeScript) 
 | `KRATOS_ADMIN_URL` | ✓ | ✓ |  |  |  |  |
 | `KRATOS_API_KEY` | ✓ |  |  |  |  |  |
 | `KRATOS_PUBLIC_URL` | ✓ | ✓ |  |  |  |  |
+| `NEXT_PHASE` |  | ✓ |  |  |  |  |
 | `NEXT_PUBLIC_APP_INSTANCE` | ✓ |  |  |  |  |  |
 | `NEXT_PUBLIC_APP_URL` | ✓ |  |  | ✓ |  |  |
 | `NEXT_PUBLIC_AUTH_HYDRA_URL` | ✓ |  |  |  |  |  |
@@ -70,20 +68,23 @@ The catalog is generated at build time by grepping `process.env.X` (TypeScript) 
 | `OLYMPUS_WORKSPACE` |  |  |  |  | ✓ |  |
 | `ORY_API_KEY` | ✓ |  |  |  |  |  |
 | `PATH` |  |  |  |  | ✓ |  |
+| `PRIVACY_URL` |  | ✓ |  |  |  |  |
 | `PROXY_TIMEOUT_MS` | ✓ |  |  |  |  |  |
 | `RECOVERY_HMAC_SECRET` |  | ✓ |  |  |  |  |
+| `SDK_CACHE_TTL_MS` |  |  | ✓ |  |  |  |
 | `SESSION_SIGNING_KEY` | ✓ |  |  |  |  |  |
 | `SESSION_TTL_SECONDS` |  |  |  | ✓ |  |  |
 | `SETTINGS_TABLE` | ✓ |  | ✓ |  |  |  |
 | `SHELL` |  |  |  |  |  | ✓ |
 | `TERM` |  |  |  |  | ✓ |  |
+| `TERMS_URL` |  | ✓ |  |  |  |  |
 | `TERM_PROGRAM` |  |  |  |  | ✓ |  |
 | `TZ` | ✓ |  |  |  |  |  |
 | `WT_SESSION` |  |  |  |  | ✓ |  |
 
 ## Total count
 
-69 unique environment variables.
+70 unique environment variables.
 
 ---
 

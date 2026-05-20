@@ -7,24 +7,24 @@ Olympus runs four Kratos instances. The configuration is split across 10 top-lev
 
 ## Files
 
-- **CIAM dev**, `platform/dev/ciam-kratos/kratos.yml`
-- **CIAM prod**, `platform/prod/ciam-kratos/kratos.yml`
-- **IAM dev**, `platform/dev/iam-kratos/kratos.yml`
-- **IAM prod**, `platform/prod/iam-kratos/kratos.yml`
+- **CIAM dev** — `platform/dev/ciam-kratos/kratos.yml`
+- **CIAM prod** — `platform/prod/ciam-kratos/kratos.yml`
+- **IAM dev** — `platform/dev/iam-kratos/kratos.yml`
+- **IAM prod** — `platform/prod/iam-kratos/kratos.yml`
 
 ## Sections
 
 | Section | Keys | Description |
 |---------|------|-------------|
 | [`ciphers`](./ciphers) | 1 | Symmetric cipher algorithm choice. |
-| [`courier`](./courier) | 1 | Email courier, SMTP, sender, templates. |
+| [`courier`](./courier) | 1 | Email courier — SMTP, sender, templates. |
 | [`dsn`](./dsn) | 1 | Database connection string. |
 | [`hashers`](./hashers) | 7 | Password hash algorithm and parameters. |
 | [`identity`](./identity) | 2 | Identity schema pointer. |
 | [`log`](./log) | 3 | Logging level and redaction. |
-| [`secrets`](./secrets) | 2 | Cryptographic secrets, cookie HMAC, recovery cipher. |
-| [`selfservice`](./selfservice) | 31 | Self-service flow config, the user-facing surface. |
-| [`serve`](./serve) | 12 | HTTP server config, listen, CORS, cookie domain. |
+| [`secrets`](./secrets) | 2 | Cryptographic secrets — cookie HMAC, recovery cipher. |
+| [`selfservice`](./selfservice) | 31 | Self-service flow config — the user-facing surface. |
+| [`serve`](./serve) | 12 | HTTP server config — listen, CORS, cookie domain. |
 | [`version`](./version) | 1 | Schema version pinned to the Kratos version's spec. |
 
 61 keys total. Upstream schema: [Ory Kratos](https://www.ory.sh/docs/kratos/reference/configuration).

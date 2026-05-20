@@ -1,21 +1,31 @@
 ---
 title: Hera pages
-description: "10 Hera page routes"
+description: "20 Hera page routes"
 ---
 
-Hera (the login/consent UI) has 10 page routes. Each renders Kratos self-service flows or handles Hydra challenges.
+Hera (the login/consent UI) has 20 page routes. Each renders Kratos self-service flows or handles Hydra challenges.
 
 ## Routes
 
 | Path | Description |
 |------|-------------|
-| [`/settings/security`](./settings-security) | - |
-| [`/settings`](./settings) | User settings, password, MFA, profile, social IdP linking. |
+| [`/settings/security`](./settings-security) | — |
+| [`/settings/sessions`](./settings-sessions) | — |
+| [`/settings/totp/codes`](./settings-totp-codes) | — |
+| [`/settings/totp`](./settings-totp) | — |
+| [`/settings`](./settings) | User settings — password, MFA, profile, social IdP linking. |
 | [`/registration`](./registration) | Renders the Kratos registration flow. |
+| [`/privacy`](./privacy) | — |
 | [`/recovery`](./recovery) | Renders the Kratos recovery (password-reset) flow. |
+| [`/terms`](./terms) | — |
 | [`/logout`](./logout) | Renders or auto-confirms the Hydra logout challenge. |
 | [`/verification`](./verification) | Renders the Kratos verification (email-confirm) flow. |
 | [`/consent`](./consent) | Renders or auto-grants the Hydra OAuth2 consent challenge. |
-| [`/reset-password`](./reset-password) | - |
+| [`/reset-password`](./reset-password) | — |
+| [`/login/passkey`](./login-passkey) | — |
+| [`/login/aal2/totp`](./login-aal2-totp) | — |
+| [`/login/aal2`](./login-aal2) | — |
 | [`/login`](./login) | Renders the Kratos login flow + Hydra login challenge handler. |
-| [`/link-conflict`](./link-conflict) | - |
+| [`/login/verify-device`](./login-verify-device) | — |
+| [`/login/passwordless`](./login-passwordless) | — |
+| [`/link-conflict`](./link-conflict) | — |

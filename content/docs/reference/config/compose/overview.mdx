@@ -3,13 +3,13 @@ title: Compose Services
 description: Every Compose service across dev and prod
 ---
 
-The Olympus Compose stack defines services in two files: `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml`. The two have different goals, dev mounts source for live reload; prod pulls pinned images.
+The Olympus Compose stack defines services in two files: `platform/dev/compose.dev.yml` and `platform/prod/compose.prod.yml`. The two have different goals — dev mounts source for live reload; prod pulls pinned images.
 
 ## Service inventory
 
 | Service | Dev | Prod |
 |---------|-----|------|
-| [athena-seed-dev](./athena-seed-dev) | ✓ | - |
+| [athena-seed-dev](./athena-seed-dev) | ✓ | — |
 | [caddy](./caddy) | ✓ | ✓ |
 | [ciam-athena](./ciam-athena) | ✓ | ✓ |
 | [ciam-hera](./ciam-hera) | ✓ | ✓ |
@@ -23,8 +23,8 @@ The Olympus Compose stack defines services in two files: `platform/dev/compose.d
 | [iam-hydra-migrate](./iam-hydra-migrate) | ✓ | ✓ |
 | [iam-kratos](./iam-kratos) | ✓ | ✓ |
 | [iam-kratos-migrate](./iam-kratos-migrate) | ✓ | ✓ |
-| [mailslurper](./mailslurper) | ✓ | - |
+| [mailslurper](./mailslurper) | ✓ | — |
 | [pgadmin](./pgadmin) | ✓ | ✓ |
 | [postgres](./postgres) | ✓ | ✓ |
-| [seed](./seed) | - | ✓ |
+| [seed](./seed) | — | ✓ |
 | [site](./site) | ✓ | ✓ |

@@ -19,13 +19,13 @@ Olympus uses **five PostgreSQL databases**. Four are owned by Ory (Kratos and Hy
 
 The SDK-owned tables, each documented on its own page:
 
-- [`ciam_settings`](./ciam-settings), Key-value settings vault for the CIAM domain. Encrypted values use the `v2:` prefix.
-- [`iam_settings`](./iam-settings), Same schema as `ciam_settings`, but for the IAM domain.
-- [`locations`](./locations), Login location history per session.
-- [`login_attempts`](./login-attempts), Recent login attempts, used by the brute-force protection logic.
-- [`lockouts`](./lockouts), Active and historical brute-force lockouts.
-- [`security_audit`](./security-audit), Audit log of security-relevant events.
+- [`ciam_settings`](./ciam-settings) — Key-value settings vault for the CIAM domain. Encrypted values use the `v2:` prefix.
+- [`iam_settings`](./iam-settings) — Same schema as `ciam_settings`, but for the IAM domain.
+- [`locations`](./locations) — Login location history per session.
+- [`login_attempts`](./login-attempts) — Recent login attempts, used by the brute-force protection logic.
+- [`lockouts`](./lockouts) — Active and historical brute-force lockouts.
+- [`security_audit`](./security-audit) — Audit log of security-relevant events.
 
 ## Connection
 
-All connections use `sslmode=verify-full` in production. See [Deploy, Database SSL verify-full](/docs/deploy/database/database-ssl-verify-full).
+All connections use `sslmode=verify-full` in production. See [Deploy — Database SSL verify-full](/docs/deploy/database-ssl-verify-full).

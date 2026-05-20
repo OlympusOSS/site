@@ -1,0 +1,34 @@
+---
+title: "CAPTCHA_SITE_KEY"
+description: "Environment variable used by: athena"
+---
+
+# `CAPTCHA_SITE_KEY`
+
+**Read by:** `athena`
+
+**Sensitive:** No — safe to log / share.
+
+**Required:** unspecified
+
+## Where it's read
+
+- **athena** — `grep -r "CAPTCHA_SITE_KEY" ../athena/src` for code locations
+
+## Setting it
+
+### Dev
+
+Set in your local `.env.dev` file (managed by `octl deploy`).
+
+### Prod
+
+```bash
+gh secret set CAPTCHA_SITE_KEY --body "<value>" -R OlympusOSS/platform
+gh workflow run deploy.yml
+```
+
+
+---
+
+*Generated from source by `scripts/gen/env-vars-per-var.mjs`.*

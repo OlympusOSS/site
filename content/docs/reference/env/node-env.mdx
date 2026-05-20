@@ -1,0 +1,41 @@
+---
+title: "NODE_ENV"
+description: "Standard Node.js environment indicator. Set to `production` in prod."
+---
+
+# `NODE_ENV`
+
+**Read by:** `athena`, `hera`, `sdk`, `site`
+
+**Sensitive:** No — safe to log / share.
+
+**Required:** yes
+
+## Purpose
+
+Standard Node.js environment indicator. Set to `production` in prod.
+
+## Where it's read
+
+- **athena** — `grep -r "NODE_ENV" ../athena/src` for code locations
+- **hera** — `grep -r "NODE_ENV" ../hera/src` for code locations
+- **sdk** — `grep -r "NODE_ENV" ../sdk/src` for code locations
+- **site** — `grep -r "NODE_ENV" ../site/src` for code locations
+
+## Setting it
+
+### Dev
+
+Set in your local `.env.dev` file (managed by `octl deploy`).
+
+### Prod
+
+```bash
+gh secret set NODE_ENV --body "<value>" -R OlympusOSS/platform
+gh workflow run deploy.yml
+```
+
+
+---
+
+*Generated from source by `scripts/gen/env-vars-per-var.mjs`.*

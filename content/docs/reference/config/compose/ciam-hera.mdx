@@ -1,6 +1,6 @@
 ---
 title: ciam-hera
-description: Compose service `ciam-hera`, runtime configuration across dev and prod
+description: Compose service `ciam-hera` — runtime configuration across dev and prod
 ---
 
 Compose service **`ciam-hera`**.
@@ -26,9 +26,6 @@ Compose service **`ciam-hera`**.
 | `KRATOS_ADMIN_URL` | `http://ciam-kratos:5001` |
 | `DEFAULT_OAUTH2_CLIENT_ID` | `site-ciam-client` |
 | `HYDRA_PUBLIC_URL` | `http://localhost:3102` |
-| `CAPTCHA_ENABLED` | `false` |
-| `CAPTCHA_SITE_KEY` | `` |
-| `CAPTCHA_SECRET_KEY` | `` |
 | `DATABASE_URL` | `postgres://postgres:secret@postgres:5432/olympus?sslmode` |
 | `SETTINGS_TABLE` | `ciam_settings` |
 | `ENCRYPTION_KEY` | `dev-encryption-key-minimum-32-chars!!` |
@@ -65,9 +62,6 @@ Compose service **`ciam-hera`**.
 | `KRATOS_ADMIN_URL` | `http://ciam-kratos:5001` |
 | `DEFAULT_OAUTH2_CLIENT_ID` | `site-ciam-client` |
 | `HYDRA_PUBLIC_URL` | `${CIAM_HYDRA_PUBLIC_URL}` |
-| `CAPTCHA_ENABLED` | `${CIAM_CAPTCHA_ENABLED:-true}` |
-| `CAPTCHA_SITE_KEY` | `${CIAM_CAPTCHA_SITE_KEY:-}` |
-| `CAPTCHA_SECRET_KEY` | `${CIAM_CAPTCHA_SECRET_KEY:-}` |
 | `DATABASE_URL` | `${PG_OLYMPUS_DSN}` |
 | `SETTINGS_TABLE` | `ciam_settings` |
 | `ENCRYPTION_KEY` | `${ENCRYPTION_KEY}` |

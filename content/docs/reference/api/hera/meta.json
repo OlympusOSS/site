@@ -1,6 +1,26 @@
 {
   "title": "Hera",
   "pages": [
-    "overview"
+    "overview",
+    "settings-security",
+    "settings-sessions",
+    "settings-totp-codes",
+    "settings-totp",
+    "settings",
+    "registration",
+    "privacy",
+    "recovery",
+    "terms",
+    "logout",
+    "verification",
+    "consent",
+    "reset-password",
+    "login-passkey",
+    "login-aal2-totp",
+    "login-aal2",
+    "login",
+    "login-verify-device",
+    "login-passwordless",
+    "link-conflict"
   ]
 }

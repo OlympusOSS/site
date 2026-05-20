@@ -1,0 +1,42 @@
+---
+title: "CIAM_RELOAD_API_KEY"
+description: "Shared secret between Athena and the CIAM Kratos reload sidecar. Authorizes schema reload requests."
+---
+
+# `CIAM_RELOAD_API_KEY`
+
+**Read by:** `athena`
+
+**Sensitive:** **Yes** — treat as a secret. Store in GitHub Secrets / your vault.
+
+**Required:** yes
+
+## Purpose
+
+Shared secret between Athena and the CIAM Kratos reload sidecar. Authorizes schema reload requests.
+
+## Rotation
+
+See the rotation runbook: [/docs/operate/reload-api-key-rotation](/docs/operate/reload-api-key-rotation).
+
+## Where it's read
+
+- **athena** — `grep -r "CIAM_RELOAD_API_KEY" ../athena/src` for code locations
+
+## Setting it
+
+### Dev
+
+Set in your local `.env.dev` file (managed by `octl deploy`).
+
+### Prod
+
+```bash
+gh secret set CIAM_RELOAD_API_KEY --body "<value>" -R OlympusOSS/platform
+gh workflow run deploy.yml
+```
+
+
+---
+
+*Generated from source by `scripts/gen/env-vars-per-var.mjs`.*

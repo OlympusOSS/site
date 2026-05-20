@@ -1,6 +1,6 @@
 ---
 title: Environment variables
-description: "69 environment variables referenced across Olympus"
+description: "70 environment variables referenced across Olympus"
 ---
 
 This section lists every environment variable read by any Olympus service. Each variable has its own page with purpose, sensitivity, and rotation guidance.
@@ -9,74 +9,75 @@ This section lists every environment variable read by any Olympus service. Each 
 
 | Variable | athena | hera | sdk | site | octl | daedalus | Secret |
 |----------|:------:|:----:|:---:|:----:|:----:|:--------:|:------:|
-| [`ALLOW_DEMO_ACCOUNTS`](./allow-demo-accounts) |  | ✓ |  |  |  |  | - |
-| [`APP_INSTANCE`](./app-instance) | ✓ | ✓ |  |  |  |  | - |
-| [`APP_VERSION`](./app-version) | ✓ | ✓ |  | ✓ |  |  | - |
-| [`ATHENA_INTERNAL_URL`](./athena-internal-url) | ✓ |  |  |  |  |  | - |
-| [`AUTH_HYDRA_ADMIN_URL`](./auth-hydra-admin-url) | ✓ |  |  |  |  |  | - |
-| [`AUTH_HYDRA_URL`](./auth-hydra-url) | ✓ |  |  |  |  |  | - |
-| [`AUTH_KRATOS_ADMIN_URL`](./auth-kratos-admin-url) | ✓ |  |  |  |  |  | - |
-| [`BASE_PATH`](./base-path) | ✓ |  |  |  |  |  | - |
-| [`BREACH_CHECK_ENABLED`](./breach-check-enabled) |  | ✓ |  |  |  |  | - |
-| [`CAPTCHA_ENABLED`](./captcha-enabled) | ✓ | ✓ |  |  |  |  | - |
-| [`CAPTCHA_SECRET_KEY`](./captcha-secret-key) |  | ✓ |  |  |  |  | - |
-| [`CAPTCHA_SITE_KEY`](./captcha-site-key) | ✓ | ✓ |  |  |  |  | - |
-| [`CIAM_CLIENT_ID`](./ciam-client-id) |  |  |  | ✓ |  |  | - |
-| [`CIAM_CLIENT_SECRET`](./ciam-client-secret) |  |  |  | ✓ |  |  | - |
-| [`CIAM_HYDRA_ADMIN_URL`](./ciam-hydra-admin-url) |  |  |  | ✓ |  |  | - |
-| [`CIAM_HYDRA_PUBLIC_URL`](./ciam-hydra-public-url) |  |  |  | ✓ |  |  | - |
-| [`CIAM_KRATOS_ADMIN_URL`](./ciam-kratos-admin-url) |  |  |  | ✓ |  |  | - |
+| [`ALLOW_DEMO_ACCOUNTS`](./allow-demo-accounts) |  | ✓ |  |  |  |  | — |
+| [`APP_INSTANCE`](./app-instance) | ✓ | ✓ |  |  |  |  | — |
+| [`APP_VERSION`](./app-version) | ✓ | ✓ |  | ✓ |  |  | — |
+| [`ATHENA_INTERNAL_URL`](./athena-internal-url) | ✓ |  |  |  |  |  | — |
+| [`AUTH_HYDRA_ADMIN_URL`](./auth-hydra-admin-url) | ✓ |  |  |  |  |  | — |
+| [`AUTH_HYDRA_URL`](./auth-hydra-url) | ✓ |  |  |  |  |  | — |
+| [`AUTH_KRATOS_ADMIN_URL`](./auth-kratos-admin-url) | ✓ |  |  |  |  |  | — |
+| [`BASE_PATH`](./base-path) | ✓ |  |  |  |  |  | — |
+| [`CAPTCHA_ENABLED`](./captcha-enabled) | ✓ |  |  |  |  |  | — |
+| [`CAPTCHA_SITE_KEY`](./captcha-site-key) | ✓ |  |  |  |  |  | — |
+| [`CIAM_CLIENT_ID`](./ciam-client-id) |  |  |  | ✓ |  |  | — |
+| [`CIAM_CLIENT_SECRET`](./ciam-client-secret) |  |  |  | ✓ |  |  | — |
+| [`CIAM_HYDRA_ADMIN_URL`](./ciam-hydra-admin-url) |  |  |  | ✓ |  |  | — |
+| [`CIAM_HYDRA_PUBLIC_URL`](./ciam-hydra-public-url) |  |  |  | ✓ |  |  | — |
+| [`CIAM_KRATOS_ADMIN_URL`](./ciam-kratos-admin-url) |  |  |  | ✓ |  |  | — |
 | [`CIAM_RELOAD_API_KEY`](./ciam-reload-api-key) | ✓ |  |  |  |  |  | yes |
-| [`CIAM_RELOAD_SIDECAR_URL`](./ciam-reload-sidecar-url) | ✓ |  |  |  |  |  | - |
+| [`CIAM_RELOAD_SIDECAR_URL`](./ciam-reload-sidecar-url) | ✓ |  |  |  |  |  | — |
 | [`DATABASE_URL`](./database-url) |  |  | ✓ |  |  |  | yes |
-| [`DEFAULT_CLIENT_ID`](./default-client-id) | ✓ |  |  |  |  |  | - |
-| [`DEFAULT_OAUTH2_CLIENT_ID`](./default-oauth2-client-id) |  | ✓ |  |  |  |  | - |
+| [`DEFAULT_CLIENT_ID`](./default-client-id) | ✓ |  |  |  |  |  | — |
+| [`DEFAULT_OAUTH2_CLIENT_ID`](./default-oauth2-client-id) |  | ✓ |  |  |  |  | — |
+| [`DOCS_URL`](./docs-url) |  | ✓ |  |  |  |  | — |
 | [`ENCRYPTION_KEY`](./encryption-key) | ✓ | ✓ | ✓ |  |  |  | yes |
-| [`GEO_ENABLED`](./geo-enabled) |  | ✓ |  |  |  |  | - |
-| [`GEO_MANDATORY`](./geo-mandatory) |  | ✓ |  |  |  |  | - |
-| [`GITHUB_TOKEN`](./github-token) |  |  |  |  | ✓ |  | - |
-| [`HERA_INTERNAL_URL`](./hera-internal-url) | ✓ |  |  |  |  |  | - |
-| [`HOME`](./home) |  |  |  |  | ✓ | ✓ | - |
-| [`HYDRA_ADMIN_URL`](./hydra-admin-url) | ✓ | ✓ |  |  |  |  | - |
-| [`HYDRA_API_KEY`](./hydra-api-key) | ✓ |  |  |  |  |  | - |
-| [`HYDRA_ENABLED`](./hydra-enabled) | ✓ |  |  |  |  |  | - |
-| [`HYDRA_PUBLIC_URL`](./hydra-public-url) | ✓ | ✓ |  |  |  |  | - |
-| [`IAM_CLIENT_ID`](./iam-client-id) |  |  |  | ✓ |  |  | - |
-| [`IAM_CLIENT_SECRET`](./iam-client-secret) |  |  |  | ✓ |  |  | - |
-| [`IAM_HYDRA_ADMIN_URL`](./iam-hydra-admin-url) | ✓ |  |  | ✓ |  |  | - |
-| [`IAM_HYDRA_PUBLIC_URL`](./iam-hydra-public-url) | ✓ |  |  | ✓ |  |  | - |
-| [`IAM_KRATOS_ADMIN_URL`](./iam-kratos-admin-url) | ✓ |  |  | ✓ |  |  | - |
-| [`IAM_KRATOS_PUBLIC_URL`](./iam-kratos-public-url) | ✓ |  |  |  |  |  | - |
-| [`IS_ORY_NETWORK`](./is-ory-network) | ✓ |  |  |  |  |  | - |
-| [`KRATOS_ADMIN_URL`](./kratos-admin-url) | ✓ | ✓ |  |  |  |  | - |
-| [`KRATOS_API_KEY`](./kratos-api-key) | ✓ |  |  |  |  |  | - |
-| [`KRATOS_PUBLIC_URL`](./kratos-public-url) | ✓ | ✓ |  |  |  |  | - |
-| [`NEXT_PUBLIC_APP_INSTANCE`](./next-public-app-instance) | ✓ |  |  |  |  |  | - |
-| [`NEXT_PUBLIC_APP_URL`](./next-public-app-url) | ✓ |  |  | ✓ |  |  | - |
-| [`NEXT_PUBLIC_AUTH_HYDRA_URL`](./next-public-auth-hydra-url) | ✓ |  |  |  |  |  | - |
-| [`NEXT_PUBLIC_CIAM_ATHENA_URL`](./next-public-ciam-athena-url) |  |  |  | ✓ |  |  | - |
-| [`NEXT_PUBLIC_CIAM_HYDRA_URL`](./next-public-ciam-hydra-url) |  |  |  | ✓ |  |  | - |
-| [`NEXT_PUBLIC_IAM_ATHENA_URL`](./next-public-iam-athena-url) |  |  |  | ✓ |  |  | - |
-| [`NEXT_PUBLIC_IAM_HYDRA_PUBLIC_URL`](./next-public-iam-hydra-public-url) | ✓ |  |  |  |  |  | - |
-| [`NEXT_PUBLIC_IAM_HYDRA_URL`](./next-public-iam-hydra-url) |  |  |  | ✓ |  |  | - |
-| [`NEXT_RUNTIME`](./next-runtime) | ✓ | ✓ |  |  |  |  | - |
-| [`NODE_ENV`](./node-env) | ✓ | ✓ | ✓ | ✓ |  |  | - |
-| [`NODE_TLS_REJECT_UNAUTHORIZED`](./node-tls-reject-unauthorized) |  | ✓ |  |  |  |  | - |
-| [`NO_COLOR`](./no-color) |  |  |  |  | ✓ |  | - |
-| [`OAUTH_CLIENT_ID`](./oauth-client-id) | ✓ |  |  |  |  |  | - |
-| [`OCTL_NPMRC_PATH`](./octl-npmrc-path) |  |  |  |  | ✓ |  | - |
-| [`OLYMPUS_WORKSPACE`](./olympus-workspace) |  |  |  |  | ✓ |  | - |
-| [`ORY_API_KEY`](./ory-api-key) | ✓ |  |  |  |  |  | - |
-| [`PATH`](./path) |  |  |  |  | ✓ |  | - |
-| [`PROXY_TIMEOUT_MS`](./proxy-timeout-ms) | ✓ |  |  |  |  |  | - |
-| [`RECOVERY_HMAC_SECRET`](./recovery-hmac-secret) |  | ✓ |  |  |  |  | - |
+| [`GITHUB_TOKEN`](./github-token) |  |  |  |  | ✓ |  | — |
+| [`HERA_INTERNAL_URL`](./hera-internal-url) | ✓ |  |  |  |  |  | — |
+| [`HOME`](./home) |  |  |  |  | ✓ | ✓ | — |
+| [`HYDRA_ADMIN_URL`](./hydra-admin-url) | ✓ | ✓ |  |  |  |  | — |
+| [`HYDRA_API_KEY`](./hydra-api-key) | ✓ |  |  |  |  |  | — |
+| [`HYDRA_ENABLED`](./hydra-enabled) | ✓ |  |  |  |  |  | — |
+| [`HYDRA_PUBLIC_URL`](./hydra-public-url) | ✓ | ✓ |  |  |  |  | — |
+| [`IAM_CLIENT_ID`](./iam-client-id) |  |  |  | ✓ |  |  | — |
+| [`IAM_CLIENT_SECRET`](./iam-client-secret) |  |  |  | ✓ |  |  | — |
+| [`IAM_HYDRA_ADMIN_URL`](./iam-hydra-admin-url) | ✓ |  |  | ✓ |  |  | — |
+| [`IAM_HYDRA_PUBLIC_URL`](./iam-hydra-public-url) | ✓ |  |  | ✓ |  |  | — |
+| [`IAM_KRATOS_ADMIN_URL`](./iam-kratos-admin-url) | ✓ |  |  | ✓ |  |  | — |
+| [`IAM_KRATOS_PUBLIC_URL`](./iam-kratos-public-url) | ✓ |  |  |  |  |  | — |
+| [`IS_ORY_NETWORK`](./is-ory-network) | ✓ |  |  |  |  |  | — |
+| [`KRATOS_ADMIN_URL`](./kratos-admin-url) | ✓ | ✓ |  |  |  |  | — |
+| [`KRATOS_API_KEY`](./kratos-api-key) | ✓ |  |  |  |  |  | — |
+| [`KRATOS_PUBLIC_URL`](./kratos-public-url) | ✓ | ✓ |  |  |  |  | — |
+| [`NEXT_PHASE`](./next-phase) |  | ✓ |  |  |  |  | — |
+| [`NEXT_PUBLIC_APP_INSTANCE`](./next-public-app-instance) | ✓ |  |  |  |  |  | — |
+| [`NEXT_PUBLIC_APP_URL`](./next-public-app-url) | ✓ |  |  | ✓ |  |  | — |
+| [`NEXT_PUBLIC_AUTH_HYDRA_URL`](./next-public-auth-hydra-url) | ✓ |  |  |  |  |  | — |
+| [`NEXT_PUBLIC_CIAM_ATHENA_URL`](./next-public-ciam-athena-url) |  |  |  | ✓ |  |  | — |
+| [`NEXT_PUBLIC_CIAM_HYDRA_URL`](./next-public-ciam-hydra-url) |  |  |  | ✓ |  |  | — |
+| [`NEXT_PUBLIC_IAM_ATHENA_URL`](./next-public-iam-athena-url) |  |  |  | ✓ |  |  | — |
+| [`NEXT_PUBLIC_IAM_HYDRA_PUBLIC_URL`](./next-public-iam-hydra-public-url) | ✓ |  |  |  |  |  | — |
+| [`NEXT_PUBLIC_IAM_HYDRA_URL`](./next-public-iam-hydra-url) |  |  |  | ✓ |  |  | — |
+| [`NEXT_RUNTIME`](./next-runtime) | ✓ | ✓ |  |  |  |  | — |
+| [`NODE_ENV`](./node-env) | ✓ | ✓ | ✓ | ✓ |  |  | — |
+| [`NODE_TLS_REJECT_UNAUTHORIZED`](./node-tls-reject-unauthorized) |  | ✓ |  |  |  |  | — |
+| [`NO_COLOR`](./no-color) |  |  |  |  | ✓ |  | — |
+| [`OAUTH_CLIENT_ID`](./oauth-client-id) | ✓ |  |  |  |  |  | — |
+| [`OCTL_NPMRC_PATH`](./octl-npmrc-path) |  |  |  |  | ✓ |  | — |
+| [`OLYMPUS_WORKSPACE`](./olympus-workspace) |  |  |  |  | ✓ |  | — |
+| [`ORY_API_KEY`](./ory-api-key) | ✓ |  |  |  |  |  | — |
+| [`PATH`](./path) |  |  |  |  | ✓ |  | — |
+| [`PRIVACY_URL`](./privacy-url) |  | ✓ |  |  |  |  | — |
+| [`PROXY_TIMEOUT_MS`](./proxy-timeout-ms) | ✓ |  |  |  |  |  | — |
+| [`RECOVERY_HMAC_SECRET`](./recovery-hmac-secret) |  | ✓ |  |  |  |  | — |
+| [`SDK_CACHE_TTL_MS`](./sdk-cache-ttl-ms) |  |  | ✓ |  |  |  | — |
 | [`SESSION_SIGNING_KEY`](./session-signing-key) | ✓ |  |  |  |  |  | yes |
-| [`SESSION_TTL_SECONDS`](./session-ttl-seconds) |  |  |  | ✓ |  |  | - |
-| [`SETTINGS_TABLE`](./settings-table) | ✓ |  | ✓ |  |  |  | - |
-| [`SHELL`](./shell) |  |  |  |  |  | ✓ | - |
-| [`TERM`](./term) |  |  |  |  | ✓ |  | - |
-| [`TERM_PROGRAM`](./term-program) |  |  |  |  | ✓ |  | - |
-| [`TZ`](./tz) | ✓ |  |  |  |  |  | - |
-| [`WT_SESSION`](./wt-session) |  |  |  |  | ✓ |  | - |
+| [`SESSION_TTL_SECONDS`](./session-ttl-seconds) |  |  |  | ✓ |  |  | — |
+| [`SETTINGS_TABLE`](./settings-table) | ✓ |  | ✓ |  |  |  | — |
+| [`SHELL`](./shell) |  |  |  |  |  | ✓ | — |
+| [`TERM`](./term) |  |  |  |  | ✓ |  | — |
+| [`TERMS_URL`](./terms-url) |  | ✓ |  |  |  |  | — |
+| [`TERM_PROGRAM`](./term-program) |  |  |  |  | ✓ |  | — |
+| [`TZ`](./tz) | ✓ |  |  |  |  |  | — |
+| [`WT_SESSION`](./wt-session) |  |  |  |  | ✓ |  | — |
 
-## Total: 69 variables.
+## Total: 70 variables.

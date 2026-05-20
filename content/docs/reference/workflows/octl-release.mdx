@@ -1,0 +1,101 @@
+---
+title: "Release — octl"
+description: "CI workflow in octl/.github/workflows/release.yml"
+---
+
+# Release — octl
+
+**Repo:** `octl`
+
+**File:** [`octl/.github/workflows/release.yml`](https://github.com/OlympusOSS/octl/blob/main/.github/workflows/release.yml)
+
+**Triggers:** `workflow_run`, `workflow_dispatch`
+
+## Jobs
+
+- **`release`** — 10 steps, runs on `ubuntu-latest`
+
+### Job: `release`
+
+Runs on: `ubuntu-latest`
+
+Steps:
+
+- `actions/checkout@v6`
+- `actions/setup-node@v6`
+- `npm ci`
+- `Check for pending changesets`
+- `Configure git`
+- `Version packages`
+- `Authenticate npm (npmjs.org)`
+- `Build`
+- `Publish to npmjs.org`
+- `Push release tags`
+
+
+## Source
+
+```yaml
+name: Release — octl
+
+# Changesets-powered release. Runs ONLY after the CI workflow completes
+# successfully on main — avoids racing CI in parallel and never publishes a
+# version that hasn't passed checks. On a successful CI run:
+#   1. If there are pending changesets, consume them locally (version bump +
+#      CHANGELOG update), commit directly to main, publish to npmjs.org.
+#   2. If no pending changesets, this workflow is a no-op.
+#
+# Avoids the PR-creation path entirely so it does not need the
+# "Allow GitHub Actions to create and approve pull requests" repo setting.
+
+on:
+  workflow_run:
+    workflows: ["CI — octl"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  # id-token: write enables npm provenance attestations on publish.
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # workflow_run fires on every completion (success/failure/cancelled). Gate
+    # to success-only here so a red CI doesn't trigger a publish attempt.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # workflow_run runs against the default branch by default; pin to the
+          # SHA that triggered CI so we publish the exact code that was tested.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Check for pending changesets
+        id: has_changesets
+        run: |
+          # count .md files in .changeset/ that aren't README.md
+          count=$(find .changeset -maxdepth 1 -name "*.md" ! -name "README.md" 2>/dev/null | wc -l | tr -d ' ')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Found $c
+... (truncated; see source link above)
+```
+
+---
+
+*Generated from `octl/.github/workflows/release.yml` at build time.*
