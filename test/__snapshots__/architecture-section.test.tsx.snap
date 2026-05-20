@@ -29,6 +29,7 @@ exports[`ArchitectureSection (snapshot) > matches default snapshot 1`] = `
       >
         <div
           class="rounded-xl border border-border bg-card text-card-foreground shadow"
+          data-slot="card"
         >
           <div
             class="p-6"
