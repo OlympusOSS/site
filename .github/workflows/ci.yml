@@ -2,7 +2,6 @@ name: CI — Site
 
 on:
   push:
-    branches: [main]
     paths:
       - 'src/**'
       - 'test/**'
@@ -20,6 +19,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Fresh push to the same ref cancels the prior in-flight run. Branch tip
+# always wins. Keeps queue depth bounded when iterating fast.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: read
@@ -27,8 +32,16 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # Gate runs (PR + push to main) run the full suite.
+      # Non-gate runs (feature-branch push) run lint + delta unit only.
+      IS_GATE: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          # `vitest --changed origin/main` needs the merge base to compute
+          # the diff. Full history is cheap for this repo.
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -68,22 +81,39 @@ jobs:
           "
       - run: bun install
       - run: bun run lint
-      - name: Run unit tests
+
+      - name: Run unit tests (delta — feature branch)
+        if: env.IS_GATE != 'true'
+        run: bunx vitest run --changed origin/main
+
+      - name: Run unit tests (full — PR or main)
+        if: env.IS_GATE == 'true'
         run: bun run test
+
       - name: Snapshot coverage gate (100%)
+        if: env.IS_GATE == 'true'
         run: bun run snapshot-coverage
+
       - name: Run unit tests with coverage (100/100/100/90 gate)
+        if: env.IS_GATE == 'true'
         run: bun run test:coverage
+
       # `next build` generates the fumadocs `.source/` runtime AND runs the
       # full TypeScript check against the produced source — same engine the
       # standalone `bun run typecheck` script would invoke. Skipping the
       # separate typecheck step keeps `.source/` generation in the right
       # order: a bare `tsc --noEmit` runs before MDX scaffolding exists and
       # fails to resolve `./.source/server`.
-      - run: bun run build
+      - name: Build
+        if: env.IS_GATE == 'true'
+        run: bun run build
+
       - name: Install Playwright browsers
+        if: env.IS_GATE == 'true'
         run: bunx playwright install --with-deps chromium
+
       - name: Run E2E tests
+        if: env.IS_GATE == 'true'
         run: bun run test:e2e
         env:
           CI: true
