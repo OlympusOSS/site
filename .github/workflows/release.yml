@@ -112,6 +112,32 @@ jobs:
         if: steps.has_changesets.outputs.count != '0'
         run: |
           bun run version-packages
+          # The earlier "Replace local workspace refs" step swapped link:
+          # deps to ^<version> for CI install. changeset version preserved
+          # that swap. Restore the original link: refs so the committed
+          # package.json keeps the dev-time workspace protocols.
+          node -e "
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+            const orig = JSON.parse(execSync('git show HEAD:package.json', { encoding: 'utf8' }));
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            let n = 0;
+            for (const g of ['dependencies', 'devDependencies', 'peerDependencies']) {
+              if (!orig[g] || !pkg[g]) continue;
+              for (const [name, ver] of Object.entries(orig[g])) {
+                if ((ver.startsWith('link:') || ver.startsWith('file:')) && pkg[g][name] && pkg[g][name] !== ver) {
+                  console.log(g + ': ' + name + ' ' + pkg[g][name] + ' -> ' + ver);
+                  pkg[g][name] = ver;
+                  n++;
+                }
+              }
+            }
+            if (n) {
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, '\t') + '\n');
+              console.log('Restored ' + n + ' workspace ref(s).');
+            }
+          "
+          git checkout HEAD -- bun.lock
           git add .
           if git diff --cached --quiet; then
             echo "No version changes to commit."
