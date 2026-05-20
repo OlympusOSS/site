@@ -3,6 +3,19 @@ name: CI — Site
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'Containerfile'
+      - 'next.config.*'
+      - 'playwright.config.*'
+      - 'vitest.config.*'
+      - '.github/workflows/**'
+      - 'content/**'
   pull_request:
     branches: [main]
   workflow_dispatch:
