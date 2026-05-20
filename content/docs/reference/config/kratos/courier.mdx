@@ -1,0 +1,20 @@
+---
+title: "courier"
+description: "Kratos courier configuration"
+---
+
+# `courier` section
+
+Email courier — SMTP, sender, templates.
+
+Every `courier.*` key across the four Kratos instances:
+
+| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |
+|-----|----------|-----------|---------|----------|
+| `smtp.connection_uri` | `smtps://test:test@mailslurper:1025/?skip_ssl_verify=true` | — | `smtps://test:test@mailslurper:1025/?skip_ssl_verify=true` | — |
+
+See [Ory Kratos config reference](https://www.ory.sh/docs/kratos/reference/configuration) for the full schema.
+
+---
+
+*Generated from kratos.yml files at build time.*

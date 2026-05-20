@@ -1,0 +1,34 @@
+---
+title: "/settings/totp"
+description: "Hera page at /settings/totp"
+---
+
+# Hera page `/settings/totp`
+
+Hera page at /settings/totp
+
+**Source:** [`hera/src/app/settings/totp/page.tsx`](https://github.com/OlympusOSS/hera/blob/main/src/app/settings/totp/page.tsx)
+
+## What it does
+
+Hera pages render Kratos self-service flows or handle Hydra challenges. Most of the logic comes from upstream Kratos/Hydra; Hera is the thin presentation layer.
+
+The pages typically:
+1. Read a flow ID or challenge from the URL.
+2. Fetch the current state from Kratos/Hydra.
+3. Render `ui.nodes` via Canvas's `SchemaForm` component.
+4. POST submission back to the Kratos/Hydra endpoint.
+
+## Olympus additions
+
+Depending on the flow, Hera also:
+- Validates Cloudflare Turnstile tokens server-side ([Security — Captcha](/docs/security/captcha-turnstile)).
+- Runs the HIBP breached-password check ([Security — Breached password](/docs/security/breached-password)).
+- Records login attempts in the SDK's brute-force tracker.
+- Emits audit events to stdout.
+
+## Related
+
+- [Internals — Hera route map](/docs/internals/hera-route-map)
+- [Internals — Hera Kratos integration](/docs/internals/hera-kratos-integration)
+- [Identity — Flow login](/docs/identity/flow-login)

@@ -1,0 +1,26 @@
+---
+title: "hashers"
+description: "Kratos hashers configuration"
+---
+
+# `hashers` section
+
+Password hash algorithm and parameters.
+
+Every `hashers.*` key across the four Kratos instances:
+
+| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |
+|-----|----------|-----------|---------|----------|
+| `algorithm` | `bcrypt` | `bcrypt` | — | — |
+| `argon2.iterations` | — | — | `2` | `3` |
+| `argon2.key_length` | — | — | `16` | `32` |
+| `argon2.memory` | — | — | `128KB` | `256KB` |
+| `argon2.parallelism` | — | — | `1` | `4` |
+| `argon2.salt_length` | — | — | `16` | `16` |
+| `bcrypt.cost` | `8` | `12` | — | — |
+
+See [Ory Kratos config reference](https://www.ory.sh/docs/kratos/reference/configuration) for the full schema.
+
+---
+
+*Generated from kratos.yml files at build time.*

@@ -1,0 +1,32 @@
+---
+title: "security"
+description: "Security audit log viewer."
+---
+
+# Feature: `security`
+
+Security audit log viewer.
+
+**Source:** [`athena/src/features/security/`](https://github.com/OlympusOSS/athena/tree/main/src/features/security)
+
+## Files
+
+A feature module typically contains:
+- `page.tsx` — Next.js route entry.
+- `components/` — feature-specific React components.
+- `actions.ts` — server actions / API client calls.
+- `*.test.ts` — Vitest unit tests.
+
+## How it talks to Ory
+
+All Kratos/Hydra calls go through the [service layer](/docs/internals/athena-service-layer) — never direct from the feature. This keeps the feature testable in isolation.
+
+## Related
+
+- [Internals — Athena route map](/docs/internals/athena-route-map)
+- [Internals — Athena service layer](/docs/internals/athena-service-layer)
+- [Internals — Athena feature modules](/docs/internals/athena-features)
+
+---
+
+*Generated from `athena/src/features/` at build time.*

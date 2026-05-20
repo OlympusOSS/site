@@ -1,6 +1,6 @@
 ---
 title: iam-hera
-description: Compose service `iam-hera`, runtime configuration across dev and prod
+description: Compose service `iam-hera` — runtime configuration across dev and prod
 ---
 
 Compose service **`iam-hera`**.
@@ -26,9 +26,6 @@ Compose service **`iam-hera`**.
 | `KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
 | `DEFAULT_OAUTH2_CLIENT_ID` | `athena-iam-client` |
 | `HYDRA_PUBLIC_URL` | `http://localhost:4102` |
-| `CAPTCHA_ENABLED` | `false` |
-| `CAPTCHA_SITE_KEY` | `` |
-| `CAPTCHA_SECRET_KEY` | `` |
 | `DATABASE_URL` | `postgres://postgres:secret@postgres:5432/olympus?sslmode` |
 | `SETTINGS_TABLE` | `iam_settings` |
 | `ENCRYPTION_KEY` | `dev-encryption-key-minimum-32-chars!!` |
@@ -65,9 +62,6 @@ Compose service **`iam-hera`**.
 | `KRATOS_ADMIN_URL` | `http://iam-kratos:7001` |
 | `DEFAULT_OAUTH2_CLIENT_ID` | `athena-iam-client` |
 | `HYDRA_PUBLIC_URL` | `${IAM_HYDRA_PUBLIC_URL}` |
-| `CAPTCHA_ENABLED` | `${IAM_CAPTCHA_ENABLED:-true}` |
-| `CAPTCHA_SITE_KEY` | `${IAM_CAPTCHA_SITE_KEY:-}` |
-| `CAPTCHA_SECRET_KEY` | `${IAM_CAPTCHA_SECRET_KEY:-}` |
 | `DATABASE_URL` | `${PG_OLYMPUS_DSN}` |
 | `SETTINGS_TABLE` | `iam_settings` |
 | `ENCRYPTION_KEY` | `${ENCRYPTION_KEY}` |

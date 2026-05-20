@@ -1,0 +1,19 @@
+---
+title: "oidc"
+description: "Hydra oidc configuration"
+---
+
+# `oidc` section
+
+OIDC subject strategy, discovery customizations.
+
+| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |
+|-----|----------|-----------|---------|----------|
+| `subject_identifiers.pairwise.salt` | `ciam-hydra-pairwise-salt` | — | `iam-hydra-pairwise-salt` | — |
+| `subject_identifiers.supported_types` | array[2] | array[2] | array[2] | array[2] |
+
+See [Ory Hydra config reference](https://www.ory.sh/docs/hydra/reference/configuration).
+
+---
+
+*Generated from hydra.yml files at build time.*

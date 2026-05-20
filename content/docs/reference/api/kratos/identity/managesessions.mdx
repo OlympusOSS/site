@@ -8,9 +8,9 @@ description: "Disable or delete sessions for a list of identities or a list of s
 Disable or delete sessions for a list of identities or a list of sessions in
 a single call. The `action` field selects the operation:
 
-`disable`, deactivate matching sessions (sets `active = false`, preserves
+`disable` — deactivate matching sessions (sets `active = false`, preserves
 audit data).
-`delete`, permanently delete matching sessions.
+`delete` — permanently delete matching sessions.
 
 Exactly one of `identities` or `sessions` must be provided. To scope the
 operation to every session in the network, pass `identities: ["*"]`; the
@@ -33,17 +33,17 @@ callers drain the network by re-issuing the same request while `more` is
 
 Type: object
 
-Schema: `manageSessionsBody`, see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+Schema: `manageSessionsBody` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
 
 
 #### Responses
 
 | Status | Description | Body |
 |--------|-------------|------|
-| 200 | manageSessionsResponse | `application/json`, object |
-| 400 | errorGeneric | `application/json`, object |
-| 401 | errorGeneric | `application/json`, object |
-| default | errorGeneric | `application/json`, object |
+| 200 | manageSessionsResponse | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| 401 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
 
 #### Security
 
@@ -51,4 +51,4 @@ Schema: `manageSessionsBody`, see the [Ory Identities API schemas](https://www.o
 
 ---
 
-*Generated from `/tmp/kratos-api.json` at build time.*
+*Generated from `scripts/gen/specs/kratos-api.json` at build time.*

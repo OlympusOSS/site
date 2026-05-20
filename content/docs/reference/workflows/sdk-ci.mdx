@@ -1,0 +1,60 @@
+---
+title: "CI — SDK"
+description: "CI workflow in sdk/.github/workflows/ci.yml"
+---
+
+# CI — SDK
+
+**Repo:** `sdk`
+
+**File:** [`sdk/.github/workflows/ci.yml`](https://github.com/OlympusOSS/sdk/blob/main/.github/workflows/ci.yml)
+
+**Triggers:** `push` (branches: main), `pull_request`, `workflow_dispatch`
+
+## Jobs
+
+- **`test`** — 4 steps, runs on `ubuntu-latest`
+
+### Job: `test`
+
+Runs on: `ubuntu-latest`
+
+Steps:
+
+- `actions/checkout@v6`
+- `oven-sh/setup-bun@v2`
+- `bun install`
+- `bunx tsc --noEmit`
+
+
+## Source
+
+```yaml
+name: CI — SDK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bunx tsc --noEmit
+
+```
+
+---
+
+*Generated from `sdk/.github/workflows/ci.yml` at build time.*

@@ -1,0 +1,97 @@
+---
+title: "Release — Site"
+description: "CI workflow in site/.github/workflows/release.yml"
+---
+
+# Release — Site
+
+**Repo:** `site`
+
+**File:** [`site/.github/workflows/release.yml`](https://github.com/OlympusOSS/site/blob/main/.github/workflows/release.yml)
+
+**Triggers:** `workflow_run`, `workflow_dispatch`
+
+## Jobs
+
+- **`release`** — 9 steps, runs on `ubuntu-latest`
+
+### Job: `release`
+
+Runs on: `ubuntu-latest`
+
+Steps:
+
+- `actions/checkout@v6`
+- `oven-sh/setup-bun@v2`
+- `Configure npm for the @olympusoss scope`
+- `bun install --frozen-lockfile`
+- `Check for pending changesets`
+- `Configure git`
+- `Version packages`
+- `Tag release`
+- `Dispatch CD on the new tag`
+
+
+## Source
+
+```yaml
+name: Release — Site
+
+# Changesets-powered release for the site. Runs ONLY after CI completes
+# successfully on main. On each run:
+#   1. If there are pending changesets, consume them locally (version bump +
+#      CHANGELOG update), commit directly to main, push the resulting
+#      'v<version>' git tag.
+#   2. If no pending changesets, this workflow is a no-op.
+#
+# The existing CD — Site workflow (.github/workflows/cd.yml) listens for
+# 'v*' tags and handles the container build + deploy from there. This
+# workflow does NOT publish to npm — the site is '"private": true', so
+# 'changeset publish' just creates the git tag locally and exits without
+# hitting any registry.
+#
+# Avoids the PR-creation path entirely so it does not need the
+# "Allow GitHub Actions to create and approve pull requests" repo setting.
+
+on:
+  workflow_run:
+    workflows: ["CI — Site"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  # 'actions: write' lets the workflow's GITHUB_TOKEN call the
+  # workflow_dispatch API to fire 'CD — Site' on the new tag. Without
+  # it the dispatch returns "HTTP 403: Resource not accessible by
+  # integration" (default GITHUB_TOKEN permissions don't include
+  # cross-workflow dispatch).
+  actions: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # workflow_run fires on every completion (success/failure/cancelled).
+    # Gate to success-only so a red CI doesn't bump the version.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # workflow_run runs against the default branch by default; pin to the
+          # SHA that triggered CI so we tag the exact code that was tested.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: 
+... (truncated; see source link above)
+```
+
+---
+
+*Generated from `site/.github/workflows/release.yml` at build time.*

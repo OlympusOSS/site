@@ -23,18 +23,18 @@ The fields `id`, `stateChangedAt` and `credentials` can not be updated using thi
 
 Type: array of object
 
-Schema: `jsonPatchDocument`, see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
+Schema: `jsonPatchDocument` — see the [Ory Identities API schemas](https://www.ory.sh/docs/reference/api) reference for the full type.
 
 
 #### Responses
 
 | Status | Description | Body |
 |--------|-------------|------|
-| 200 | identity | `application/json`, object |
-| 400 | errorGeneric | `application/json`, object |
-| 404 | errorGeneric | `application/json`, object |
-| 409 | errorGeneric | `application/json`, object |
-| default | errorGeneric | `application/json`, object |
+| 200 | identity | `application/json` — object |
+| 400 | errorGeneric | `application/json` — object |
+| 404 | errorGeneric | `application/json` — object |
+| 409 | errorGeneric | `application/json` — object |
+| default | errorGeneric | `application/json` — object |
 
 #### Security
 
@@ -42,4 +42,4 @@ Schema: `jsonPatchDocument`, see the [Ory Identities API schemas](https://www.or
 
 ---
 
-*Generated from `/tmp/kratos-api.json` at build time.*
+*Generated from `scripts/gen/specs/kratos-api.json` at build time.*

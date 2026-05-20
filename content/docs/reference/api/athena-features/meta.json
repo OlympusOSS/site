@@ -1,0 +1,18 @@
+{
+  "title": "Athena features",
+  "pages": [
+    "overview",
+    "analytics",
+    "auth",
+    "identities",
+    "m2m-clients",
+    "messages",
+    "oauth2-auth",
+    "oauth2-clients",
+    "oauth2-tokens",
+    "schemas",
+    "security",
+    "sessions",
+    "settings"
+  ]
+}

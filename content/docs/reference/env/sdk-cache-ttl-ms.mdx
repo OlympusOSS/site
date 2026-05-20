@@ -1,0 +1,34 @@
+---
+title: "SDK_CACHE_TTL_MS"
+description: "Environment variable used by: sdk"
+---
+
+# `SDK_CACHE_TTL_MS`
+
+**Read by:** `sdk`
+
+**Sensitive:** No — safe to log / share.
+
+**Required:** unspecified
+
+## Where it's read
+
+- **sdk** — `grep -r "SDK_CACHE_TTL_MS" ../sdk/src` for code locations
+
+## Setting it
+
+### Dev
+
+Set in your local `.env.dev` file (managed by `octl deploy`).
+
+### Prod
+
+```bash
+gh secret set SDK_CACHE_TTL_MS --body "<value>" -R OlympusOSS/platform
+gh workflow run deploy.yml
+```
+
+
+---
+
+*Generated from source by `scripts/gen/env-vars-per-var.mjs`.*

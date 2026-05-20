@@ -1,0 +1,20 @@
+---
+title: "dsn"
+description: "Kratos dsn configuration"
+---
+
+# `dsn` section
+
+Database connection string.
+
+Every `dsn.*` key across the four Kratos instances:
+
+| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |
+|-----|----------|-----------|---------|----------|
+| `dsn` | `sqlite:///var/lib/sqlite/db.sqlite?_fk=true` | — | `memory` | — |
+
+See [Ory Kratos config reference](https://www.ory.sh/docs/kratos/reference/configuration) for the full schema.
+
+---
+
+*Generated from kratos.yml files at build time.*

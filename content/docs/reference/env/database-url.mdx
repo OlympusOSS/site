@@ -1,0 +1,38 @@
+---
+title: "DATABASE_URL"
+description: "PostgreSQL connection string. Must include `sslmode=verify-full` in production."
+---
+
+# `DATABASE_URL`
+
+**Read by:** `sdk`
+
+**Sensitive:** **Yes** — treat as a secret. Store in GitHub Secrets / your vault.
+
+**Required:** yes
+
+## Purpose
+
+PostgreSQL connection string. Must include `sslmode=verify-full` in production.
+
+## Where it's read
+
+- **sdk** — `grep -r "DATABASE_URL" ../sdk/src` for code locations
+
+## Setting it
+
+### Dev
+
+Set in your local `.env.dev` file (managed by `octl deploy`).
+
+### Prod
+
+```bash
+gh secret set DATABASE_URL --body "<value>" -R OlympusOSS/platform
+gh workflow run deploy.yml
+```
+
+
+---
+
+*Generated from source by `scripts/gen/env-vars-per-var.mjs`.*

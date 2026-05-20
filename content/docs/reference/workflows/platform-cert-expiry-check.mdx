@@ -1,0 +1,93 @@
+---
+title: "Certificate Expiry Check"
+description: "CI workflow in platform/.github/workflows/cert-expiry-check.yml"
+---
+
+# Certificate Expiry Check
+
+**Repo:** `platform`
+
+**File:** [`platform/.github/workflows/cert-expiry-check.yml`](https://github.com/OlympusOSS/platform/blob/main/.github/workflows/cert-expiry-check.yml)
+
+**Triggers:** `schedule(0 9 1 * *)`, `workflow_dispatch`
+
+## Jobs
+
+- **`check-expiry`** — 4 steps, runs on `ubuntu-latest`
+
+### Job: `check-expiry`
+
+Runs on: `ubuntu-latest`
+
+Steps:
+
+- `Checkout`
+- `Check server cert expiry`
+- `Check CA cert expiry`
+- `Create alert issue (if needed)`
+
+
+## Source
+
+```yaml
+# Certificate Expiry Alerting (SR-53-1 / platform#53)
+#
+# Monthly check of PostgreSQL TLS certificate expiry dates.
+# Creates a GitHub Issue when certificates approach expiry thresholds:
+#   - Server cert (1-year): alert at 90 days remaining
+#   - CA cert (5-year): alert at 180 days remaining
+#
+# Duplicate prevention: checks for existing open issues with the same label
+# before creating a new one.
+#
+# Assignee: Team Lead (cert rotation responsibility per runbook)
+# Labels: security, cert-expiry
+
+name: Certificate Expiry Check
+
+on:
+  schedule:
+    # Monthly on the 1st at 09:00 UTC
+    - cron: '0 9 1 * *'
+  workflow_dispatch: {}
+
+jobs:
+  check-expiry:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check server cert expiry
+        id: server-cert
+        run: |
+          CERT_FILE="prod/postgres/server.crt"
+          if [ ! -f "$CERT_FILE" ]; then
+            echo "FATAL: $CERT_FILE not found in repo"
+            echo "alert=true" >> "$GITHUB_OUTPUT"
+            echo "message=Server certificate file missing from repository" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          EXPIRY_DATE=$(openssl x509 -in "$CERT_FILE" -noout -enddate | cut -d= -f2)
+          EXPIRY_EPOCH=$(date -d "$EXPIRY_DATE" +%s 2>/dev/null || date -jf "%b %d %T %Y %Z" "$EXPIRY_DATE" +%s)
+          NOW_EPOCH=$(date +%s)
+          DAYS_REMAINING=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+          echo "Server cert expires: $EXPIRY_DATE ($DAYS_REMAINING days remaining)"
+          echo "days=$DAYS_REMAINING" >> "$GITHUB_OUTPUT"
+          echo "expiry=$EXPIRY_DATE" >> "$GITHUB_OUTPUT"
+
+          if [ "$DAYS_REMAINING" -le 90 ]; then
+            echo "alert=true" >> "$GITHUB_OUTPUT"
+            echo "message=Server certificate expires in $DAYS_REMAINING days ($EXPIRY_DATE). Annual rotation required." >> "$GITHUB_OUTPUT"
+          else
+            echo "alert=false" >> "$GITHUB_OUTPUT"
+            echo "Server cert OK: $DAYS_REMA
+... (truncated; see source link above)
+```
+
+---
+
+*Generated from `platform/.github/workflows/cert-expiry-check.yml` at build time.*

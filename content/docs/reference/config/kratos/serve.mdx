@@ -1,0 +1,31 @@
+---
+title: "serve"
+description: "Kratos serve configuration"
+---
+
+# `serve` section
+
+HTTP server config — listen, CORS, cookie domain.
+
+Every `serve.*` key across the four Kratos instances:
+
+| Key | CIAM dev | CIAM prod | IAM dev | IAM prod |
+|-----|----------|-----------|---------|----------|
+| `admin.base_url` | `http://ciam-kratos:4434/` | `http://ciam-kratos:5001/` | `http://localhost:4101/` | — |
+| `admin.host` | — | `0.0.0.0` | — | `0.0.0.0` |
+| `admin.port` | — | — | `7001` | `7001` |
+| `public.base_url` | `http://localhost:4433/` | `http://ciam-kratos:5000/` | `http://localhost:4100/` | — |
+| `public.cors.allow_credentials` | — | — | `true` | `true` |
+| `public.cors.allowed_headers` | array[3] | array[3] | array[3] | array[3] |
+| `public.cors.allowed_methods` | array[5] | array[5] | array[5] | array[5] |
+| `public.cors.allowed_origins` | array[2] | — | array[3] | — |
+| `public.cors.enabled` | `true` | `true` | `true` | `true` |
+| `public.cors.exposed_headers` | array[2] | array[2] | array[2] | array[2] |
+| `public.host` | — | `0.0.0.0` | — | `0.0.0.0` |
+| `public.port` | — | — | `7000` | `7000` |
+
+See [Ory Kratos config reference](https://www.ory.sh/docs/kratos/reference/configuration) for the full schema.
+
+---
+
+*Generated from kratos.yml files at build time.*
