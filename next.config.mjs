@@ -9,6 +9,11 @@ const withMDX = createMDX();
 const nextConfig = {
 	output: "standalone",
 	transpilePackages: ["@olympusoss/canvas"],
+	// Turbopack uses inotify, which does not fire for Podman bind mounts on
+	// macOS. Polling at 500 ms keeps live reload working in the dev stack.
+	watchOptions: {
+		pollIntervalMs: 500,
+	},
 	env: {
 		APP_VERSION: version,
 	},
