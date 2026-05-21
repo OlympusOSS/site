@@ -78,7 +78,7 @@ jobs:
       contents: read
       packages: write
       # SLSA-style provenance attestations on the pushed image.
-      # docker/build-push-action@v6 auto-emits attestations when
+      # docker/build-push-action@v7 auto-emits attestations when
       # id-token + attestations are writable. Mirrors canvas's
       # `id-token: write` on npm publish — same idea, different
       # registry (GHCR instead of npmjs).
@@ -148,7 +148,7 @@ jobs:
         # transient registry errors internally, so the loop is gone here.
         # If 504s come back, the right fix is the standard
         # `nick-fields/retry@v3` wrapper, not re-rolling our own.
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Containerfile
