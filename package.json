@@ -6,7 +6,7 @@
 	"scripts": {
 		"gen": "node scripts/gen/index.mjs",
 		"prebuild": "npm run gen",
-		"postinstall": "[ -e .canvas-local ] || ln -sfn ../canvas .canvas-local; [ -d .canvas-local ] && rm -rf node_modules/@olympusoss/canvas && ln -sfn ../../.canvas-local node_modules/@olympusoss/canvas; true",
+		"postinstall": "[ -e .canvas ] || ln -sfn ../canvas .canvas; [ -d .canvas ] && rm -rf node_modules/@olympusoss/canvas && ln -sfn ../../.canvas node_modules/@olympusoss/canvas; true",
 		"dev": "next dev",
 		"build": "next build",
 		"start": "next start",

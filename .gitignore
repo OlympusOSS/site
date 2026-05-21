@@ -15,7 +15,7 @@ yarn-error.log*
 .idea/
 .vscode/
 .npmrc*
-.canvas-local
+.canvas
 package-lock.json
 test-results/
 CLAUDE.md
